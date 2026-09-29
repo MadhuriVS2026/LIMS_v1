@@ -138,6 +138,10 @@ export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFor
   const [values, setValues] = useState<Values>(() => seedValues(detail));
   const [contextValues, setContextValues] = useState<Record<string, unknown>>({});
   const [dirty, setDirty] = useState(false);
+  //  Per-section edit locks: a group is read-only until its "Edit" button puts
+  //  its key in here. Whole-worksheet editability (from the TRF status) is the
+  //  outer gate; this is the finer, per-subsection control on top of it.
+  const [editingGroups, setEditingGroups] = useState<Set<string>>(new Set());
 
   const preview = usePreview(detail.worksheet.id);
   //  Server-computed state: the freshest preview, falling back to what the
@@ -160,6 +164,7 @@ export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFor
     setValues(seeded);
     setContextValues({});
     setDirty(false);
+    setEditingGroups(new Set());
     preview.reset(detail.computed);
     //  Compute calculated fields from the seeded/stored inputs straight away.
     //  Without this, derived cells like Standard Details → Concentration (ppm)
@@ -220,7 +225,7 @@ export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFor
 
   const renderInput = (group: GroupDef, rowIndex: number, field: FieldDef) => {
     const value = values[group.key]?.[rowIndex]?.[field.key] ?? null;
-    const disabled = !editable;
+    const disabled = !isGroupEditing(group.key);
     const label = `${group.label ?? group.key} row ${rowIndex + 1} ${field.label ?? field.key}`;
 
     if (field.options && field.options.length) {
@@ -275,6 +280,90 @@ export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFor
   };
 
   const handleSave = () => onSave({ context_values: contextValues, group_values: values });
+
+  //  ── Per-section controls ──
+  //  A section is only interactive when the worksheet as a whole is editable
+  //  (TRF status) AND the analyst has clicked Edit on that section.
+  const isGroupEditing = (groupKey: string) => editable && editingGroups.has(groupKey);
+
+  const startEditGroup = (groupKey: string) => {
+    setEditingGroups((prev) => new Set(prev).add(groupKey));
+  };
+
+  //  Save persists the WHOLE worksheet, not just this group: calculated fields
+  //  span groups (standard areas feed the statistics, which feed the assay), so
+  //  the backend evaluates and stores them together. The button simply lives on
+  //  the section the analyst finished with, and re-locks it afterward.
+  const saveGroup = (groupKey: string) => {
+    onSave({ context_values: contextValues, group_values: values });
+    setEditingGroups((prev) => {
+      const next = new Set(prev);
+      next.delete(groupKey);
+      return next;
+    });
+  };
+
+  //  Clear resets this section's rows/fields to their defaults (tables fall back
+  //  to the minimum row count), recalculates, and persists — so "Delete" empties
+  //  the subsection without removing the group the template defines.
+  const clearGroup = (group: GroupDef) => {
+    const min = group.rows?.min ?? 1;
+    const count = group.kind === 'singleton' ? 1 : min;
+    const blankRows: WorksheetRow[] = Array.from({ length: count }, () => {
+      const row: WorksheetRow = {};
+      for (const field of group.fields ?? []) {
+        if (isEditableField(field)) row[field.key] = field.default ?? null;
+      }
+      return row;
+    });
+    const next = { ...values, [group.key]: blankRows };
+    setValues(next);
+    setDirty(true);
+    recalculate(next, contextValues);
+    onSave({ context_values: contextValues, group_values: next });
+    setEditingGroups((prev) => {
+      const nextSet = new Set(prev);
+      nextSet.delete(group.key);
+      return nextSet;
+    });
+  };
+
+  /** The Edit / Save / Delete toolbar shown on each editable section. */
+  const renderGroupToolbar = (group: GroupDef) => {
+    if (!editable) return null;
+    const editingThis = editingGroups.has(group.key);
+    return (
+      <div className="flex align-items-center gap-1">
+        {editingThis ? (
+          <Button
+            label="Save"
+            icon="pi pi-save"
+            size="small"
+            text
+            loading={saving}
+            onClick={() => saveGroup(group.key)}
+          />
+        ) : (
+          <Button
+            label="Edit"
+            icon="pi pi-pencil"
+            size="small"
+            text
+            onClick={() => startEditGroup(group.key)}
+          />
+        )}
+        <Button
+          label="Delete"
+          icon="pi pi-trash"
+          size="small"
+          text
+          severity="danger"
+          onClick={() => clearGroup(group)}
+          aria-label={`Clear ${group.label ?? group.key}`}
+        />
+      </div>
+    );
+  };
 
   const areaFieldCount = groups.reduce(
     (n, g) => n + (g.fields ?? []).filter((f) => f.kind === 'area').length,
@@ -343,8 +432,14 @@ export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFor
         const canAddRows = editable && group.kind !== 'singleton' && max > min;
 
         if (group.kind === 'singleton') {
+          //  Only show the toolbar on sections the analyst can actually fill in.
+          const hasEditable = editableFields.length > 0;
           return (
-            <Card title={group.label ?? group.key} key={group.key}>
+            <Card key={group.key}>
+              <div className="flex justify-content-between align-items-center mb-2">
+                <h3 className="m-0 text-base">{group.label ?? group.key}</h3>
+                {hasEditable && renderGroupToolbar(group)}
+              </div>
               <div className="grid">
                 {editableFields.map((field) => (
                   <div className="col-12 md:col-4 lg:col-3" key={field.key}>
@@ -378,25 +473,30 @@ export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFor
           );
         }
 
+        const editingThisGroup = isGroupEditing(group.key);
+        const hasEditableCols = editableFields.length > 0;
         return (
           <Card key={group.key}>
             <div className="flex justify-content-between align-items-center mb-2">
               <h3 className="m-0 text-base">{group.label ?? group.key}</h3>
-              {canAddRows && (
-                <div className="flex align-items-center gap-2">
-                  <span className="text-xs text-500">
-                    {rows.length} of {max} row(s)
-                  </span>
-                  <Button
-                    label="Add Row"
-                    icon="pi pi-plus"
-                    size="small"
-                    text
-                    onClick={() => addRow(group)}
-                    disabled={rows.length >= max}
-                  />
-                </div>
-              )}
+              <div className="flex align-items-center gap-2">
+                {canAddRows && editingThisGroup && (
+                  <>
+                    <span className="text-xs text-500">
+                      {rows.length} of {max} row(s)
+                    </span>
+                    <Button
+                      label="Add Row"
+                      icon="pi pi-plus"
+                      size="small"
+                      text
+                      onClick={() => addRow(group)}
+                      disabled={rows.length >= max}
+                    />
+                  </>
+                )}
+                {hasEditableCols && renderGroupToolbar(group)}
+              </div>
             </div>
 
             <div className="overflow-auto">
@@ -448,15 +548,17 @@ export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFor
                       ))}
                       {canAddRows && (
                         <td className="p-1">
-                          <Button
-                            icon="pi pi-trash"
-                            size="small"
-                            text
-                            severity="danger"
-                            disabled={rows.length <= min}
-                            onClick={() => removeRow(group, rowIndex)}
-                            aria-label={`Remove row ${rowIndex + 1}`}
-                          />
+                          {editingThisGroup && (
+                            <Button
+                              icon="pi pi-trash"
+                              size="small"
+                              text
+                              severity="danger"
+                              disabled={rows.length <= min}
+                              onClick={() => removeRow(group, rowIndex)}
+                              aria-label={`Remove row ${rowIndex + 1}`}
+                            />
+                          )}
                         </td>
                       )}
                     </tr>
