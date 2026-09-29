@@ -1,0 +1,92 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+build/
+.eggs/
+
+# Database
+*.db
+*.sqlite3
+
+# Environment
+.env
+**/.env
+.venv/
+env/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Extracted archives (large files)
+extracted_onedrive/
+extracted_new/
+
+# Zip files
+*.zip
+
+# Docs (PDFs too large for repo)
+DOCS/
+
+# Node
+node_modules/
+frontend-react/dist/
+frontend-react/.vite/
+*.tsbuildinfo
+
+# Uploaded TRF attachments (chromatogram PDFs, raw data). Content, not source —
+# and this directory must never be web-exposed, since downloads are authorised
+# and streamed through the API.
+**/storage/attachments/
+
+# Backend-v2 (enterprise architecture)
+backend-v2/logs/
+backend-v2/*.db
+backend-v2/.env
+# Uploaded TRF attachments (chromatogram PDFs, raw data) — user content, never committed
+backend-v2/storage/
+backend-v2/__pycache__/
+**/__pycache__/
+*.pyc
+
+# Enterprise reference (cloned for study, not part of this repo)
+enterprise-ref/
+
+# Logs
+*.log
+
+# SAP integration: Postman collection contains a real, embedded API key —
+# never commit it. Connectivity test scripts are fine (they read from .env).
+sap-integration/*.postman_collection.json
+sap-integration/response.json
+
+# Throwaway analysis scripts and intermediate dumps from the workbook parse.
+# The two dumps that ARE reference material (_inspect_tests/forms_dump.txt and
+# xls_formulas_dump.txt) are committed deliberately — design.md cites them as the
+# implementation reference for the template definitions.
+_convert_xls.ps1
+_dump_all.py
+_dumps/
+_inspect_tests.py
+_probe_env.py
+_probe_out.txt
+_xlsx_conv/
+
+# Database backups (created by DB reload/setup steps) — data + password hashes, not source
+*.db.bak-*
+backend-v2/*.db.bak-*
+backend-v2/*.db.bak
+
+# SQL data dumps — full DB export incl. bcrypt password hashes, not source
+*_schema_and_data*.sql
+lims_schema_and_data.sql

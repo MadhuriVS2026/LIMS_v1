@@ -1,0 +1,15 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+# This is an analytical-testing domain, so a large number of *production*
+# classes legitimately begin with "Test": TestModel, TestParameter,
+# TestRequestForm, TestTemplate, TestWorksheet, and their repositories. pytest
+# treats any imported `Test*` class as a collection candidate and warns that it
+# cannot collect one with an `__init__`. That collision is structural and
+# permanent rather than a naming mistake, so the specific "cannot collect"
+# warning is silenced. Every other PytestCollectionWarning still surfaces.
+filterwarnings = [
+    "ignore:cannot collect test class:pytest.PytestCollectionWarning",
+]

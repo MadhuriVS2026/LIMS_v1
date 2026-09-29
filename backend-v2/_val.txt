@@ -1,0 +1,22 @@
+Validating 18 template definition(s)...
+  ok   TPL-A1-0001 [A1] 7 groups, 19 inputs, 7 area fields, 13 calculated, 3 criteria
+  ok   TPL-A2-0001 [A2] 4 groups, 17 inputs, 8 area fields, 9 calculated, 2 criteria
+  ok   TPL-A3-0001 [A3] 4 groups, 14 inputs, 2 area fields, 6 calculated, 2 criteria
+  ok   TPL-A4-0001 [A4] 6 groups, 20 inputs, 3 area fields, 12 calculated, 3 criteria
+  ok   TPL-A5-0001 [A5] 4 groups, 5 inputs, 2 area fields, 8 calculated, 2 criteria
+  ok   TPL-A6A-0001 [A6a] 4 groups, 11 inputs, 7 area fields, 27 calculated, 1 criteria
+  ok   TPL-A6B-0001 [A6b] 4 groups, 11 inputs, 7 area fields, 27 calculated, 1 criteria
+  ok   TPL-A6C-0001 [A6c] 4 groups, 17 inputs, 2 area fields, 7 calculated, 2 criteria
+  ok   TPL-A6D-0001 [A6d] 6 groups, 17 inputs, 8 area fields, 62 calculated, 5 criteria
+  ok   TPL-A8-0001 [A8] 5 groups, 17 inputs, 2 area fields, 12 calculated, 3 criteria
+  ok   TPL-A8-0002 [A8] 2 groups, 3 inputs, 0 area fields, 9 calculated, 2 criteria
+  ok   TPL-A9-0001 [A9] 1 groups, 3 inputs, 0 area fields, 4 calculated, 1 criteria
+  ok   TPL-A10-0001 [A10] 1 groups, 4 inputs, 0 area fields, 3 calculated, 1 criteria
+  ok   TPL-A10-0002 [A10] 1 groups, 4 inputs, 0 area fields, 3 calculated, 0 criteria
+  ok   TPL-A13-0001 [A13] 5 groups, 15 inputs, 2 area fields, 8 calculated, 2 criteria
+  ok   TPL-A11-0001 [A11] 5 groups, 54 inputs, 0 area fields, 25 calculated, 4 criteria
+  ok   TPL-A11-0002 [A11] 5 groups, 54 inputs, 0 area fields, 23 calculated, 4 criteria
+  ok   TPL-A14-0001 [A14] 5 groups, 21 inputs, 12 area fields, 38 calculated, 2 criteria
+
+All definitions valid. --validate-only, so nothing was written.
+EXIT=0 
