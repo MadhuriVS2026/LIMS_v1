@@ -13,6 +13,16 @@ class CreateProductRequest(BaseModel):
     storage_condition: str | None = None
 
 
+class UpdateProductRequest(BaseModel):
+    """All fields optional — only provided fields are changed. Editing an
+    approved product returns it to Pending Approval (re-approval required)."""
+    name: str | None = None
+    description: str | None = None
+    material_type: str | None = None
+    retest_period_days: int | None = None
+    storage_condition: str | None = None
+
+
 class ProductResponse(BaseModel):
     id: int
     code: str

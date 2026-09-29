@@ -1,7 +1,10 @@
 """Specification Application Service — versioned test limits & approval workflow."""
 from datetime import datetime, timezone
 
-from src.application.exceptions.application_exceptions import NotFoundException
+from src.application.exceptions.application_exceptions import (
+    ConflictException,
+    NotFoundException,
+)
 from src.domain.entities.audit_log import AuditLog
 from src.domain.entities.specification import Specification, SpecificationTest
 from src.domain.entities.user import User
@@ -87,6 +90,83 @@ class SpecificationService:
                 table_name="specifications", record_id=updated.id,
                 old_values={"status": old_status}, new_values={"status": updated.status},
                 comments=comments,
+            )
+        )
+        return updated
+
+    async def update_specification(
+        self,
+        spec_id: int,
+        actor: User,
+        *,
+        spec_type: str | None = None,
+        document_no: str | None = None,
+        tests: list[dict] | None = None,
+    ) -> Specification:
+        """Edit a specification. Editing an Active spec returns it to Pending
+        Approval (re-approval required). Passing `tests` replaces the limits."""
+        spec = await self.get_specification(spec_id)
+        if spec.status == "Inactive":
+            raise ConflictException("Cannot edit a deactivated specification")
+
+        old_status = spec.status
+        new_tests = None
+        if tests is not None:
+            new_tests = [
+                SpecificationTest(
+                    test_id=t["test_id"],
+                    min_limit=t.get("min_limit"),
+                    max_limit=t.get("max_limit"),
+                    expected_result=t.get("expected_result"),
+                    display_in_coa=t.get("display_in_coa", True),
+                )
+                for t in tests
+            ]
+        spec.update_details(
+            actor.username, spec_type=spec_type, document_no=document_no, tests=new_tests,
+        )
+        updated = await self._spec_repo.update(spec, replace_tests=new_tests is not None)
+
+        requires_reapproval = old_status == "Active"
+        await self._audit_repo.write(
+            AuditLog(
+                user_id=actor.id, username=actor.username, action="UPDATE",
+                table_name="specifications", record_id=updated.id,
+                old_values={"status": old_status},
+                new_values={"status": updated.status, "tests": len(updated.tests)},
+                comments=(
+                    "Edited — returned to Pending Approval; re-approval required."
+                    if requires_reapproval else "Edited (pending approval)."
+                ),
+            )
+        )
+        return updated
+
+    async def soft_delete_specification(
+        self, spec_id: int, actor: User, comments: str | None
+    ) -> Specification:
+        """Soft-delete (deactivate). Retains the record; writes an audit entry
+        flagged for GL/TL/Supervisor/Admin review."""
+        spec = await self.get_specification(spec_id)
+        if spec.status == "Inactive":
+            raise ConflictException("Specification is already deactivated")
+
+        old_status = spec.status
+        spec.deactivate(actor.username)
+        updated = await self._spec_repo.update(spec)
+
+        note = (
+            f"[REVIEW: GL/TL/Supervisor/Admin] Specification v{updated.version} "
+            f"(product {updated.product_id}) deactivated by {actor.username} ({actor.role})."
+        )
+        if comments:
+            note += f" Reason: {comments}"
+        await self._audit_repo.write(
+            AuditLog(
+                user_id=actor.id, username=actor.username, action="DELETE",
+                table_name="specifications", record_id=updated.id,
+                old_values={"status": old_status}, new_values={"status": updated.status},
+                comments=note,
             )
         )
         return updated

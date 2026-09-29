@@ -168,6 +168,98 @@ class SampleService:
         )
         return updated
 
+    async def update_sample(
+        self,
+        sample_id: int,
+        actor: User,
+        *,
+        batch_number: str | None = None,
+        quantity_received: float | None = None,
+        unit: str | None = None,
+        sample_type: str | None = None,
+        priority: str | None = None,
+        sap_inspection_lot: str | None = None,
+        sap_material: str | None = None,
+        sap_plant: str | None = None,
+        sap_vendor: str | None = None,
+        sap_vendor_batch: str | None = None,
+        manufacturing_date: datetime | None = None,
+        expiry_date: datetime | None = None,
+    ) -> Sample:
+        """Edit sample registration details. Only allowed before testing begins
+        (Logged/Received)."""
+        sample = await self.get_sample(sample_id)
+        if not sample.can_edit():
+            raise ValidationException(
+                f"Sample cannot be edited in status '{sample.status}'. "
+                f"Editing is only permitted while Logged or Received."
+            )
+
+        before = {
+            "batch_number": sample.batch_number,
+            "quantity_received": sample.quantity_received, "unit": sample.unit,
+            "sample_type": sample.sample_type, "priority": sample.priority,
+        }
+        sample.update_details(
+            actor.username,
+            batch_number=batch_number, quantity_received=quantity_received, unit=unit,
+            sample_type=sample_type, priority=priority,
+            sap_inspection_lot=sap_inspection_lot, sap_material=sap_material,
+            sap_plant=sap_plant, sap_vendor=sap_vendor, sap_vendor_batch=sap_vendor_batch,
+            manufacturing_date=manufacturing_date, expiry_date=expiry_date,
+        )
+        updated = await self._sample_repo.update(sample)
+
+        await self._audit_repo.write(
+            AuditLog(
+                user_id=actor.id, username=actor.username, action="UPDATE",
+                table_name="samples", record_id=updated.id,
+                old_values=before,
+                new_values={
+                    "batch_number": updated.batch_number,
+                    "quantity_received": updated.quantity_received, "unit": updated.unit,
+                    "sample_type": updated.sample_type, "priority": updated.priority,
+                },
+                comments="Sample registration details edited.",
+            )
+        )
+        return updated
+
+    async def soft_delete_sample(
+        self, sample_id: int, actor: User, comments: str | None
+    ) -> Sample:
+        """Soft-delete (deactivate) a sample. Blocked once released
+        (Approved/Rejected). Writes an audit entry flagged for GL/TL/Supervisor/
+        Admin review."""
+        sample = await self.get_sample(sample_id)
+        if sample.status == "Inactive":
+            raise ValidationException("Sample is already deactivated")
+        if not sample.can_soft_delete():
+            raise ValidationException(
+                f"Sample cannot be deleted in status '{sample.status}'. "
+                f"A released sample owns an immutable certificate and must be retained."
+            )
+
+        old_status = sample.status
+        sample.deactivate(actor.username)
+        updated = await self._sample_repo.update(sample)
+
+        note = (
+            f"[REVIEW: GL/TL/Supervisor/Admin] Sample '{updated.sample_code}' "
+            f"deactivated by {actor.username} ({actor.role})."
+        )
+        if comments:
+            note += f" Reason: {comments}"
+        await self._audit_repo.write(
+            AuditLog(
+                user_id=actor.id, username=actor.username, action="DELETE",
+                table_name="samples", record_id=updated.id,
+                old_values={"status": old_status}, new_values={"status": updated.status},
+                comments=note,
+            )
+        )
+        return updated
+
     async def submit_result(
         self,
         result_id: int,

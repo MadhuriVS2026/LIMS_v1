@@ -48,6 +48,11 @@ async def seed() -> None:
             ("supervisor", "super123", "Jane Supervisor", "Supervisor", "QC"),
             ("qa", "qa123", "Alice QualityAssurance", "QA", "QA"),
             ("analyst2", "analyst123", "Bob Chemist", "Analyst", "QC"),
+            #  Organizational roles: GL/TL inherit Supervisor rights, Scientist
+            #  inherits Analyst rights (see src/api/v1/dependencies.py).
+            ("gl", "gl123", "Grace Leader", "GL", "R&D"),
+            ("tl", "tl123", "Tom Teamlead", "TL", "R&D"),
+            ("scientist", "scientist123", "Sam Scientist", "Scientist", "R&D"),
         ]
         for username, password, full_name, role, department in users_data:
             session.add(UserModel(

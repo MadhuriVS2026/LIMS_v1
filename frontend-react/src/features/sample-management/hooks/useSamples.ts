@@ -4,7 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { productApi, sampleApi, specificationApi, testApi, resultApi } from '../api/sampleApi';
 import { oosApi } from '../api/oosApi';
-import type { CreateSampleRequest, SpecTestItem, SubmitResultRequest } from '../models/sample.types';
+import type { CreateSampleRequest, Product, SpecTestItem, SubmitResultRequest } from '../models/sample.types';
 
 export function useProducts() {
   return useQuery({ queryKey: ['products'], queryFn: productApi.list });
@@ -23,6 +23,24 @@ export function useApproveProduct() {
   return useMutation({
     mutationFn: ({ id, password, comments }: { id: number; password: string; comments?: string }) =>
       productApi.approve(id, password, comments),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+  });
+}
+
+export function useUpdateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: Partial<Product> }) =>
+      productApi.update(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+  });
+}
+
+export function useDeleteProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, password, comments }: { id: number; password: string; comments?: string }) =>
+      productApi.remove(id, password, comments),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
   });
 }
@@ -61,6 +79,24 @@ export function useApproveSpecification() {
   });
 }
 
+export function useUpdateSpecification() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: { spec_type?: string; document_no?: string; tests?: SpecTestItem[] } }) =>
+      specificationApi.update(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['specifications'] }),
+  });
+}
+
+export function useDeleteSpecification() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, password, comments }: { id: number; password: string; comments?: string }) =>
+      specificationApi.remove(id, password, comments),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['specifications'] }),
+  });
+}
+
 export function useSampleList(status?: string) {
   return useQuery({ queryKey: ['samples', status], queryFn: () => sampleApi.list(status) });
 }
@@ -77,6 +113,24 @@ export function useReceiveSample() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => sampleApi.receive(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['samples'] }),
+  });
+}
+
+export function useUpdateSample() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: Partial<CreateSampleRequest> }) =>
+      sampleApi.update(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['samples'] }),
+  });
+}
+
+export function useDeleteSample() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, password, comments }: { id: number; password: string; comments?: string }) =>
+      sampleApi.remove(id, password, comments),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['samples'] }),
   });
 }

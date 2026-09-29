@@ -16,7 +16,10 @@ class SampleRepositoryImpl(ISampleRepository):
     async def get_by_id(self, sample_id: int) -> Sample | None:
         stmt = (
             select(SampleModel)
-            .options(selectinload(SampleModel.results).selectinload(SampleResultModel.test))
+            .options(
+                selectinload(SampleModel.results).selectinload(SampleResultModel.test),
+                selectinload(SampleModel.product),
+            )
             .where(SampleModel.id == sample_id)
         )
         result = await self._session.execute(stmt)
@@ -25,7 +28,8 @@ class SampleRepositoryImpl(ISampleRepository):
 
     async def list_all(self, status: str | None = None) -> list[Sample]:
         stmt = select(SampleModel).options(
-            selectinload(SampleModel.results).selectinload(SampleResultModel.test)
+            selectinload(SampleModel.results).selectinload(SampleResultModel.test),
+            selectinload(SampleModel.product),
         )
         if status:
             stmt = stmt.where(SampleModel.status == status)
@@ -77,6 +81,18 @@ class SampleRepositoryImpl(ISampleRepository):
         model = await self._session.get(SampleModel, sample.id)
         if model is None:
             raise ValueError(f"Sample {sample.id} not found")
+        model.batch_number = sample.batch_number
+        model.quantity_received = sample.quantity_received
+        model.unit = sample.unit
+        model.sample_type = sample.sample_type
+        model.priority = sample.priority
+        model.sap_inspection_lot = sample.sap_inspection_lot
+        model.sap_material = sample.sap_material
+        model.sap_plant = sample.sap_plant
+        model.sap_vendor = sample.sap_vendor
+        model.sap_vendor_batch = sample.sap_vendor_batch
+        model.manufacturing_date = sample.manufacturing_date
+        model.expiry_date = sample.expiry_date
         model.status = sample.status
         model.received_by = sample.received_by
         model.received_at = sample.received_at
@@ -187,6 +203,9 @@ class SampleRepositoryImpl(ISampleRepository):
             coa_released_at=model.coa_released_at,
             coa_data=model.coa_data,
             results=results,
+            product_code=model.product.code if model.product else None,
+            product_name=model.product.name if model.product else None,
+            product_status=model.product.status if model.product else None,
             created_by=model.created_by,
             created_date=model.created_date,
             modified_by=model.modified_by,

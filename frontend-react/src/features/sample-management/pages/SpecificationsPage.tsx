@@ -17,9 +17,11 @@ import { usePermissions } from '@core/rbac/usePermissions';
 import {
   useApproveSpecification,
   useCreateSpecification,
+  useDeleteSpecification,
   useProducts,
   useSpecifications,
   useTests,
+  useUpdateSpecification,
 } from '../hooks/useSamples';
 import type { Specification, SpecTestItem } from '../models/sample.types';
 
@@ -31,9 +33,14 @@ export const SpecificationsPage = () => {
   const { data: tests = [] } = useTests();
   const approveSpec = useApproveSpecification();
   const createSpec = useCreateSpecification();
+  const updateSpec = useUpdateSpecification();
+  const deleteSpec = useDeleteSpecification();
   const { hasRole } = usePermissions();
 
   const [approveTarget, setApproveTarget] = useState<Specification | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Specification | null>(null);
+  //  When set, the create dialog is in "edit" mode for this spec id.
+  const [editId, setEditId] = useState<number | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [productId, setProductId] = useState<number | null>(null);
   const [specType, setSpecType] = useState(SPEC_TYPES[1]);
@@ -63,10 +70,30 @@ export const SpecificationsPage = () => {
   };
 
   const resetForm = () => {
+    setEditId(null);
     setProductId(null);
     setSpecType(SPEC_TYPES[1]);
     setDocumentNo('');
     setSelectedTests({});
+  };
+
+  const openEdit = (spec: Specification) => {
+    setEditId(spec.id);
+    setProductId(spec.product_id);
+    setSpecType(spec.spec_type || SPEC_TYPES[1]);
+    setDocumentNo(spec.document_no || '');
+    const seeded: Record<number, SpecTestItem> = {};
+    for (const t of spec.tests) {
+      seeded[t.test_id] = {
+        test_id: t.test_id,
+        min_limit: t.min_limit ?? undefined,
+        max_limit: t.max_limit ?? undefined,
+        expected_result: t.expected_result ?? undefined,
+        display_in_coa: t.display_in_coa ?? true,
+      };
+    }
+    setSelectedTests(seeded);
+    setShowModal(true);
   };
 
   const handleCreate = () => {
@@ -79,6 +106,25 @@ export const SpecificationsPage = () => {
       toastService.warn('Please select at least one test and enter its limits.', 'No tests selected');
       return;
     }
+
+    if (editId != null) {
+      updateSpec.mutate(
+        { id: editId, payload: { spec_type: specType, document_no: documentNo || undefined, tests: testList } },
+        {
+          onSuccess: (spec) => {
+            const note =
+              spec.status === 'Pending Approval'
+                ? `Specification v${spec.version} updated. Re-approval required.`
+                : `Specification v${spec.version} updated.`;
+            toastService.success(note, 'Specification Updated');
+            setShowModal(false);
+            resetForm();
+          },
+        }
+      );
+      return;
+    }
+
     createSpec.mutate(
       { product_id: productId, spec_type: specType, document_no: documentNo || undefined, tests: testList },
       {
@@ -86,6 +132,19 @@ export const SpecificationsPage = () => {
           toastService.success(`Specification v${spec.version} created with ${spec.tests.length} tests. Pending approval.`, 'Specification Created');
           setShowModal(false);
           resetForm();
+        },
+      }
+    );
+  };
+
+  const handleDelete = (password: string, comments?: string) => {
+    if (!deleteTarget) return;
+    deleteSpec.mutate(
+      { id: deleteTarget.id, password, comments },
+      {
+        onSuccess: (spec) => {
+          toastService.success(`Specification v${spec.version} deactivated. GL/TL/Supervisor notified for review.`, 'Specification Deactivated');
+          setDeleteTarget(null);
         },
       }
     );
@@ -119,16 +178,24 @@ export const SpecificationsPage = () => {
           <Column header="Status" body={(row) => <StatusBadge status={row.status} />} />
           <Column
             header="Actions"
-            body={(row) =>
-              row.status === 'Pending Approval' && hasRole('Supervisor', 'QA') ? (
-                <Button label="Approve" size="small" text onClick={() => setApproveTarget(row)} />
-              ) : null
-            }
+            body={(row) => (
+              <div className="flex gap-2">
+                {row.status === 'Pending Approval' && hasRole('Supervisor', 'QA') && (
+                  <Button label="Approve" size="small" text onClick={() => setApproveTarget(row)} />
+                )}
+                {row.status !== 'Inactive' && hasRole('Admin') && (
+                  <Button label="Edit" size="small" text onClick={() => openEdit(row)} />
+                )}
+                {row.status !== 'Inactive' && hasRole('Admin', 'Supervisor') && (
+                  <Button label="Delete" size="small" text severity="danger" onClick={() => setDeleteTarget(row)} />
+                )}
+              </div>
+            )}
           />
         </DataTable>
       </div>
 
-      <Dialog header="Create Specification" visible={showModal} onHide={() => { setShowModal(false); resetForm(); }} style={{ width: '600px' }} modal>
+      <Dialog header={editId != null ? 'Edit Specification' : 'Create Specification'} visible={showModal} onHide={() => { setShowModal(false); resetForm(); }} style={{ width: '600px' }} modal>
         <div className="flex flex-column gap-3">
           <div className="grid">
             <div className="col-6">
@@ -139,6 +206,7 @@ export const SpecificationsPage = () => {
                 onChange={(e) => setProductId(e.value)}
                 placeholder="Select product..."
                 className="w-full"
+                disabled={editId != null}
               />
             </div>
             <div className="col-6">
@@ -206,7 +274,18 @@ export const SpecificationsPage = () => {
             </div>
           </div>
 
-          <Button label="Create Specification" onClick={handleCreate} loading={createSpec.isPending} className="w-full mt-1" />
+          {editId != null && (
+            <div className="text-sm bg-yellow-50 border-round p-2 border-1 border-yellow-200">
+              <i className="pi pi-exclamation-triangle mr-2 text-yellow-700" />
+              Saving changes returns this specification to Pending Approval and requires re-approval.
+            </div>
+          )}
+          <Button
+            label={editId != null ? 'Save Changes' : 'Create Specification'}
+            onClick={handleCreate}
+            loading={editId != null ? updateSpec.isPending : createSpec.isPending}
+            className="w-full mt-1"
+          />
         </div>
       </Dialog>
 
@@ -217,6 +296,15 @@ export const SpecificationsPage = () => {
         loading={approveSpec.isPending}
         title="Approve Specification"
         actionLabel="Approve"
+      />
+
+      <ESignDialog
+        visible={!!deleteTarget}
+        onHide={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        loading={deleteSpec.isPending}
+        title={`Deactivate Specification${deleteTarget ? ` v${deleteTarget.version}` : ''}`}
+        actionLabel="Deactivate"
       />
     </div>
   );

@@ -39,6 +39,11 @@ class ProductRepositoryImpl(IProductRepository):
         model = await self._session.get(ProductModel, product.id)
         if model is None:
             raise ValueError(f"Product {product.id} not found")
+        model.name = product.name
+        model.description = product.description
+        model.material_type = product.material_type
+        model.retest_period_days = product.retest_period_days
+        model.storage_condition = product.storage_condition
         model.status = product.status
         model.approved_by = product.approved_by
         model.approved_at = product.approved_at

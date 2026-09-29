@@ -23,6 +23,12 @@ export const productApi = {
   async approve(id: number, password: string, comments?: string): Promise<Product> {
     return (await apiClient.post<Product>(`/products/${id}/approve`, { password, comments })).data;
   },
+  async update(id: number, payload: Partial<Product>): Promise<Product> {
+    return (await apiClient.put<Product>(`/products/${id}`, payload)).data;
+  },
+  async remove(id: number, password: string, comments?: string): Promise<Product> {
+    return (await apiClient.delete<Product>(`/products/${id}`, { data: { password, comments } })).data;
+  },
 };
 
 export const testApi = {
@@ -49,6 +55,15 @@ export const specificationApi = {
   async approve(id: number, password: string, comments?: string): Promise<Specification> {
     return (await apiClient.post<Specification>(`/specifications/${id}/approve`, { password, comments })).data;
   },
+  async update(
+    id: number,
+    payload: { spec_type?: string; document_no?: string; tests?: SpecTestItem[] },
+  ): Promise<Specification> {
+    return (await apiClient.put<Specification>(`/specifications/${id}`, payload)).data;
+  },
+  async remove(id: number, password: string, comments?: string): Promise<Specification> {
+    return (await apiClient.delete<Specification>(`/specifications/${id}`, { data: { password, comments } })).data;
+  },
 };
 
 export const sampleApi = {
@@ -68,6 +83,12 @@ export const sampleApi = {
   },
   async getCoa(id: number): Promise<Record<string, unknown>> {
     return (await apiClient.get(`/samples/${id}/coa`)).data;
+  },
+  async update(id: number, payload: Partial<CreateSampleRequest>): Promise<Sample> {
+    return (await apiClient.put<Sample>(`/samples/${id}`, payload)).data;
+  },
+  async remove(id: number, password: string, comments?: string): Promise<Sample> {
+    return (await apiClient.delete<Sample>(`/samples/${id}`, { data: { password, comments } })).data;
   },
 };
 

@@ -76,3 +76,82 @@ class ProductService:
             )
         )
         return updated
+
+    async def update_product(
+        self,
+        product_id: int,
+        actor: User,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        material_type: str | None = None,
+        retest_period_days: int | None = None,
+        storage_condition: str | None = None,
+    ) -> Product:
+        """Edit product master data. An edit to an Active product returns it to
+        Pending Approval (re-approval required)."""
+        product = await self.get_product(product_id)
+        if product.status == "Inactive":
+            raise ConflictException("Cannot edit a deactivated product")
+
+        before = {
+            "name": product.name, "description": product.description,
+            "material_type": product.material_type,
+            "retest_period_days": product.retest_period_days,
+            "storage_condition": product.storage_condition, "status": product.status,
+        }
+        product.update_details(
+            actor.username, name=name, description=description,
+            material_type=material_type, retest_period_days=retest_period_days,
+            storage_condition=storage_condition,
+        )
+        updated = await self._product_repo.update(product)
+
+        after = {
+            "name": updated.name, "description": updated.description,
+            "material_type": updated.material_type,
+            "retest_period_days": updated.retest_period_days,
+            "storage_condition": updated.storage_condition, "status": updated.status,
+        }
+        requires_reapproval = before["status"] == "Active"
+        await self._audit_repo.write(
+            AuditLog(
+                user_id=actor.id, username=actor.username, action="UPDATE",
+                table_name="products", record_id=updated.id,
+                old_values=before, new_values=after,
+                comments=(
+                    "Edited — returned to Pending Approval; re-approval required."
+                    if requires_reapproval else "Edited (pending approval)."
+                ),
+            )
+        )
+        return updated
+
+    async def soft_delete_product(
+        self, product_id: int, actor: User, comments: str | None
+    ) -> Product:
+        """Soft-delete (deactivate). The record is retained; a flagged audit
+        entry notifies GL/TL/Supervisor/Admin for review."""
+        product = await self.get_product(product_id)
+        if product.status == "Inactive":
+            raise ConflictException("Product is already deactivated")
+
+        old_status = product.status
+        product.deactivate(actor.username)
+        updated = await self._product_repo.update(product)
+
+        note = (
+            f"[REVIEW: GL/TL/Supervisor/Admin] Product '{updated.code}' "
+            f"deactivated by {actor.username} ({actor.role})."
+        )
+        if comments:
+            note += f" Reason: {comments}"
+        await self._audit_repo.write(
+            AuditLog(
+                user_id=actor.id, username=actor.username, action="DELETE",
+                table_name="products", record_id=updated.id,
+                old_values={"status": old_status}, new_values={"status": updated.status},
+                comments=note,
+            )
+        )
+        return updated

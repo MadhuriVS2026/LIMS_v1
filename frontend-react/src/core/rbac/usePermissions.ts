@@ -6,7 +6,23 @@
  */
 import { useAppSelector } from '@app/store';
 
-export type Role = 'Admin' | 'Analyst' | 'Supervisor' | 'QA';
+//  Base roles drive every access rule. Organizational roles (GL, TL, Scientist)
+//  inherit a base role's rights: GL/TL == Supervisor, Scientist == Analyst.
+export type BaseRole = 'Admin' | 'Analyst' | 'Supervisor' | 'QA';
+export type Role = BaseRole | 'GL' | 'TL' | 'Scientist';
+
+const ROLE_INHERITANCE: Record<string, BaseRole[]> = {
+  GL: ['Supervisor'],
+  TL: ['Supervisor'],
+  Scientist: ['Analyst'],
+};
+
+//  The set of roles a user effectively holds: their own role plus any inherited
+//  base role. Access checks test membership against this set, so GL/TL/Scientist
+//  transparently pass every rule written for Supervisor/Analyst.
+function effectiveRoles(role: Role): Set<Role> {
+  return new Set<Role>([role, ...(ROLE_INHERITANCE[role] ?? [])]);
+}
 
 const MENU_ACCESS: Record<string, Role[]> = {
   dashboard: ['Admin', 'Analyst', 'Supervisor', 'QA'],
@@ -41,12 +57,18 @@ export function usePermissions() {
   //  e.g. only the uploader of an attachment may remove it.
   const username = useAppSelector((state) => state.auth.user?.username);
 
-  const hasRole = (...roles: Role[]): boolean => (role ? roles.includes(role) : false);
+  const hasRole = (...roles: Role[]): boolean => {
+    if (!role) return false;
+    const held = effectiveRoles(role);
+    return roles.some((r) => held.has(r));
+  };
 
   const canAccessMenu = (menuKey: string): boolean => {
     if (!role) return false;
     const allowed = MENU_ACCESS[menuKey];
-    return allowed ? allowed.includes(role) : true;
+    if (!allowed) return true;
+    const held = effectiveRoles(role);
+    return allowed.some((r) => held.has(r));
   };
 
   return { role, username, hasRole, canAccessMenu, isLoaded: !!role };
@@ -54,6 +76,7 @@ export function usePermissions() {
 
 export function useMenuPermissions() {
   const role = useAppSelector((state) => state.auth.user?.role) as Role | undefined;
-  const menuKeys = Object.keys(MENU_ACCESS).filter((key) => (role ? MENU_ACCESS[key].includes(role) : false));
+  const held = role ? effectiveRoles(role) : new Set<Role>();
+  const menuKeys = Object.keys(MENU_ACCESS).filter((key) => MENU_ACCESS[key].some((r) => held.has(r)));
   return { menuKeys, isLoaded: !!role };
 }

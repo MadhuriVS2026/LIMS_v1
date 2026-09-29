@@ -22,6 +22,14 @@ class CreateSpecificationRequest(BaseModel):
     tests: list[SpecTestItem]
 
 
+class UpdateSpecificationRequest(BaseModel):
+    """All fields optional. Providing `tests` replaces the full limit set.
+    Editing an approved spec returns it to Pending Approval (re-approval)."""
+    spec_type: str | None = None
+    document_no: str | None = None
+    tests: list[SpecTestItem] | None = None
+
+
 class SpecTestResponse(BaseModel):
     id: int
     test_id: int

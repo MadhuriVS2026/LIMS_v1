@@ -21,6 +21,16 @@ class _TestProjection:
 
 
 @dataclass
+class _ProductProjection:
+    """Read-only projection of Product details, embedded in Sample for API responses."""
+
+    id: int
+    code: str
+    name: str
+    status: str
+
+
+@dataclass
 class SampleResult:
     """Value object: a single test result on a Sample."""
 
@@ -126,11 +136,94 @@ class Sample(BaseEntity):
 
     results: list[SampleResult] = field(default_factory=list)
 
+    #  Denormalized product details for API projection (avoids extra queries),
+    #  mirroring how SampleResult carries its test details.
+    product_code: str | None = field(default=None)
+    product_name: str | None = field(default=None)
+    product_status: str | None = field(default=None)
+
+    @property
+    def product(self) -> "_ProductProjection | None":
+        """Lightweight projection for API serialization."""
+        if self.product_name is None:
+            return None
+        return _ProductProjection(
+            id=self.product_id,
+            code=self.product_code or "",
+            name=self.product_name,
+            status=self.product_status or "Active",
+        )
+
+    #  Editing/soft-delete are only safe before testing begins or after it, per
+    #  the rules below. A released sample owns an immutable COA snapshot, so it
+    #  must never be edited or deleted.
+    EDITABLE_STATUSES = ("Logged", "Received")
+    DELETABLE_STATUSES = ("Logged", "Received", "Under Review", "OOS Investigation")
+
+    def can_edit(self) -> bool:
+        return self.status in self.EDITABLE_STATUSES
+
+    def can_soft_delete(self) -> bool:
+        return self.status in self.DELETABLE_STATUSES
+
     def receive(self, receiver: str, when: datetime) -> None:
         self.status = "Received"
         self.received_by = receiver
         self.received_at = when
         self.mark_modified(receiver)
+
+    def update_details(
+        self,
+        editor: str,
+        *,
+        batch_number: str | None = None,
+        quantity_received: float | None = None,
+        unit: str | None = None,
+        sample_type: str | None = None,
+        priority: str | None = None,
+        sap_inspection_lot: str | None = None,
+        sap_material: str | None = None,
+        sap_plant: str | None = None,
+        sap_vendor: str | None = None,
+        sap_vendor_batch: str | None = None,
+        manufacturing_date: datetime | None = None,
+        expiry_date: datetime | None = None,
+    ) -> None:
+        """
+        Edit sample registration details. Only permitted before testing begins
+        (Logged/Received); a sample under review or released must not change.
+        Any field left as None is unchanged. Status is not altered by an edit.
+        """
+        if batch_number is not None:
+            self.batch_number = batch_number
+        if quantity_received is not None:
+            self.quantity_received = quantity_received
+        if unit is not None:
+            self.unit = unit
+        if sample_type is not None:
+            self.sample_type = sample_type
+        if priority is not None:
+            self.priority = priority
+        if sap_inspection_lot is not None:
+            self.sap_inspection_lot = sap_inspection_lot
+        if sap_material is not None:
+            self.sap_material = sap_material
+        if sap_plant is not None:
+            self.sap_plant = sap_plant
+        if sap_vendor is not None:
+            self.sap_vendor = sap_vendor
+        if sap_vendor_batch is not None:
+            self.sap_vendor_batch = sap_vendor_batch
+        if manufacturing_date is not None:
+            self.manufacturing_date = manufacturing_date
+        if expiry_date is not None:
+            self.expiry_date = expiry_date
+        self.mark_modified(editor)
+
+    def deactivate(self, actor: str) -> None:
+        """Soft-delete: retire the sample without removing the record."""
+        self.status = "Inactive"
+        self.mark_modified(actor)
 
     def all_results_finalized(self) -> bool:
         return all(r.status in ("Submitted", "Approved") for r in self.results)

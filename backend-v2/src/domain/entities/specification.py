@@ -80,3 +80,36 @@ class Specification(BaseEntity):
         self.approved_by = approver
         self.approved_at = when
         self.mark_modified(approver)
+
+    def update_details(
+        self,
+        editor: str,
+        *,
+        spec_type: str | None = None,
+        document_no: str | None = None,
+        tests: list["SpecificationTest"] | None = None,
+    ) -> None:
+        """
+        Edit the specification. `spec_type`/`document_no` left as None are
+        unchanged; passing `tests` replaces the full set of test limits.
+
+        Editing an Active specification invalidates its approval: it returns to
+        "Pending Approval" and must be re-approved before use.
+        """
+        if spec_type is not None:
+            self.spec_type = spec_type
+        if document_no is not None:
+            self.document_no = document_no
+        if tests is not None:
+            self.tests = tests
+
+        if self.status == "Active":
+            self.status = "Pending Approval"
+            self.approved_by = None
+            self.approved_at = None
+        self.mark_modified(editor)
+
+    def deactivate(self, actor: str) -> None:
+        """Soft-delete: retire this specification without removing the record."""
+        self.status = "Inactive"
+        self.mark_modified(actor)

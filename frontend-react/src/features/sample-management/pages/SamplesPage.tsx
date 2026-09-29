@@ -13,8 +13,16 @@ import { Dropdown } from 'primereact/dropdown';
 import { StatusBadge } from '@shared/components/StatusBadge';
 import { toastService } from '@shared/services/toastService';
 import { usePermissions } from '@core/rbac/usePermissions';
-import { useCreateSample, useProducts, useReceiveSample, useSampleList } from '../hooks/useSamples';
-import type { CreateSampleRequest } from '../models/sample.types';
+import {
+  useCreateSample,
+  useDeleteSample,
+  useProducts,
+  useReceiveSample,
+  useSampleList,
+  useUpdateSample,
+} from '../hooks/useSamples';
+import { ESignDialog } from '@shared/components/ESignDialog';
+import type { CreateSampleRequest, Sample } from '../models/sample.types';
 import type { SAPReceivedLot } from '@features/sap-integration/models/sap.types';
 
 export const SamplesPage = () => {
@@ -25,10 +33,15 @@ export const SamplesPage = () => {
   const { data: products = [] } = useProducts();
   const createSample = useCreateSample();
   const receiveSample = useReceiveSample();
+  const updateSample = useUpdateSample();
+  const deleteSample = useDeleteSample();
 
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<Partial<CreateSampleRequest>>({ unit: 'mL', priority: 'Normal' });
   const [prefillLot, setPrefillLot] = useState<SAPReceivedLot | null>(null);
+  const [editTarget, setEditTarget] = useState<Sample | null>(null);
+  const [editForm, setEditForm] = useState<Partial<CreateSampleRequest>>({});
+  const [deleteTarget, setDeleteTarget] = useState<Sample | null>(null);
 
   const activeProducts = products.filter((p) => p.status === 'Active');
 
@@ -90,6 +103,56 @@ export const SamplesPage = () => {
     });
   };
 
+  const canEditSample = (s: Sample) => s.status === 'Logged' || s.status === 'Received';
+  const canDeleteSample = (s: Sample) =>
+    s.status !== 'Approved' && s.status !== 'Rejected' && s.status !== 'Inactive';
+
+  const openEdit = (s: Sample) => {
+    setEditTarget(s);
+    setEditForm({
+      batch_number: s.batch_number,
+      quantity_received: s.quantity_received,
+      unit: s.unit,
+      sample_type: s.sample_type ?? undefined,
+      priority: s.priority ?? 'Normal',
+    });
+  };
+
+  const handleUpdate = () => {
+    if (!editTarget) return;
+    if (!editForm.batch_number?.trim()) {
+      toastService.warn('Batch Number is required.', 'Missing fields');
+      return;
+    }
+    if (editForm.quantity_received == null) {
+      toastService.warn('Quantity is required.', 'Missing fields');
+      return;
+    }
+    updateSample.mutate(
+      { id: editTarget.id, payload: editForm },
+      {
+        onSuccess: (s) => {
+          toastService.success(`Sample ${s.sample_code} updated.`, 'Sample Updated');
+          setEditTarget(null);
+          setEditForm({});
+        },
+      }
+    );
+  };
+
+  const handleDelete = (password: string, comments?: string) => {
+    if (!deleteTarget) return;
+    deleteSample.mutate(
+      { id: deleteTarget.id, password, comments },
+      {
+        onSuccess: (s) => {
+          toastService.success(`Sample ${s.sample_code} deactivated. GL/TL/Supervisor notified for review.`, 'Sample Deactivated');
+          setDeleteTarget(null);
+        },
+      }
+    );
+  };
+
   return (
     <div>
       <div className="flex justify-content-between align-items-center mb-3">
@@ -116,6 +179,12 @@ export const SamplesPage = () => {
                     loading={receiveSample.isPending && receiveSample.variables === row.id}
                     onClick={() => handleReceive(row.id, row.sample_code)}
                   />
+                )}
+                {canEditSample(row) && hasRole('Admin', 'Analyst') && (
+                  <Button label="Edit" size="small" text onClick={() => openEdit(row)} />
+                )}
+                {canDeleteSample(row) && hasRole('Admin', 'Supervisor') && (
+                  <Button label="Delete" size="small" text severity="danger" onClick={() => setDeleteTarget(row)} />
                 )}
                 <Button label="View" size="small" text onClick={() => navigate(`/samples/${row.id}`)} />
               </div>
@@ -154,6 +223,7 @@ export const SamplesPage = () => {
               <InputNumber
                 value={form.quantity_received}
                 onValueChange={(e) => setForm({ ...form, quantity_received: e.value ?? undefined })}
+                onChange={(e) => setForm({ ...form, quantity_received: e.value ?? undefined })}
                 className="w-full"
               />
             </div>
@@ -183,6 +253,44 @@ export const SamplesPage = () => {
           <Button label="Log Sample" onClick={handleSubmit} loading={createSample.isPending} className="w-full mt-1" />
         </div>
       </Dialog>
+
+      <Dialog header={`Edit Sample${editTarget ? ` — ${editTarget.sample_code}` : ''}`} visible={!!editTarget} onHide={() => { setEditTarget(null); setEditForm({}); }} style={{ width: '440px' }} modal>
+        <div className="flex flex-column gap-3">
+          <div>
+            <label className="block text-sm font-medium text-700 mb-1">Batch Number</label>
+            <InputText value={editForm.batch_number || ''} onChange={(e) => setEditForm({ ...editForm, batch_number: e.target.value })} className="w-full" />
+          </div>
+          <div className="grid">
+            <div className="col-6">
+              <label className="block text-sm font-medium text-700 mb-1">Quantity</label>
+              <InputNumber
+                value={editForm.quantity_received}
+                onValueChange={(e) => setEditForm({ ...editForm, quantity_received: e.value ?? undefined })}
+                onChange={(e) => setEditForm({ ...editForm, quantity_received: e.value ?? undefined })}
+                className="w-full"
+              />
+            </div>
+            <div className="col-6">
+              <label className="block text-sm font-medium text-700 mb-1">Unit</label>
+              <InputText value={editForm.unit || ''} onChange={(e) => setEditForm({ ...editForm, unit: e.target.value })} className="w-full" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-700 mb-1">Sample Type</label>
+            <InputText value={editForm.sample_type || ''} onChange={(e) => setEditForm({ ...editForm, sample_type: e.target.value })} className="w-full" />
+          </div>
+          <Button label="Save Changes" onClick={handleUpdate} loading={updateSample.isPending} className="w-full mt-1" />
+        </div>
+      </Dialog>
+
+      <ESignDialog
+        visible={!!deleteTarget}
+        onHide={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        loading={deleteSample.isPending}
+        title={`Deactivate Sample${deleteTarget ? ` — ${deleteTarget.sample_code}` : ''}`}
+        actionLabel="Deactivate"
+      />
     </div>
   );
 };

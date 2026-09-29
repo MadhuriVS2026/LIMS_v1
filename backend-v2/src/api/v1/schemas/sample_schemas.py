@@ -23,6 +23,23 @@ class CreateSampleRequest(BaseModel):
     expiry_date: datetime | None = None
 
 
+class UpdateSampleRequest(BaseModel):
+    """All fields optional. Editing is only permitted while the sample is
+    Logged or Received (before testing begins)."""
+    batch_number: str | None = None
+    quantity_received: float | None = None
+    unit: str | None = None
+    sample_type: str | None = None
+    priority: str | None = None
+    sap_inspection_lot: str | None = None
+    sap_material: str | None = None
+    sap_plant: str | None = None
+    sap_vendor: str | None = None
+    sap_vendor_batch: str | None = None
+    manufacturing_date: datetime | None = None
+    expiry_date: datetime | None = None
+
+
 class SubmitResultRequest(BaseModel):
     result_value: float | None = None
     result_text: str | None = None

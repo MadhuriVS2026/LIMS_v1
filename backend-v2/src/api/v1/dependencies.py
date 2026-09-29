@@ -15,6 +15,25 @@ from src.infrastructure.database.session import get_db_session
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 
+#  Role hierarchy: new organizational roles inherit the rights of a base role.
+#  GL (Group Leader) and TL (Team Leader) carry the same authority as a
+#  Supervisor; Scientist is an initiator/user equivalent to an Analyst. A role
+#  always satisfies itself; the entries below add the inherited base role.
+#  Enforcement everywhere calls require_role(<base roles>), so expanding a
+#  user's role to its effective set here means every existing guard keeps
+#  working without being edited. The user's real role name is preserved for
+#  display and the audit trail.
+ROLE_INHERITANCE: dict[str, tuple[str, ...]] = {
+    "GL": ("Supervisor",),
+    "TL": ("Supervisor",),
+    "Scientist": ("Analyst",),
+}
+
+
+def effective_roles(role: str) -> set[str]:
+    """Return the set of roles a user effectively holds (self + inherited)."""
+    return {role, *ROLE_INHERITANCE.get(role, ())}
+
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async for session in get_db_session():
@@ -50,7 +69,7 @@ def require_role(*roles: str) -> Callable:
     """Dependency factory: restrict endpoint access to specific roles."""
 
     async def role_checker(current_user: User = Depends(get_current_user)) -> User:
-        if current_user.role not in roles:
+        if effective_roles(current_user.role).isdisjoint(roles):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Action requires one of the following roles: {', '.join(roles)}",

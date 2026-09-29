@@ -9,6 +9,7 @@ from src.api.v1.schemas.sample_schemas import (
     SampleResponse,
     SampleResultResponse,
     SubmitResultRequest,
+    UpdateSampleRequest,
 )
 from src.config.dependency_injection import Container
 from src.domain.entities.user import User
@@ -50,6 +51,43 @@ async def receive_sample(
 ):
     service = Container.get_sample_service(session)
     return await service.receive_sample(sample_id, current_user)
+
+
+@router.put("/{sample_id}", response_model=SampleResponse)
+async def update_sample(
+    sample_id: int,
+    request: UpdateSampleRequest,
+    current_user: User = Depends(require_role("Admin", "Analyst")),
+    session: AsyncSession = Depends(get_session),
+):
+    """Edit sample registration details. Only permitted while the sample is
+    Logged or Received."""
+    service = Container.get_sample_service(session)
+    return await service.update_sample(
+        sample_id, current_user,
+        batch_number=request.batch_number, quantity_received=request.quantity_received,
+        unit=request.unit, sample_type=request.sample_type, priority=request.priority,
+        sap_inspection_lot=request.sap_inspection_lot, sap_material=request.sap_material,
+        sap_plant=request.sap_plant, sap_vendor=request.sap_vendor,
+        sap_vendor_batch=request.sap_vendor_batch,
+        manufacturing_date=request.manufacturing_date, expiry_date=request.expiry_date,
+    )
+
+
+@router.delete("/{sample_id}", response_model=SampleResponse)
+async def delete_sample(
+    sample_id: int,
+    esign: ESignRequest,
+    current_user: User = Depends(require_role("Admin", "Supervisor")),
+    session: AsyncSession = Depends(get_session),
+):
+    """Soft-delete (deactivate) a sample. E-signed; blocked once released.
+    Writes an audit entry flagged for GL/TL/Supervisor/Admin review."""
+    auth_service = Container.get_auth_service(session)
+    await auth_service.verify_esignature(current_user, esign.password)
+
+    service = Container.get_sample_service(session)
+    return await service.soft_delete_sample(sample_id, current_user, esign.comments)
 
 
 @router.post("/{sample_id}/release", response_model=SampleResponse)

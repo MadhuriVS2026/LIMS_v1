@@ -156,10 +156,18 @@ export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFor
     const token = `${detail.worksheet.id}:${detail.worksheet.modified_date ?? ''}`;
     if (seededFor.current === token) return;
     seededFor.current = token;
-    setValues(seedValues(detail));
+    const seeded = seedValues(detail);
+    setValues(seeded);
     setContextValues({});
     setDirty(false);
     preview.reset(detail.computed);
+    //  Compute calculated fields from the seeded/stored inputs straight away.
+    //  Without this, derived cells like Standard Details → Concentration (ppm)
+    //  render blank until the analyst edits a field, even though every input
+    //  needed is already present. Fired immediately (no debounce) so the value
+    //  is there on first paint.
+    preview.request({ group_values: seeded, context_values: {} }, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail]);
 
   const recalculate = (nextValues: Values, nextContext: Record<string, unknown>) => {
