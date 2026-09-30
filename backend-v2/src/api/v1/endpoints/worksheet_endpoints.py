@@ -20,6 +20,7 @@ from src.api.v1.schemas.test_template_schemas import (
     ConfirmWorksheetResponse,
     CreateWorksheetRequest,
     CriterionResultResponse,
+    ReviewActionRequest,
     SaveWorksheetRequest,
     TestTemplateResponse,
     WorksheetComputedResponse,
@@ -37,6 +38,10 @@ router = APIRouter(tags=["Test Worksheets"])
 
 _ANY_ROLE = ("Admin", "Analyst", "Supervisor", "QA")
 _WRITERS = ("Admin", "Analyst", "QA")
+#  Outer bound for worksheet review actions. GL/TL reach these via role
+#  inheritance (they satisfy "Supervisor" in require_role); the service's
+#  _assert_can_review is the finer gate.
+_REVIEWERS = ("Admin", "Supervisor", "QA")
 
 
 def _plain(value):
@@ -205,6 +210,62 @@ async def confirm_worksheet(
     """
     service = Container.get_worksheet_service(session)
     worksheet, test_line, result = await service.confirm_result(worksheet_id, current_user)
+    return ConfirmWorksheetResponse(
+        worksheet=WorksheetResponse.model_validate(worksheet),
+        computed=_computed(result),
+        test_line_id=test_line.id,
+        test_line_result=test_line.result,
+    )
+
+
+# ── Review cycle ─────────────────────────────────────────────────────
+
+
+@router.post("/worksheets/{worksheet_id}/submit-for-review", response_model=WorksheetDetailResponse)
+async def submit_worksheet_for_review(
+    worksheet_id: int,
+    request: ReviewActionRequest,
+    current_user: User = Depends(require_role("Admin", "Analyst")),
+    session: AsyncSession = Depends(get_session),
+):
+    """Analyst submits the worksheet to a supervisor with optional comments;
+    locks editing until a reviewer approves or refers it back."""
+    service = Container.get_worksheet_service(session)
+    worksheet, template, result = await service.submit_for_review(
+        worksheet_id, current_user, request.comments
+    )
+    return _detail(worksheet, template, result)
+
+
+@router.post("/worksheets/{worksheet_id}/refer-back", response_model=WorksheetDetailResponse)
+async def refer_back_worksheet(
+    worksheet_id: int,
+    request: ReviewActionRequest,
+    current_user: User = Depends(require_role(*_REVIEWERS)),
+    session: AsyncSession = Depends(get_session),
+):
+    """Reviewer returns a submitted worksheet to the analyst; a comment is
+    required. Returns the worksheet to an editable state."""
+    service = Container.get_worksheet_service(session)
+    worksheet, template, result = await service.refer_back_review(
+        worksheet_id, current_user, request.comments
+    )
+    return _detail(worksheet, template, result)
+
+
+@router.post("/worksheets/{worksheet_id}/approve-review", response_model=ConfirmWorksheetResponse)
+async def approve_worksheet_review(
+    worksheet_id: int,
+    request: ReviewActionRequest,
+    current_user: User = Depends(require_role(*_REVIEWERS)),
+    session: AsyncSession = Depends(get_session),
+):
+    """Reviewer approves a submitted worksheet: confirms the result and publishes
+    it to the test line. Refused while any blocking acceptance criterion fails."""
+    service = Container.get_worksheet_service(session)
+    worksheet, test_line, result = await service.approve_review(
+        worksheet_id, current_user, request.comments
+    )
     return ConfirmWorksheetResponse(
         worksheet=WorksheetResponse.model_validate(worksheet),
         computed=_computed(result),

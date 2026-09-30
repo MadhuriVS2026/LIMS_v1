@@ -40,7 +40,25 @@ class TemplateStatus(str, Enum):
 
 class WorksheetStatus(str, Enum):
     IN_PROGRESS = "InProgress"
+    #  Analyst has submitted the worksheet for supervisory review; editing is
+    #  locked until a reviewer approves or refers it back.
+    PENDING_REVIEW = "PendingReview"
+    #  A reviewer sent it back to the analyst with comments; editable again.
+    REFERRED_BACK = "ReferredBack"
     CONFIRMED = "Confirmed"
+
+
+#  Worksheet statuses in which the analyst may still edit values. A worksheet
+#  under review (PendingReview) or already approved (Confirmed) is locked.
+_EDITABLE_WORKSHEET_STATUSES = (
+    WorksheetStatus.IN_PROGRESS.value,
+    WorksheetStatus.REFERRED_BACK.value,
+)
+
+#  Roles that may review a submitted worksheet. GL/TL already inherit Supervisor
+#  via ROLE_INHERITANCE, but they are listed explicitly so has_role — which
+#  checks the raw role — accepts them here too.
+WORKSHEET_REVIEWER_ROLES = ("Supervisor", "GL", "TL", "QA", "Admin")
 
 
 class WorksheetEditMode(str, Enum):
@@ -219,6 +237,16 @@ class TestWorksheet(BaseEntity):
     confirmed_by: str | None = field(default=None)
     confirmed_at: datetime | None = field(default=None)
 
+    # ── Review cycle (analyst submit -> supervisor approve / refer back) ──
+    submitted_for_review_by: str | None = field(default=None)
+    submitted_for_review_at: datetime | None = field(default=None)
+    #  The analyst's note accompanying the submission.
+    submission_comments: str | None = field(default=None)
+    reviewed_by: str | None = field(default=None)
+    reviewed_at: datetime | None = field(default=None)
+    #  The reviewer's note on approve or refer-back.
+    review_comments: str | None = field(default=None)
+
     # ── Denormalized for API projection ──
     template_code: str | None = field(default=None)
     template_name: str | None = field(default=None)
@@ -237,7 +265,16 @@ class TestWorksheet(BaseEntity):
         return _EDIT_MODE_BY_TRF_STATUS.get(trf_status)
 
     def can_edit_values(self, trf_status: str) -> bool:
-        return self.edit_mode_for(trf_status) is not None
+        return self.edit_mode_for(trf_status) is not None and self.is_worksheet_editable
+
+    @property
+    def is_worksheet_editable(self) -> bool:
+        """Worksheet-level gate: values are frozen while under review."""
+        return self.status in _EDITABLE_WORKSHEET_STATUSES
+
+    @property
+    def is_pending_review(self) -> bool:
+        return self.status == WorksheetStatus.PENDING_REVIEW.value
 
     def can_confirm(self, trf_status: str) -> bool:
         """
@@ -294,6 +331,57 @@ class TestWorksheet(BaseEntity):
         self.status = WorksheetStatus.IN_PROGRESS.value
         self.confirmed_by = None
         self.confirmed_at = None
+        self.mark_modified(actor)
+
+    # ── Review cycle transitions ──
+
+    def submit_for_review(self, actor: str, when: datetime, comments: str | None) -> None:
+        """
+        Analyst sends the worksheet to a supervisor. Only from an editable state
+        (InProgress or ReferredBack); locks editing until the reviewer acts.
+        """
+        if not self.is_worksheet_editable:
+            raise ValueError(
+                f"Only a worksheet in progress can be submitted for review "
+                f"(current status: {self.status})"
+            )
+        self.status = WorksheetStatus.PENDING_REVIEW.value
+        self.submitted_for_review_by = actor
+        self.submitted_for_review_at = when
+        self.submission_comments = comments
+        #  Clear any prior review outcome now a fresh cycle has started.
+        self.reviewed_by = None
+        self.reviewed_at = None
+        self.review_comments = None
+        self.mark_modified(actor)
+
+    def refer_back(self, actor: str, when: datetime, comments: str | None) -> None:
+        """Reviewer returns the worksheet to the analyst for changes."""
+        if not self.is_pending_review:
+            raise ValueError(
+                f"Only a worksheet pending review can be referred back "
+                f"(current status: {self.status})"
+            )
+        self.status = WorksheetStatus.REFERRED_BACK.value
+        self.reviewed_by = actor
+        self.reviewed_at = when
+        self.review_comments = comments
+        self.mark_modified(actor)
+
+    def approve_review(self, actor: str, when: datetime, comments: str | None) -> None:
+        """
+        Reviewer accepts the submitted worksheet. Records the review outcome; the
+        service performs the result confirmation (snapshot + publish) separately,
+        since that requires the calculation engine.
+        """
+        if not self.is_pending_review:
+            raise ValueError(
+                f"Only a worksheet pending review can be approved "
+                f"(current status: {self.status})"
+            )
+        self.reviewed_by = actor
+        self.reviewed_at = when
+        self.review_comments = comments
         self.mark_modified(actor)
 
 

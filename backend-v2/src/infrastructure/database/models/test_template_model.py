@@ -75,5 +75,13 @@ class TestWorksheetModel(BaseModel):
     confirmed_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # ── Review cycle (analyst submit -> supervisor approve / refer back) ──
+    submitted_for_review_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    submitted_for_review_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    submission_comments: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    review_comments: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+
     template = relationship("TestTemplateModel")
     test_line = relationship("TRFTestLineModel")

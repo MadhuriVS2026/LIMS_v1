@@ -143,10 +143,22 @@ class WorksheetResponse(BaseModel):
     reportable_result: str | None = None
     confirmed_by: str | None = None
     confirmed_at: datetime | None = None
+    submitted_for_review_by: str | None = None
+    submitted_for_review_at: datetime | None = None
+    submission_comments: str | None = None
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
+    review_comments: str | None = None
     created_by: str | None = None
     created_date: datetime | None = None
     modified_by: str | None = None
     modified_date: datetime | None = None
+
+
+class ReviewActionRequest(BaseModel):
+    """Comments accompanying a worksheet submit / approve / refer-back."""
+
+    comments: str | None = None
 
 
 class WorksheetDetailResponse(BaseModel):

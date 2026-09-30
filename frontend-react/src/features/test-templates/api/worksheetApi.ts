@@ -53,4 +53,26 @@ export const worksheetApi = {
     return (await apiClient.post<ConfirmWorksheetResponse>(`/worksheets/${worksheetId}/confirm`))
       .data;
   },
+  /** Analyst submits the worksheet to a supervisor for review. */
+  async submitForReview(worksheetId: number, comments?: string): Promise<WorksheetDetail> {
+    return (
+      await apiClient.post<WorksheetDetail>(`/worksheets/${worksheetId}/submit-for-review`, {
+        comments,
+      })
+    ).data;
+  },
+  /** Reviewer returns a submitted worksheet to the analyst (comment required). */
+  async referBack(worksheetId: number, comments: string): Promise<WorksheetDetail> {
+    return (
+      await apiClient.post<WorksheetDetail>(`/worksheets/${worksheetId}/refer-back`, { comments })
+    ).data;
+  },
+  /** Reviewer approves a submitted worksheet: confirms and publishes the result. */
+  async approveReview(worksheetId: number, comments?: string): Promise<ConfirmWorksheetResponse> {
+    return (
+      await apiClient.post<ConfirmWorksheetResponse>(`/worksheets/${worksheetId}/approve-review`, {
+        comments,
+      })
+    ).data;
+  },
 };

@@ -35,6 +35,7 @@ from src.domain.entities.audit_log import AuditLog
 from src.domain.entities.product import Product
 from src.domain.entities.specification import units_comparable
 from src.domain.entities.test_template import (
+    WORKSHEET_REVIEWER_ROLES,
     TestTemplate,
     TestWorksheet,
     WorksheetEditMode,
@@ -348,6 +349,142 @@ class WorksheetService:
             },
         )
         return saved, saved_line, result
+
+    # ── Review cycle ─────────────────────────────────────────────────
+
+    async def submit_for_review(
+        self, worksheet_id: int, actor: User, comments: str | None
+    ) -> tuple[TestWorksheet, TestTemplate, WorksheetResult]:
+        """
+        Analyst submits the worksheet to a supervisor. Only while the parent TRF
+        permits entry and the worksheet is in an editable state; locks editing
+        until a reviewer approves or refers it back.
+        """
+        worksheet = await self.get_worksheet(worksheet_id)
+        _line, trf = await self._load_line_and_trf(worksheet.trf_test_line_id)
+        mode = self._assert_can_edit(trf, actor)
+        if mode is not WorksheetEditMode.ENTRY:
+            raise ValidationException(
+                f"A worksheet can only be submitted for review while the TRF is "
+                f"InProgress (current status: {trf.status})"
+            )
+
+        template = await self._load_bound_template(worksheet)
+        definition = self._parse(template)
+        #  Evaluate so a submission that cannot compute is caught up front.
+        result = self._evaluate(
+            definition, worksheet.context_values or {}, worksheet.group_values or {}
+        )
+
+        worksheet.submit_for_review(actor.username, datetime.now(timezone.utc), comments)
+        saved = await self._repo.update(worksheet)
+
+        await self._audit(
+            actor,
+            "WORKSHEET_SUBMITTED_FOR_REVIEW",
+            saved.id,
+            new_values={"status": saved.status, "comments": comments},
+        )
+        return saved, template, result
+
+    async def refer_back_review(
+        self, worksheet_id: int, actor: User, comments: str | None
+    ) -> tuple[TestWorksheet, TestTemplate, WorksheetResult]:
+        """Reviewer returns a submitted worksheet to the analyst for changes."""
+        worksheet = await self.get_worksheet(worksheet_id)
+        self._assert_can_review(worksheet, actor)
+        if not (comments or "").strip():
+            raise ValidationException("A comment is required when referring a worksheet back")
+
+        template = await self._load_bound_template(worksheet)
+        definition = self._parse(template)
+        result = self._evaluate(
+            definition, worksheet.context_values or {}, worksheet.group_values or {}
+        )
+
+        worksheet.refer_back(actor.username, datetime.now(timezone.utc), comments)
+        saved = await self._repo.update(worksheet)
+
+        await self._audit(
+            actor,
+            "WORKSHEET_REFERRED_BACK",
+            saved.id,
+            new_values={"status": saved.status, "comments": comments},
+        )
+        return saved, template, result
+
+    async def approve_review(
+        self, worksheet_id: int, actor: User, comments: str | None
+    ) -> tuple[TestWorksheet, TRFTestLine, WorksheetResult]:
+        """
+        Reviewer accepts a submitted worksheet: records the review outcome and
+        confirms the result (snapshot + publish to the test line), refusing while
+        any blocking acceptance criterion fails.
+        """
+        worksheet = await self.get_worksheet(worksheet_id)
+        line, trf = await self._load_line_and_trf(worksheet.trf_test_line_id)
+        self._assert_can_review(worksheet, actor)
+
+        template = await self._load_bound_template(worksheet)
+        definition = self._parse(template)
+        result = self._evaluate(
+            definition, worksheet.context_values or {}, worksheet.group_values or {}
+        )
+
+        if result.has_blocking_failure:
+            failed = "; ".join(
+                f"{c.label} (observed {self._plain(c.observed)}, requires {c.limit_text or c.operator.value})"
+                for c in result.blocking_failures
+            )
+            raise ValidationException(
+                f"Cannot approve the worksheet while a blocking acceptance criterion fails: {failed}"
+            )
+
+        reportable = self._plain(result.reportable_result)
+        if reportable is None or reportable == "":
+            raise ValidationException(
+                "The reportable result is blank — the worksheet cannot be approved"
+            )
+
+        reportable_text = self._format_result(reportable, template.result_unit)
+        snapshot = self._snapshot(worksheet, template, result, actor)
+
+        now = datetime.now(timezone.utc)
+        worksheet.approve_review(actor.username, now, comments)
+        worksheet.confirm(actor.username, now, snapshot, reportable_text)
+        saved = await self._repo.update(worksheet)
+
+        old_result = line.result
+        line.set_result(reportable_text, line.remark)
+        line.mark_modified(actor.username)
+        saved_line = await self._trf_repo.update_test_line(line)
+
+        await self._audit(
+            actor,
+            "WORKSHEET_REVIEW_APPROVED",
+            saved.id,
+            old_values={"test_line_result": old_result},
+            new_values={
+                "test_line_id": line.id,
+                "test_line_result": reportable_text,
+                "comments": comments,
+                "template_code": template.code,
+                "template_version": worksheet.template_version,
+            },
+        )
+        return saved, saved_line, result
+
+    def _assert_can_review(self, worksheet: TestWorksheet, actor: User) -> None:
+        """A worksheet under review may be actioned only by a reviewer role."""
+        if not worksheet.is_pending_review:
+            raise ValidationException(
+                f"Only a worksheet pending review can be reviewed "
+                f"(current status: {worksheet.status})"
+            )
+        if not actor.has_role(*WORKSHEET_REVIEWER_ROLES):
+            raise ForbiddenException(
+                f"Only {' / '.join(WORKSHEET_REVIEWER_ROLES)} may review a worksheet"
+            )
 
     # ── Loading helpers ──────────────────────────────────────────────
 

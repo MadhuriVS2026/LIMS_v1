@@ -8,7 +8,11 @@
  */
 
 export type TemplateStatus = 'Draft' | 'PendingApproval' | 'Active' | 'Inactive';
-export type WorksheetStatus = 'InProgress' | 'Confirmed';
+export type WorksheetStatus =
+  | 'InProgress'
+  | 'PendingReview'
+  | 'ReferredBack'
+  | 'Confirmed';
 
 export type GroupKind = 'singleton' | 'table' | 'sequence';
 export type FieldKind = 'context' | 'input' | 'area' | 'calculated' | 'flag';
@@ -62,6 +66,18 @@ export interface GroupFooterItem {
   rounding?: Rounding;
 }
 
+/**
+ * A read-only header line rendered above a table group, showing values pulled
+ * from the worksheet's context (auto-fetched from the TRF/product). Used to
+ * surface batch/AR/TRF/stability details as a summary row above a table,
+ * without repeating them on every editable row.
+ */
+export interface GroupHeaderContextItem {
+  label: string;
+  /** Context field key, e.g. `batch_no` or `stability_condition`. */
+  ref: string;
+}
+
 export interface GroupDef {
   key: string;
   kind: GroupKind;
@@ -70,6 +86,8 @@ export interface GroupDef {
   fields: FieldDef[];
   /** Optional computed summary shown directly beneath the table. */
   footer?: GroupFooterItem[];
+  /** Optional read-only context summary shown directly above the table. */
+  headerContext?: GroupHeaderContextItem[];
 }
 
 export interface CriterionDef {
@@ -180,6 +198,12 @@ export interface Worksheet {
   reportable_result?: string | null;
   confirmed_by?: string | null;
   confirmed_at?: string | null;
+  submitted_for_review_by?: string | null;
+  submitted_for_review_at?: string | null;
+  submission_comments?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  review_comments?: string | null;
   created_by?: string | null;
   created_date?: string | null;
   modified_by?: string | null;

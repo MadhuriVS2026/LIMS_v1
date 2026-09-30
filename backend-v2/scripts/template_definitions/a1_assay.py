@@ -25,7 +25,40 @@ from scripts.template_definitions._common import (
 
 A1_DEFINITION = {
     "resultRef": "samples.pct_mean_assay",
-    "context": context_header(),
+    #  Extra context auto-fetched from the TRF header for the Sample Preparations
+    #  header strip (batch is already seeded by context_header as `batch_no`).
+    "context": context_header(
+        extra=[
+            {
+                "key": "stability_condition",
+                "kind": "context",
+                "type": "text",
+                "label": "Stability Condition",
+                "source": "trf.stage_of_sample",
+            },
+            {
+                "key": "packing_detail_hdr",
+                "kind": "context",
+                "type": "text",
+                "label": "Packing Detail",
+                "source": "trf.pack_details",
+            },
+            {
+                "key": "trf_no",
+                "kind": "context",
+                "type": "text",
+                "label": "TRF No.",
+                "source": "trf.trf_number",
+            },
+            {
+                "key": "ar_no",
+                "kind": "context",
+                "type": "text",
+                "label": "AR No.",
+                "source": "trf.ar_number",
+            },
+        ],
+    ),
     "groups": [
         standard_group(conc_label="Concentration"),
         {
@@ -46,13 +79,14 @@ A1_DEFINITION = {
             "key": "bkt_1",
             "kind": "table",
             "label": "Bracketing Standard — Block 1",
-            "rows": {"min": 0, "max": 6, "default": 2},
+            "rows": {"min": 0, "max": 20, "default": 2},
             "fields": [{"key": "area", "kind": "area", "label": "BKT STD Area"}],
             #  Pooled with the initial replicates (std_areas ∪ bkt_1), matching
             #  the statistics section — averaging a bracket alone would let a
             #  drifting system pass suitability.
             "footer": [
                 {"label": "Mean (pooled)", "ref": "stats.mean_bkt_1"},
+                {"label": "SD (pooled)", "ref": "stats.sd_bkt_1"},
                 {"label": "% RSD (pooled)", "ref": "stats.rsd_bkt_1", "unit": "%"},
             ],
         },
@@ -60,11 +94,12 @@ A1_DEFINITION = {
             "key": "bkt_2",
             "kind": "table",
             "label": "Bracketing Standard — Block 2",
-            "rows": {"min": 0, "max": 6, "default": 1},
+            "rows": {"min": 0, "max": 20, "default": 1},
             "fields": [{"key": "area", "kind": "area", "label": "BKT STD Area"}],
             #  Pooled with std_areas ∪ bkt_1 ∪ bkt_2.
             "footer": [
                 {"label": "Mean (pooled)", "ref": "stats.mean_bkt_2"},
+                {"label": "SD (pooled)", "ref": "stats.sd_bkt_2"},
                 {"label": "% RSD (pooled)", "ref": "stats.rsd_bkt_2", "unit": "%"},
             ],
         },
@@ -106,6 +141,12 @@ A1_DEFINITION = {
                     "expression": "mean(pool(std_areas.area, bkt_1.area))",
                 },
                 {
+                    "key": "sd_bkt_1",
+                    "kind": "calculated",
+                    "label": "SD (pooled BKT 1)",
+                    "expression": "sd(pool(std_areas.area, bkt_1.area))",
+                },
+                {
                     "key": "rsd_bkt_1",
                     "kind": "calculated",
                     "label": "%RSD (pooled BKT 1)",
@@ -117,6 +158,12 @@ A1_DEFINITION = {
                     "kind": "calculated",
                     "label": "Mean (pooled BKT 2)",
                     "expression": "mean(pool(std_areas.area, bkt_1.area, bkt_2.area))",
+                },
+                {
+                    "key": "sd_bkt_2",
+                    "kind": "calculated",
+                    "label": "SD (pooled BKT 2)",
+                    "expression": "sd(pool(std_areas.area, bkt_1.area, bkt_2.area))",
                 },
                 {
                     "key": "rsd_bkt_2",
@@ -144,9 +191,17 @@ A1_DEFINITION = {
             "kind": "table",
             "label": "Sample Preparations",
             "rows": {"min": 1, "max": 32, "default": 2},
+            #  Read-only summary auto-fetched from the TRF header, shown above the
+            #  editable preparation rows.
+            "headerContext": [
+                {"label": "Batch No.", "ref": "batch_no"},
+                {"label": "Stability Condition", "ref": "stability_condition"},
+                {"label": "Packing Detail", "ref": "packing_detail_hdr"},
+                {"label": "TRF No.", "ref": "trf_no"},
+                {"label": "AR No.", "ref": "ar_no"},
+            ],
             "fields": [
                 {"key": "prep_ref", "kind": "input", "type": "text", "label": "Prep. Ref."},
-                {"key": "packing_detail", "kind": "input", "type": "text", "label": "Packing"},
                 {
                     "key": "sample_weight",
                     "kind": "input",

@@ -86,6 +86,57 @@ export function useConfirmWorksheet() {
   });
 }
 
+export function useSubmitForReview() {
+  const invalidate = useWorksheetInvalidation();
+  return useMutation({
+    mutationFn: ({
+      worksheetId,
+      comments,
+    }: {
+      worksheetId: number;
+      comments?: string;
+      lineId?: number;
+      trfId?: number;
+    }) => worksheetApi.submitForReview(worksheetId, comments),
+    onSuccess: (_data, variables) =>
+      invalidate(variables.worksheetId, variables.lineId, variables.trfId),
+  });
+}
+
+export function useReferBackWorksheet() {
+  const invalidate = useWorksheetInvalidation();
+  return useMutation({
+    mutationFn: ({
+      worksheetId,
+      comments,
+    }: {
+      worksheetId: number;
+      comments: string;
+      lineId?: number;
+      trfId?: number;
+    }) => worksheetApi.referBack(worksheetId, comments),
+    onSuccess: (_data, variables) =>
+      invalidate(variables.worksheetId, variables.lineId, variables.trfId),
+  });
+}
+
+export function useApproveWorksheetReview() {
+  const invalidate = useWorksheetInvalidation();
+  return useMutation({
+    mutationFn: ({
+      worksheetId,
+      comments,
+    }: {
+      worksheetId: number;
+      comments?: string;
+      lineId?: number;
+      trfId?: number;
+    }) => worksheetApi.approveReview(worksheetId, comments),
+    onSuccess: (_data, variables) =>
+      invalidate(variables.worksheetId, variables.lineId, variables.trfId),
+  });
+}
+
 /**
  * Debounced live recalculation.
  *

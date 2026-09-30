@@ -204,6 +204,12 @@ class TestWorksheetRepositoryImpl(ITestWorksheetRepository):
         model.reportable_result = worksheet.reportable_result
         model.confirmed_by = worksheet.confirmed_by
         model.confirmed_at = worksheet.confirmed_at
+        model.submitted_for_review_by = worksheet.submitted_for_review_by
+        model.submitted_for_review_at = worksheet.submitted_for_review_at
+        model.submission_comments = worksheet.submission_comments
+        model.reviewed_by = worksheet.reviewed_by
+        model.reviewed_at = worksheet.reviewed_at
+        model.review_comments = worksheet.review_comments
         model.modified_by = worksheet.modified_by
         model.modified_date = worksheet.modified_date
         await self._session.flush()
@@ -224,6 +230,12 @@ class TestWorksheetRepositoryImpl(ITestWorksheetRepository):
             reportable_result=model.reportable_result,
             confirmed_by=model.confirmed_by,
             confirmed_at=model.confirmed_at,
+            submitted_for_review_by=model.submitted_for_review_by,
+            submitted_for_review_at=model.submitted_for_review_at,
+            submission_comments=model.submission_comments,
+            reviewed_by=model.reviewed_by,
+            reviewed_at=model.reviewed_at,
+            review_comments=model.review_comments,
             template_code=template.code if template else None,
             template_name=template.name if template else None,
             created_by=model.created_by,

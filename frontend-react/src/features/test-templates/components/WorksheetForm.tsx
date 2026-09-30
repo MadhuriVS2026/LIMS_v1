@@ -45,6 +45,9 @@ interface WorksheetFormProps {
     context_values: Record<string, unknown>;
     group_values: Values;
   }) => void;
+  /** When provided, shows a "Submit for Review" button beside Save. */
+  onSubmitForReview?: () => void;
+  submittingForReview?: boolean;
 }
 
 const EDITABLE_KINDS = new Set(['input', 'area']);
@@ -130,7 +133,14 @@ function CriterionRow({ criterion }: { criterion: CriterionResult }) {
   );
 }
 
-export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFormProps) => {
+export const WorksheetForm = ({
+  detail,
+  editable,
+  saving,
+  onSave,
+  onSubmitForReview,
+  submittingForReview,
+}: WorksheetFormProps) => {
   const definition = detail.template.definition ?? {};
   const groups = definition.groups ?? [];
   const contextFields = definition.context ?? [];
@@ -312,6 +322,34 @@ export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFor
             </div>
           );
         })}
+      </div>
+    );
+  };
+
+  //  Render a table group's optional header-context strip: read-only values
+  //  pulled from the worksheet context (auto-fetched from the TRF), shown as a
+  //  compact row above the table — e.g. Batch/Stability/Packing/TRF/AR.
+  const renderGroupHeaderContext = (group: GroupDef) => {
+    if (!group.headerContext || group.headerContext.length === 0) return null;
+    const valueFor = (ref: string) => {
+      const v = contextValues[ref] ?? detail.worksheet.context_values?.[ref];
+      return v === null || v === undefined || v === '' ? '—' : String(v);
+    };
+    return (
+      <div className="mb-2 border-1 border-200 border-round overflow-hidden">
+        <div className="grid m-0">
+          {group.headerContext.map((item) => (
+            <div
+              key={item.ref}
+              className="col-6 sm:col-4 md:col-2 p-2 border-right-1 border-bottom-1 border-100"
+            >
+              <div className="text-xs text-500 mb-1">{item.label}</div>
+              <div className="text-sm font-medium text-900" style={{ wordBreak: 'break-word' }}>
+                {valueFor(item.ref)}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   };
@@ -536,6 +574,8 @@ export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFor
               </div>
             </div>
 
+            {renderGroupHeaderContext(group)}
+
             <div>
               <table
                 className="w-full text-sm"
@@ -659,13 +699,29 @@ export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFor
           </div>
 
           {editable && (
-            <Button
-              label={dirty ? 'Save Worksheet' : 'Saved'}
-              icon="pi pi-save"
-              onClick={handleSave}
-              loading={saving}
-              disabled={!dirty}
-            />
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                label={dirty ? 'Save Worksheet' : 'Saved'}
+                icon="pi pi-save"
+                onClick={handleSave}
+                loading={saving}
+                disabled={!dirty}
+              />
+              {onSubmitForReview && (
+                <Button
+                  label="Submit for Review"
+                  icon="pi pi-send"
+                  severity="help"
+                  outlined
+                  onClick={onSubmitForReview}
+                  loading={submittingForReview}
+                  //  A pending edit should be saved first, so the reviewer sees
+                  //  the values being submitted.
+                  disabled={dirty}
+                  tooltip={dirty ? 'Save your changes before submitting for review' : undefined}
+                />
+              )}
+            </div>
           )}
         </div>
         {areaFieldCount > 0 && (

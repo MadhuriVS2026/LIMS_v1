@@ -22,9 +22,12 @@ import { getErrorMessage, toastService } from '@shared/services/toastService';
 import { usePermissions } from '@core/rbac/usePermissions';
 import { useTemplatesForTest } from '../hooks/useTestTemplates';
 import {
+  useApproveWorksheetReview,
   useConfirmWorksheet,
   useCreateWorksheet,
+  useReferBackWorksheet,
   useSaveWorksheetValues,
+  useSubmitForReview,
   useWorksheetForLine,
 } from '../hooks/useWorksheet';
 import { WorksheetForm } from './WorksheetForm';
@@ -59,6 +62,9 @@ export const TestLineWorksheetPanel = ({
   const createWorksheet = useCreateWorksheet();
   const saveValues = useSaveWorksheetValues();
   const confirmWorksheet = useConfirmWorksheet();
+  const submitForReview = useSubmitForReview();
+  const referBack = useReferBackWorksheet();
+  const approveReview = useApproveWorksheetReview();
 
   const [pickedTemplateId, setPickedTemplateId] = useState<number | null>(null);
   const [showReason, setShowReason] = useState(false);
@@ -67,12 +73,22 @@ export const TestLineWorksheetPanel = ({
     context_values: Record<string, unknown>;
     group_values: Record<string, WorksheetRow[]>;
   } | null>(null);
+  //  Review-cycle comment dialogs.
+  const [reviewAction, setReviewAction] = useState<'submit' | 'approve' | 'refer' | null>(null);
+  const [reviewComment, setReviewComment] = useState('');
 
   const mode = editModeFor(trfStatus);
-  const canEnter = mode === 'Entry' && hasRole('Analyst', 'Admin');
-  const canCorrect = mode === 'Correction' && hasRole('QA', 'Admin');
+  const worksheetStatus = detail?.worksheet.status;
+  const pendingReview = worksheetStatus === 'PendingReview';
+  //  Editing is locked while the worksheet is under review, even if the TRF
+  //  status and role would otherwise allow it.
+  const canEnter = mode === 'Entry' && hasRole('Analyst', 'Admin') && !pendingReview;
+  const canCorrect = mode === 'Correction' && hasRole('QA', 'Admin') && !pendingReview;
   const editable = canEnter || canCorrect;
   const canConfirm = canEnter;
+  //  Who may act on a submitted worksheet. GL/TL resolve to Supervisor via the
+  //  frontend role inheritance in usePermissions.
+  const canReview = hasRole('Supervisor', 'QA', 'Admin');
 
   //  With one Active template there is no choice to make, so don't stage one as
   //  if there were. Only a genuine ambiguity should require a selection.
@@ -190,6 +206,49 @@ export const TestLineWorksheetPanel = ({
       },
     );
 
+  const closeReviewDialog = () => {
+    setReviewAction(null);
+    setReviewComment('');
+  };
+
+  const handleReviewConfirm = () => {
+    const ws = detail.worksheet.id;
+    const common = { worksheetId: ws, lineId, trfId, comments: reviewComment.trim() || undefined };
+    if (reviewAction === 'submit') {
+      submitForReview.mutate(common, {
+        onSuccess: () => {
+          toastService.success('Worksheet submitted for review.', 'Submitted');
+          closeReviewDialog();
+        },
+        onError: (e) => toastService.error(getErrorMessage(e), 'Could Not Submit'),
+      });
+    } else if (reviewAction === 'approve') {
+      approveReview.mutate(common, {
+        onSuccess: (data) => {
+          toastService.success(
+            `Approved. Result ${data.test_line_result ?? ''} published to the test line.`,
+            'Worksheet Approved',
+          );
+          closeReviewDialog();
+        },
+        onError: (e) => toastService.error(getErrorMessage(e), 'Could Not Approve'),
+      });
+    } else if (reviewAction === 'refer') {
+      referBack.mutate(
+        { worksheetId: ws, lineId, trfId, comments: reviewComment.trim() },
+        {
+          onSuccess: () => {
+            toastService.success('Worksheet referred back to the analyst.', 'Referred Back');
+            closeReviewDialog();
+          },
+          onError: (e) => toastService.error(getErrorMessage(e), 'Could Not Refer Back'),
+        },
+      );
+    }
+  };
+
+  const reviewBusy = submitForReview.isPending || approveReview.isPending || referBack.isPending;
+
   return (
     <div className="flex flex-column gap-3">
       <div className="flex justify-content-between align-items-center flex-wrap gap-2">
@@ -201,16 +260,38 @@ export const TestLineWorksheetPanel = ({
           <StatusBadge status={detail.worksheet.status} />
         </div>
 
-        {canConfirm && (
-          <Button
-            label={detail.worksheet.status === 'Confirmed' ? 'Re-confirm Result' : 'Confirm Result'}
-            icon="pi pi-check"
-            severity="success"
-            loading={confirmWorksheet.isPending}
-            disabled={detail.computed.has_blocking_failure}
-            onClick={handleConfirm}
-          />
-        )}
+        <div className="flex gap-2 flex-wrap">
+          {pendingReview && canReview && (
+            <>
+              <Button
+                label="Approve"
+                icon="pi pi-check"
+                severity="success"
+                loading={approveReview.isPending}
+                disabled={detail.computed.has_blocking_failure}
+                onClick={() => setReviewAction('approve')}
+              />
+              <Button
+                label="Refer Back"
+                icon="pi pi-undo"
+                severity="warning"
+                outlined
+                loading={referBack.isPending}
+                onClick={() => setReviewAction('refer')}
+              />
+            </>
+          )}
+          {canConfirm && (
+            <Button
+              label={detail.worksheet.status === 'Confirmed' ? 'Re-confirm Result' : 'Confirm Result'}
+              icon="pi pi-check"
+              severity="success"
+              loading={confirmWorksheet.isPending}
+              disabled={detail.computed.has_blocking_failure}
+              onClick={handleConfirm}
+            />
+          )}
+        </div>
       </div>
 
       {detail.worksheet.status === 'Confirmed' && (
