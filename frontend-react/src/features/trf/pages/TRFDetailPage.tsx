@@ -440,7 +440,7 @@ export const TRFDetailPage = () => {
 
       <AttachmentsPanel trfId={trf.id} trfStatus={trf.status} testLines={trf.test_lines} />
 
-      <Dialog header="Add Test Line" visible={showAddLine} onHide={() => setShowAddLine(false)} style={{ width: '480px' }} modal>
+      <Dialog header="Add Test Line" visible={showAddLine} onHide={() => setShowAddLine(false)} style={{ width: '480px' }} breakpoints={{ '640px': '95vw' }} modal>
         <div className="flex flex-column gap-3">
           <div>
             <label className="block text-sm font-medium text-700 mb-1">Test</label>
@@ -492,6 +492,7 @@ export const TRFDetailPage = () => {
         visible={commentAction !== null}
         onHide={() => setCommentAction(null)}
         style={{ width: '420px' }}
+        breakpoints={{ '640px': '95vw' }}
         modal
       >
         <CommentDialogBody

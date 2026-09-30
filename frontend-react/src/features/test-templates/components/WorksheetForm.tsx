@@ -272,6 +272,7 @@ export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFor
     return (
       <span
         className={`font-mono text-right block ${preview.stale ? 'text-400' : 'text-900 font-medium'}`}
+        style={{ wordBreak: 'break-word' }}
         title={field.expression}
       >
         {displayValue(value, field)}
@@ -284,7 +285,10 @@ export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFor
   const renderGroupFooter = (group: GroupDef) => {
     if (!group.footer || group.footer.length === 0) return null;
     return (
-      <div className="mt-2 border-1 border-200 border-round overflow-hidden" style={{ maxWidth: '28rem' }}>
+      <div
+        className="mt-2 border-1 border-200 border-round overflow-hidden w-full"
+        style={{ maxWidth: 'min(28rem, 100%)' }}
+      >
         {group.footer.map((item) => {
           const raw = computed.values?.[item.ref];
           const text =
@@ -532,15 +536,22 @@ export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFor
               </div>
             </div>
 
-            <div className="overflow-auto">
-              <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+            <div>
+              <table
+                className="w-full text-sm"
+                style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}
+              >
                 <thead>
                   <tr className="bg-gray-50">
                     <th className="text-left p-2 text-500 font-medium" style={{ width: '3rem' }}>
                       #
                     </th>
                     {editableFields.map((field) => (
-                      <th key={field.key} className="text-left p-2 text-500 font-medium">
+                      <th
+                        key={field.key}
+                        className="text-left p-2 text-500 font-medium"
+                        style={{ wordBreak: 'break-word' }}
+                      >
                         {field.label ?? field.key}
                         {field.unit ? ` (${field.unit})` : ''}
                         {field.kind === 'area' && (
@@ -555,6 +566,7 @@ export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFor
                       <th
                         key={field.key}
                         className="text-right p-2 text-500 font-medium"
+                        style={{ wordBreak: 'break-word' }}
                         title={field.expression}
                       >
                         {field.label ?? field.key}
@@ -570,12 +582,12 @@ export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFor
                     <tr key={rowIndex} className="border-top-1 border-200">
                       <td className="p-2 text-500 font-mono">{rowIndex + 1}</td>
                       {editableFields.map((field) => (
-                        <td className="p-1" key={field.key} style={{ minWidth: '9rem' }}>
+                        <td className="p-1" key={field.key}>
                           {renderInput(group, rowIndex, field)}
                         </td>
                       ))}
                       {calculatedFields.map((field) => (
-                        <td className="p-2" key={field.key} style={{ minWidth: '7rem' }}>
+                        <td className="p-2" key={field.key}>
                           {computedCell(group, rowIndex, field)}
                         </td>
                       ))}

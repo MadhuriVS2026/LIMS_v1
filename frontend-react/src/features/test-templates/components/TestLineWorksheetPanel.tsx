@@ -120,7 +120,7 @@ export const TestLineWorksheetPanel = ({
               }))}
               onChange={(e) => setPickedTemplateId(e.value)}
               placeholder="Select template..."
-              className="w-22rem"
+              className="w-full sm:w-22rem"
               aria-label="Calculation template"
             />
           </div>
@@ -193,7 +193,7 @@ export const TestLineWorksheetPanel = ({
   return (
     <div className="flex flex-column gap-3">
       <div className="flex justify-content-between align-items-center flex-wrap gap-2">
-        <div className="flex align-items-center gap-2">
+        <div className="flex align-items-center flex-wrap gap-2" style={{ minWidth: 0 }}>
           <span className="font-mono text-blue-600 text-sm">{detail.worksheet.template_code}</span>
           <span className="text-500 text-sm">v{detail.worksheet.template_version}</span>
           <span className="text-500 text-sm">·</span>
@@ -244,6 +244,7 @@ export const TestLineWorksheetPanel = ({
         visible={showReason}
         onHide={() => setShowReason(false)}
         style={{ width: '460px' }}
+        breakpoints={{ '640px': '95vw' }}
         modal
       >
         <div className="flex flex-column gap-3">
