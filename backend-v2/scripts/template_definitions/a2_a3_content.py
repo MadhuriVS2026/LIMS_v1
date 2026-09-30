@@ -79,6 +79,11 @@ A2_DEFINITION = {
                     "expression": _PEAK_SUM,
                 },
             ],
+            "footer": [
+                {"label": "Mean", "ref": "stats.mean_std"},
+                {"label": "SD", "ref": "stats.sd_std"},
+                {"label": "% RSD", "ref": "stats.rsd_std", "unit": "%"},
+            ],
         },
         standard_statistics_group(),
         {

@@ -279,6 +279,39 @@ export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFor
     );
   };
 
+  //  Render a table group's optional footer summary (e.g. Mean/SD/%RSD) from the
+  //  server-computed values, addressed by dotted ref like `stats.rsd_std`.
+  const renderGroupFooter = (group: GroupDef) => {
+    if (!group.footer || group.footer.length === 0) return null;
+    return (
+      <div className="mt-2 border-1 border-200 border-round overflow-hidden" style={{ maxWidth: '28rem' }}>
+        {group.footer.map((item) => {
+          const raw = computed.values?.[item.ref];
+          const text =
+            raw === null || raw === undefined || raw === ''
+              ? '—'
+              : typeof raw === 'number'
+                ? item.rounding?.mode && item.rounding.mode !== 'none' && typeof item.rounding.digits === 'number'
+                  ? raw.toFixed(item.rounding.digits)
+                  : String(Number(raw.toPrecision(12)))
+                : String(raw);
+          const shown = item.unit && text !== '—' ? `${text} ${item.unit}` : text;
+          return (
+            <div
+              key={item.ref}
+              className="flex justify-content-between align-items-center px-3 py-2 border-bottom-1 border-100"
+            >
+              <span className="text-sm font-medium text-700">{item.label}</span>
+              <span className={`font-mono text-sm ${preview.stale ? 'text-400' : 'text-900 font-semibold'}`}>
+                {shown}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   const handleSave = () => onSave({ context_values: contextValues, group_values: values });
 
   //  ── Per-section controls ──
@@ -566,6 +599,7 @@ export const WorksheetForm = ({ detail, editable, saving, onSave }: WorksheetFor
                 </tbody>
               </table>
             </div>
+            {renderGroupFooter(group)}
           </Card>
         );
       })}

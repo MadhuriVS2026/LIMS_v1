@@ -248,14 +248,31 @@ def replicate_area_group(
     label: str = "Standard Replicate Injections",
     default_rows: int = 5,
     max_rows: int = 6,
+    stats_group: str | None = "stats",
 ) -> dict:
-    return {
+    """
+    The replicate-injection table. When paired with `standard_statistics_group`
+    (the usual case), it also carries a compact Mean/SD/%RSD footer that renders
+    directly beneath the table — the same numbers as the statistics section,
+    shown inline where the analyst enters the areas.
+
+    `stats_group=None` omits the footer, for the rare template that has no
+    matching statistics group.
+    """
+    group: dict = {
         "key": key,
         "kind": "table",
         "label": label,
         "rows": {"min": 1, "max": max_rows, "default": default_rows},
         "fields": [{"key": "area", "kind": "area", "label": "STD Area"}],
     }
+    if stats_group:
+        group["footer"] = [
+            {"label": "Mean", "ref": f"{stats_group}.mean_std"},
+            {"label": "SD", "ref": f"{stats_group}.sd_std"},
+            {"label": "% RSD", "ref": f"{stats_group}.rsd_std", "unit": "%"},
+        ]
+    return group
 
 
 def standard_statistics_group(source: str = "std_areas") -> dict:

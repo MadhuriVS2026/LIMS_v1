@@ -49,12 +49,27 @@ export interface RowSpec {
   labelFrom?: string;
 }
 
+/**
+ * A summary line rendered under a table group: a computed value pulled from the
+ * worksheet's `computed.values` by dotted `ref` (e.g. `stats.mean_std`). Lets a
+ * table show its own Mean/SD/%RSD footer instead of only a separate stats card.
+ */
+export interface GroupFooterItem {
+  label: string;
+  /** Dotted path into computed.values, e.g. `stats.rsd_std`. */
+  ref: string;
+  unit?: string | null;
+  rounding?: Rounding;
+}
+
 export interface GroupDef {
   key: string;
   kind: GroupKind;
   label?: string;
   rows?: RowSpec;
   fields: FieldDef[];
+  /** Optional computed summary shown directly beneath the table. */
+  footer?: GroupFooterItem[];
 }
 
 export interface CriterionDef {

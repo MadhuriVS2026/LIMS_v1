@@ -34,6 +34,13 @@ A1_DEFINITION = {
             "label": "Standard Replicate Injections",
             "rows": {"min": 1, "max": 6, "default": 5},
             "fields": [{"key": "area", "kind": "area", "label": "STD Area"}],
+            #  Compact summary rendered under the table (display-only; the values
+            #  themselves are computed in the `stats` group below).
+            "footer": [
+                {"label": "Mean", "ref": "stats.mean_std"},
+                {"label": "SD", "ref": "stats.sd_std"},
+                {"label": "% RSD", "ref": "stats.rsd_std", "unit": "%"},
+            ],
         },
         {
             "key": "bkt_1",
@@ -41,6 +48,13 @@ A1_DEFINITION = {
             "label": "Bracketing Standard — Block 1",
             "rows": {"min": 0, "max": 6, "default": 2},
             "fields": [{"key": "area", "kind": "area", "label": "BKT STD Area"}],
+            #  Pooled with the initial replicates (std_areas ∪ bkt_1), matching
+            #  the statistics section — averaging a bracket alone would let a
+            #  drifting system pass suitability.
+            "footer": [
+                {"label": "Mean (pooled)", "ref": "stats.mean_bkt_1"},
+                {"label": "% RSD (pooled)", "ref": "stats.rsd_bkt_1", "unit": "%"},
+            ],
         },
         {
             "key": "bkt_2",
@@ -48,6 +62,11 @@ A1_DEFINITION = {
             "label": "Bracketing Standard — Block 2",
             "rows": {"min": 0, "max": 6, "default": 1},
             "fields": [{"key": "area", "kind": "area", "label": "BKT STD Area"}],
+            #  Pooled with std_areas ∪ bkt_1 ∪ bkt_2.
+            "footer": [
+                {"label": "Mean (pooled)", "ref": "stats.mean_bkt_2"},
+                {"label": "% RSD (pooled)", "ref": "stats.rsd_bkt_2", "unit": "%"},
+            ],
         },
         {
             "key": "std_2",
