@@ -163,6 +163,69 @@ export const WorksheetForm = ({
     [contextFields],
   );
 
+  //  Human labels for every field key/ref, so a blank calculated cell can name
+  //  the inputs it is still waiting on rather than showing a bare dash.
+  const labelByRef = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const cf of contextFields) map.set(cf.key, cf.label ?? cf.key);
+    for (const g of groups) {
+      for (const f of g.fields ?? []) {
+        const label = f.label ?? f.key;
+        map.set(f.key, label); // bare (same-group) reference
+        map.set(`${g.key}.${f.key}`, label); // qualified reference
+      }
+    }
+    return map;
+  }, [contextFields, groups]);
+
+  //  Resolve whether a referenced value is currently present (non-empty).
+  //  Checks, in order: same-row computed value, same-row entered value,
+  //  qualified computed aggregate (stats.*/standard.*), context, then any
+  //  top-level computed value.
+  const refIsPresent = (ref: string, group: GroupDef, rowIndex: number): boolean => {
+    const notEmpty = (v: unknown) => v !== null && v !== undefined && v !== '';
+
+    if (ref.includes('.')) {
+      //  Qualified aggregate/singleton ref, e.g. `stats.mean_std`.
+      return notEmpty(computed.values?.[ref]);
+    }
+
+    //  A bare ref inside a table row may itself be a calculated field (e.g.
+    //  `avg_area`), which the engine puts in computed.rows — check that first so
+    //  a computed input is not wrongly reported as missing.
+    const computedRow = computed.rows?.[group.key]?.[rowIndex];
+    if (computedRow && ref in computedRow) return notEmpty(computedRow[ref]);
+
+    const rowVal = values[group.key]?.[rowIndex]?.[ref];
+    if (rowVal !== undefined) return notEmpty(rowVal);
+
+    const ctxVal = contextValues[ref] ?? detail.worksheet.context_values?.[ref];
+    if (ctxVal !== undefined) return notEmpty(ctxVal);
+
+    return notEmpty(computed.values?.[ref]);
+  };
+
+  //  Parse a calculated field's expression for the inputs it depends on, and
+  //  return the labels of those that are still empty. Purely advisory — it does
+  //  not change the computation, only explains a blank cell.
+  const missingInputsFor = (field: FieldDef, group: GroupDef, rowIndex: number): string[] => {
+    if (!field.expression) return [];
+    //  Identifiers, including dotted refs. Excludes function names (followed by
+    //  "(") like mean/sd/rsd/pool/trunc/round.
+    const tokens = field.expression.match(/[A-Za-z_][A-Za-z0-9_.]*/g) ?? [];
+    const seen = new Set<string>();
+    const missing: string[] = [];
+    for (const tok of tokens) {
+      if (!labelByRef.has(tok)) continue; // skip functions / unknowns
+      if (seen.has(tok)) continue;
+      seen.add(tok);
+      if (!refIsPresent(tok, group, rowIndex)) {
+        missing.push(labelByRef.get(tok) as string);
+      }
+    }
+    return missing;
+  };
+
   //  Re-seed when a different worksheet loads, or after a save returns new
   //  stored values, so the form never keeps a draft belonging to another record.
   const seededFor = useRef<string>('');
@@ -279,6 +342,8 @@ export const WorksheetForm = ({
 
   const computedCell = (group: GroupDef, rowIndex: number, field: FieldDef) => {
     const value = computed.rows?.[group.key]?.[rowIndex]?.[field.key];
+    const isEmpty = value === null || value === undefined || value === '';
+    const missing = isEmpty && !preview.stale ? missingInputsFor(field, group, rowIndex) : [];
     return (
       <span
         className={`font-mono text-right block ${preview.stale ? 'text-400' : 'text-900 font-medium'}`}
@@ -286,6 +351,15 @@ export const WorksheetForm = ({
         title={field.expression}
       >
         {displayValue(value, field)}
+        {missing.length > 0 && (
+          <span
+            className="block text-xs text-orange-500 font-normal mt-1"
+            title={`Enter to calculate: ${missing.join(', ')}`}
+          >
+            awaiting: {missing.slice(0, 4).join(', ')}
+            {missing.length > 4 ? `, +${missing.length - 4} more` : ''}
+          </span>
+        )}
       </span>
     );
   };
@@ -355,6 +429,68 @@ export const WorksheetForm = ({
   };
 
   const handleSave = () => onSave({ context_values: contextValues, group_values: values });
+
+  //  ── Context section per-section controls ──
+  //  The Context block isn't a definition group, so it uses a synthetic key in
+  //  the same editingGroups set to get the same Edit/Save/Delete behaviour.
+  const CONTEXT_KEY = '__context__';
+  const contextEditing = editable && editingGroups.has(CONTEXT_KEY);
+
+  const saveContext = () => {
+    onSave({ context_values: contextValues, group_values: values });
+    setEditingGroups((prev) => {
+      const next = new Set(prev);
+      next.delete(CONTEXT_KEY);
+      return next;
+    });
+  };
+
+  //  Delete/Clear resets only the OVERRIDABLE context fields (the rest are
+  //  sourced from the TRF/product and are read-only), then persists.
+  const clearContext = () => {
+    const next = { ...contextValues };
+    for (const f of overridableContext) {
+      next[f.key] = (f.default ?? null) as unknown;
+    }
+    setContextValues(next);
+    setDirty(true);
+    recalculate(values, next);
+    onSave({ context_values: next, group_values: values });
+    setEditingGroups((prev) => {
+      const s = new Set(prev);
+      s.delete(CONTEXT_KEY);
+      return s;
+    });
+  };
+
+  const renderContextToolbar = () => {
+    //  Only meaningful when there is something editable to lock/unlock.
+    if (!editable || overridableContext.length === 0) return null;
+    return (
+      <div className="flex align-items-center gap-1">
+        {contextEditing ? (
+          <Button label="Save" icon="pi pi-save" size="small" text loading={saving} onClick={saveContext} />
+        ) : (
+          <Button
+            label="Edit"
+            icon="pi pi-pencil"
+            size="small"
+            text
+            onClick={() => setEditingGroups((prev) => new Set(prev).add(CONTEXT_KEY))}
+          />
+        )}
+        <Button
+          label="Delete"
+          icon="pi pi-trash"
+          size="small"
+          text
+          severity="danger"
+          onClick={clearContext}
+          aria-label="Clear Context overridable fields"
+        />
+      </div>
+    );
+  };
 
   //  ── Per-section controls ──
   //  A section is only interactive when the worksheet as a whole is editable
@@ -449,7 +585,11 @@ export const WorksheetForm = ({
     <div className="flex flex-column gap-3">
       {/* ── Context ── */}
       {contextFields.length > 0 && (
-        <Card title="Context">
+        <Card>
+          <div className="flex justify-content-between align-items-center mb-2">
+            <h3 className="m-0 text-base">Context</h3>
+            {renderContextToolbar()}
+          </div>
           <div className="grid">
             {contextFields.map((field) => {
               const stored = detail.worksheet.context_values?.[field.key];
@@ -457,7 +597,7 @@ export const WorksheetForm = ({
               return (
                 <div className="col-12 md:col-4 lg:col-3" key={field.key}>
                   <label className="block text-xs text-500 mb-1">{field.label ?? field.key}</label>
-                  {field.overridable && editable ? (
+                  {field.overridable && contextEditing ? (
                     field.type === 'number' ? (
                       <InputNumber
                         value={(current as number | null) ?? null}

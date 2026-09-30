@@ -24,6 +24,8 @@ NEW_USERS = [
     ("gl", "gl123", "Grace Leader", "GL", "R&D"),
     ("tl", "tl123", "Tom Teamlead", "TL", "R&D"),
     ("scientist", "scientist123", "Sam Scientist", "Scientist", "R&D"),
+    ("fdgl", "fdgl123", "Fiona FDGL", "FDGL", "R&D"),
+    ("adgl", "adgl123", "Adam ADGL", "ADGL", "QA"),
 ]
 
 

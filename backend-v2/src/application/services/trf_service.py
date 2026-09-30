@@ -13,7 +13,6 @@ AuditLog entry.
 from datetime import datetime, timezone
 
 from src.application.exceptions.application_exceptions import (
-    ForbiddenException,
     NotFoundException,
     ValidationException,
 )
@@ -38,16 +37,13 @@ class TRFService:
     # ── List / Get ───────────────────────────────────────────────────
 
     async def list_trfs(self, actor: User) -> list[TestRequestForm]:
-        """Requirement 12.1: Admin/QA/Supervisor see all; others see own-initiated or
-        currently-assigned-to-them TRFs."""
-        all_trfs = await self._repo.list_all()
-        if actor.has_role("Admin", "QA", "Supervisor"):
-            return all_trfs
-        return [
-            trf for trf in all_trfs
-            if trf.initiated_by == actor.username
-            or trf.analyst_accepted_by == actor.username
-        ]
+        """The TRF list is role-consistent: every authenticated user sees the
+        full list, so two users of the same role never see different lists. The
+        "Initiated By" column still shows ownership, and the per-action guards
+        (accept/submit/edit/approve) continue to enforce who may act on each TRF.
+        `actor` is accepted for interface stability and future scoping."""
+        _ = actor
+        return await self._repo.list_all()
 
     async def get_trf(self, trf_id: int) -> TestRequestForm:
         trf = await self._repo.get_by_id(trf_id)
@@ -97,9 +93,9 @@ class TRFService:
                 f"Test lines can only be mutated while Draft/ReferredBack, or PendingFDGLApproval "
                 f"for FDGL (current status: {trf.status})"
             )
-        if trf.status in ("Draft", "ReferredBack") and not actor.has_role("Admin"):
-            if trf.initiated_by is not None and trf.initiated_by != actor.username:
-                raise ForbiddenException("Only the initiating user or an Admin may modify this TRF")
+        #  Any Analyst/Admin (per the endpoint role guard) may modify the TRF —
+        #  editing is not restricted to the initiating user. The audit trail
+        #  records who made each change.
 
     async def add_test_line(
         self, trf_id: int, test_id: int, specification: str | None,
@@ -154,8 +150,7 @@ class TRFService:
     async def submit_trf(self, trf_id: int, actor: User) -> TestRequestForm:
         """Requirement 2.1, 2.2, 2.3: Draft/ReferredBack -> PendingFDGLApproval, requires >= 1 test line."""
         trf = await self.get_trf(trf_id)
-        if trf.initiated_by is not None and trf.initiated_by != actor.username and not actor.has_role("Admin"):
-            raise ForbiddenException("Only the initiating user or an Admin may submit this TRF")
+        #  Any Analyst/Admin may submit — not only the initiating user.
         if not trf.can_submit():
             raise ValidationException(
                 "TRF must be in Draft or ReferredBack status with at least one test line to submit"
@@ -407,8 +402,7 @@ class TRFService:
     async def resubmit_trf(self, trf_id: int, actor: User) -> TestRequestForm:
         """Requirement 7.1, 7.2, 7.3: ReferredBack -> PendingFDGLApproval, always re-enters at FDGL."""
         trf = await self.get_trf(trf_id)
-        if trf.initiated_by is not None and trf.initiated_by != actor.username and not actor.has_role("Admin"):
-            raise ForbiddenException("Only the initiating user or an Admin may resubmit this TRF")
+        #  Any Analyst/Admin may resubmit — not only the initiating user.
         if not trf.can_resubmit():
             raise ValidationException(f"Resubmit requires ReferredBack status (current status: {trf.status})")
 

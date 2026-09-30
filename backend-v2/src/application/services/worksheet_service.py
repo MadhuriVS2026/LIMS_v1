@@ -238,6 +238,14 @@ class WorksheetService:
         _line, trf = await self._load_line_and_trf(worksheet.trf_test_line_id)
         mode = self._assert_can_edit(trf, actor)
 
+        #  A worksheet submitted for review is frozen until a reviewer acts —
+        #  the TRF-status check above cannot see this worksheet-level lock.
+        if not worksheet.is_worksheet_editable:
+            raise ValidationException(
+                f"This worksheet is {worksheet.status} and cannot be edited until a "
+                f"reviewer approves or refers it back."
+            )
+
         if mode is WorksheetEditMode.CORRECTION and not (reason or "").strip():
             raise ValidationException("A reason is required when correcting worksheet values")
 
@@ -301,6 +309,11 @@ class WorksheetService:
             raise ValidationException(
                 f"A result can only be confirmed while the TRF is InProgress "
                 f"(current status: {trf.status})"
+            )
+        if not worksheet.is_worksheet_editable:
+            raise ValidationException(
+                f"This worksheet is {worksheet.status}; it must be approved through "
+                f"review rather than confirmed directly."
             )
 
         template = await self._load_bound_template(worksheet)
@@ -593,12 +606,9 @@ class WorksheetService:
                 f"Only {' or '.join(allowed)} may {_VERB_BY_MODE[mode]} worksheet values "
                 f"while the TRF is {trf.status}"
             )
-        if mode is WorksheetEditMode.ENTRY and not actor.has_role("Admin"):
-            #  The analyst who accepted the TRF owns result entry on it.
-            if trf.analyst_accepted_by and trf.analyst_accepted_by != actor.username:
-                raise ForbiddenException(
-                    "Only the analyst assigned to this TRF, or an Admin, may enter results"
-                )
+        #  Any analyst (not only the one who accepted the TRF) may enter results.
+        #  Access is governed by role; individual ownership is not required. The
+        #  audit trail still records exactly who made each change.
         return mode
 
     # ── Value shaping ────────────────────────────────────────────────

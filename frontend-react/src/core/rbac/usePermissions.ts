@@ -9,12 +9,15 @@ import { useAppSelector } from '@app/store';
 //  Base roles drive every access rule. Organizational roles (GL, TL, Scientist)
 //  inherit a base role's rights: GL/TL == Supervisor, Scientist == Analyst.
 export type BaseRole = 'Admin' | 'Analyst' | 'Supervisor' | 'QA';
-export type Role = BaseRole | 'GL' | 'TL' | 'Scientist';
+export type Role = BaseRole | 'GL' | 'TL' | 'Scientist' | 'FDGL' | 'ADGL';
 
 const ROLE_INHERITANCE: Record<string, BaseRole[]> = {
   GL: ['Supervisor'],
   TL: ['Supervisor'],
   Scientist: ['Analyst'],
+  //  TRF approval-gate roles: FDGL == Supervisor rights, ADGL == QA rights.
+  FDGL: ['Supervisor'],
+  ADGL: ['QA'],
 };
 
 //  The set of roles a user effectively holds: their own role plus any inherited

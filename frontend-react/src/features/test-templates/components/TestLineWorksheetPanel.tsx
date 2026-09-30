@@ -313,11 +313,40 @@ export const TestLineWorksheetPanel = ({
         />
       )}
 
+      {pendingReview && (
+        <Message
+          severity="warn"
+          className="w-full"
+          text={
+            `Submitted for review by ${detail.worksheet.submitted_for_review_by ?? 'analyst'}` +
+            (detail.worksheet.submission_comments
+              ? ` — “${detail.worksheet.submission_comments}”`
+              : '') +
+            (canReview
+              ? '. Approve to publish the result, or refer it back with comments.'
+              : '. Editing is locked until a reviewer approves or refers it back.')
+          }
+        />
+      )}
+      {worksheetStatus === 'ReferredBack' && (
+        <Message
+          severity="error"
+          className="w-full"
+          text={
+            `Referred back by ${detail.worksheet.reviewed_by ?? 'reviewer'}` +
+            (detail.worksheet.review_comments ? `: “${detail.worksheet.review_comments}”` : '') +
+            '. Make the requested changes, then submit for review again.'
+          }
+        />
+      )}
+
       <WorksheetForm
         detail={detail}
         editable={editable}
         saving={saveValues.isPending}
         onSave={handleSave}
+        onSubmitForReview={canEnter ? () => setReviewAction('submit') : undefined}
+        submittingForReview={submitForReview.isPending}
       />
 
       <Dialog
@@ -346,6 +375,57 @@ export const TestLineWorksheetPanel = ({
             onClick={() => pending && doSave(pending, reason.trim())}
             loading={saveValues.isPending}
             disabled={!reason.trim()}
+          />
+        </div>
+      </Dialog>
+
+      <Dialog
+        header={
+          reviewAction === 'submit'
+            ? 'Submit for Review'
+            : reviewAction === 'approve'
+              ? 'Approve Worksheet'
+              : 'Refer Back'
+        }
+        visible={reviewAction !== null}
+        onHide={closeReviewDialog}
+        style={{ width: '460px' }}
+        breakpoints={{ '640px': '95vw' }}
+        modal
+      >
+        <div className="flex flex-column gap-3">
+          <p className="text-sm text-600 m-0">
+            {reviewAction === 'submit' &&
+              'Send this worksheet to a supervisor (GL/TL/QA) for review. Editing is locked until they act. Add any notes for the reviewer.'}
+            {reviewAction === 'approve' &&
+              'Approving confirms the result and publishes it to the test line. Comments are optional.'}
+            {reviewAction === 'refer' &&
+              'Return this worksheet to the analyst for changes. A comment explaining what to fix is required.'}
+          </p>
+          <InputTextarea
+            value={reviewComment}
+            onChange={(e) => setReviewComment(e.target.value)}
+            rows={3}
+            className="w-full"
+            placeholder={
+              reviewAction === 'refer'
+                ? 'e.g. Re-check standard weight; Area 2 looks transposed'
+                : 'Optional comments'
+            }
+            autoFocus
+          />
+          <Button
+            label={
+              reviewAction === 'submit'
+                ? 'Submit for Review'
+                : reviewAction === 'approve'
+                  ? 'Approve'
+                  : 'Refer Back'
+            }
+            onClick={handleReviewConfirm}
+            loading={reviewBusy}
+            //  Only refer-back requires a comment.
+            disabled={reviewAction === 'refer' && !reviewComment.trim()}
           />
         </div>
       </Dialog>

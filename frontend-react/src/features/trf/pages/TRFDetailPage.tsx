@@ -133,8 +133,10 @@ export const TRFDetailPage = () => {
     return <p className="text-500">Loading TRF...</p>;
   }
 
-  const isFdgl = hasRole('Admin', 'Supervisor');
-  const isAdgl = hasRole('Admin', 'QA');
+  //  FDGL/ADGL are explicit here as well as inheriting Supervisor/QA, so the
+  //  gate is clear at a glance even though hasRole would resolve them anyway.
+  const isFdgl = hasRole('Admin', 'Supervisor', 'FDGL');
+  const isAdgl = hasRole('Admin', 'QA', 'ADGL');
   const isAnalyst = hasRole('Admin', 'Analyst');
 
   const canMutateLines =

@@ -149,11 +149,12 @@ class MRNService:
     # ── MRN creation & editing (Draft) ──────────────────────────────
 
     async def list_mrns(self, actor: User) -> list[MaterialRequisition]:
-        """Requirement 6.4: Admin/Supervisor see all; others see only their own."""
-        all_mrns = await self._mrn_repo.list_all()
-        if actor.has_role("Admin", "Supervisor"):
-            return all_mrns
-        return [m for m in all_mrns if m.created_by == actor.username]
+        """Role-consistent list: every authenticated user sees all MRNs, so two
+        users of the same role never see different lists. The "Created By" column
+        shows ownership, and the per-action guards still enforce who may edit or
+        submit each MRN. `actor` is accepted for interface stability."""
+        _ = actor
+        return await self._mrn_repo.list_all()
 
     async def get_mrn(self, mrn_id: int) -> MaterialRequisition:
         mrn = await self._mrn_repo.get_by_id(mrn_id)

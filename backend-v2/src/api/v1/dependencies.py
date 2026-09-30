@@ -27,6 +27,12 @@ ROLE_INHERITANCE: dict[str, tuple[str, ...]] = {
     "GL": ("Supervisor",),
     "TL": ("Supervisor",),
     "Scientist": ("Analyst",),
+    #  TRF approval-gate roles. FDGL performs the FDGL approval gate (same
+    #  authority as a Supervisor); ADGL performs the ADGL acceptance/release gate
+    #  (same authority as QA). Dual-control is preserved: FDGL and ADGL remain
+    #  distinct approvers.
+    "FDGL": ("Supervisor",),
+    "ADGL": ("QA",),
 }
 
 
