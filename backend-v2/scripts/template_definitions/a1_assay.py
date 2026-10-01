@@ -24,7 +24,7 @@ from scripts.template_definitions._common import (
 )
 
 A1_DEFINITION = {
-    "resultRef": "samples.pct_mean_assay",
+    "resultRef": "stats.pct_mean_assay",
     #  Extra context auto-fetched from the TRF header for the Sample Preparations
     #  header strip (batch is already seeded by context_header as `batch_no`).
     "context": context_header(
@@ -90,19 +90,7 @@ A1_DEFINITION = {
                 {"label": "% RSD (pooled)", "ref": "stats.rsd_bkt_1", "unit": "%"},
             ],
         },
-        {
-            "key": "bkt_2",
-            "kind": "table",
-            "label": "Bracketing Standard — Block 2",
-            "rows": {"min": 0, "max": 20, "default": 1},
-            "fields": [{"key": "area", "kind": "area", "label": "BKT STD Area"}],
-            #  Pooled with std_areas ∪ bkt_1 ∪ bkt_2.
-            "footer": [
-                {"label": "Mean (pooled)", "ref": "stats.mean_bkt_2"},
-                {"label": "SD (pooled)", "ref": "stats.sd_bkt_2"},
-                {"label": "% RSD (pooled)", "ref": "stats.rsd_bkt_2", "unit": "%"},
-            ],
-        },
+
         {
             #  Weights for the two standards in the co-relation. STD-1 weight is
             #  taken from Standard Details; STD-2 weight is entered manually.
@@ -137,28 +125,7 @@ A1_DEFINITION = {
                 {"label": "Standard Co-relation", "ref": "stats.std_corelation", "unit": "%"},
             ],
         },
-        {
-            #  Co-relation aggregates kept in their own singleton so the areas
-            #  table footer and the suitability criterion can reference them.
-            "key": "std_2",
-            "kind": "singleton",
-            "label": "Standard Co-relation — Summary",
-            "fields": [
-                {
-                    "key": "mean_std1",
-                    "kind": "calculated",
-                    "label": "Mean STD 1 Area",
-                    #  Auto-fetched from the Standard Replicate Injections mean.
-                    "expression": "stats.mean_std",
-                },
-                {
-                    "key": "mean_std2",
-                    "kind": "calculated",
-                    "label": "Mean STD 2 Area",
-                    "expression": "mean(corel_areas.std2_area)",
-                },
-            ],
-        },
+
         {
             "key": "stats",
             "kind": "singleton",
@@ -194,37 +161,36 @@ A1_DEFINITION = {
                     "expression": "rsd(pool(std_areas.area, bkt_1.area))",
                 },
                 {
-                    "key": "mean_bkt_2",
+                    #  Co-relation STD-2 mean area (STD-1 side is `mean_std`,
+                    #  autofetched from the replicate injections).
+                    "key": "mean_std2",
                     "kind": "calculated",
-                    "label": "Mean (pooled BKT 2)",
-                    "expression": "mean(pool(std_areas.area, bkt_1.area, bkt_2.area))",
-                },
-                {
-                    "key": "sd_bkt_2",
-                    "kind": "calculated",
-                    "label": "SD (pooled BKT 2)",
-                    "expression": "sd(pool(std_areas.area, bkt_1.area, bkt_2.area))",
-                },
-                {
-                    "key": "rsd_bkt_2",
-                    "kind": "calculated",
-                    "label": "%RSD (pooled BKT 2)",
-                    "unit": "%",
-                    "expression": "rsd(pool(std_areas.area, bkt_1.area, bkt_2.area))",
+                    "label": "Mean STD 2 Area",
+                    "expression": "mean(corel_areas.std2_area)",
                 },
                 {
                     "key": "std_corelation",
                     "kind": "calculated",
                     "label": "Standard Co-relation",
                     "unit": "%",
-                    #  Weight-normalised response ratio of the two co-relation
-                    #  standards: (mean STD-1 area / mean STD-2 area) ×
-                    #  (STD-2 weight / STD-1 weight). TRUNC the ratio, then ×100 —
-                    #  so 0.9997 becomes 99.9, not 100.0.
+                    #  Weight-normalised response ratio: (mean STD-1 area /
+                    #  mean STD-2 area) × (STD-2 weight / STD-1 weight). STD-1 mean
+                    #  comes from the replicate injections (stats.mean_std). TRUNC
+                    #  the ratio, then ×100 — so 0.9997 becomes 99.9, not 100.0.
                     "expression": (
-                        "trunc(std_2.mean_std1 / std_2.mean_std2 "
+                        "trunc(stats.mean_std / stats.mean_std2 "
                         "* corel_weights.std2_weight / standard.weight_mg, 3) * 100"
                     ),
+                },
+                {
+                    #  Reportable mean assay across all sample preparations. Shown
+                    #  in bold below the Sample Preparations table (its footer).
+                    "key": "pct_mean_assay",
+                    "kind": "calculated",
+                    "label": "% Mean Assay",
+                    "unit": "%",
+                    "expression": "mean(samples.pct_assay)",
+                    "rounding": {"mode": "round", "digits": 2},
                 },
             ],
         },
@@ -281,14 +247,11 @@ A1_DEFINITION = {
                         "* standard.potency * standard.mw_base / standard.mw_salt"
                     ),
                 },
-                {
-                    "key": "pct_mean_assay",
-                    "kind": "calculated",
-                    "label": "% Mean Assay",
-                    "unit": "%",
-                    "expression": "mean(samples.pct_assay)",
-                    "rounding": {"mode": "round", "digits": 2},
-                },
+            ],
+            #  % Mean Assay is a single value for the whole sample set, so it is
+            #  shown once in bold below the table rather than repeated per row.
+            "footer": [
+                {"label": "% Mean Assay", "ref": "stats.pct_mean_assay", "unit": "%"},
             ],
         },
     ],
@@ -305,7 +268,7 @@ A1_DEFINITION = {
         {
             "key": "sst_bkt_rsd",
             "label": "%RSD of pooled bracketing standards",
-            "target": "stats.rsd_bkt_2",
+            "target": "stats.rsd_bkt_1",
             "operator": "lte",
             "limit": 2.0,
             "severity": "blocking",
