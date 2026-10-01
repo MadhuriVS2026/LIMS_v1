@@ -12,7 +12,9 @@ import { Dropdown } from 'primereact/dropdown';
 import { toastService } from '@shared/services/toastService';
 import { userManagementApi } from '../api/userManagementApi';
 
-const ROLES = ['Admin', 'Analyst', 'Supervisor', 'QA'];
+import type { User } from '@features/authentication/models/auth.types';
+
+const ROLES = ['Admin', 'Analyst', 'Supervisor', 'QA', 'GL', 'TL', 'Scientist', 'FDGL', 'ADGL'];
 
 export const UsersPage = () => {
   const qc = useQueryClient();
@@ -25,9 +27,16 @@ export const UsersPage = () => {
     mutationFn: ({ id, is_active }: { id: number; is_active: boolean }) => userManagementApi.update(id, { is_active }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   });
+  const updateUser = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: Partial<User> }) => userManagementApi.update(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  });
 
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ username: '', password: '', full_name: '', role: 'Analyst', department: '' });
+  const [editTarget, setEditTarget] = useState<User | null>(null);
+  const [editForm, setEditForm] = useState({ full_name: '', role: 'Analyst', department: '', email: '' });
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
 
   const handleCreate = () => {
     if (!form.username || !form.password || !form.full_name) {
@@ -52,6 +61,56 @@ export const UsersPage = () => {
     );
   };
 
+  const openEdit = (u: User) => {
+    setEditTarget(u);
+    setEditForm({
+      full_name: u.full_name ?? '',
+      role: u.role ?? 'Analyst',
+      department: u.department ?? '',
+      email: u.email ?? '',
+    });
+  };
+
+  const handleUpdate = () => {
+    if (!editTarget) return;
+    if (!editForm.full_name.trim()) {
+      toastService.warn('Full name is required.', 'Missing fields');
+      return;
+    }
+    updateUser.mutate(
+      {
+        id: editTarget.id,
+        payload: {
+          full_name: editForm.full_name,
+          role: editForm.role as User['role'],
+          department: editForm.department || undefined,
+          email: editForm.email || undefined,
+        },
+      },
+      {
+        onSuccess: (u) => {
+          toastService.success(`User ${u.username} updated.`, 'User Updated');
+          setEditTarget(null);
+        },
+      }
+    );
+  };
+
+  //  No hard-delete endpoint by design (users carry audit history). "Delete"
+  //  soft-deletes by deactivating the account.
+  const handleDelete = () => {
+    if (!deleteTarget) return;
+    toggleUser.mutate(
+      { id: deleteTarget.id, is_active: false },
+      {
+        onSuccess: () => {
+          toastService.success(`User ${deleteTarget.username} deactivated (soft-deleted).`, 'User Deleted');
+          setDeleteTarget(null);
+        },
+      }
+    );
+  };
+
   return (
     <div>
       <div className="flex justify-content-between align-items-center mb-3">
@@ -69,13 +128,25 @@ export const UsersPage = () => {
           <Column
             header="Actions"
             body={(row) => (
-              <Button
-                label={row.is_active ? 'Deactivate' : 'Activate'}
-                size="small"
-                text
-                severity={row.is_active ? 'danger' : 'success'}
-                onClick={() => handleToggle(row.id, row.username, !row.is_active)}
-              />
+              <div className="flex gap-2 flex-wrap">
+                <Button label="Edit" size="small" text onClick={() => openEdit(row)} />
+                <Button
+                  label={row.is_active ? 'Deactivate' : 'Activate'}
+                  size="small"
+                  text
+                  severity={row.is_active ? 'warning' : 'success'}
+                  onClick={() => handleToggle(row.id, row.username, !row.is_active)}
+                />
+                {row.is_active && (
+                  <Button
+                    label="Delete"
+                    size="small"
+                    text
+                    severity="danger"
+                    onClick={() => setDeleteTarget(row)}
+                  />
+                )}
+              </div>
             )}
           />
         </DataTable>
@@ -96,6 +167,40 @@ export const UsersPage = () => {
             <div className="col-6"><label className="block text-sm font-medium text-700 mb-1">Department</label><InputText value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} className="w-full" /></div>
           </div>
           <Button label="Create User" onClick={handleCreate} loading={createUser.isPending} className="w-full mt-1" />
+        </div>
+      </Dialog>
+
+      <Dialog header={`Edit User${editTarget ? ` — ${editTarget.username}` : ''}`} visible={!!editTarget} onHide={() => setEditTarget(null)} style={{ width: '440px' }} breakpoints={{ '640px': '95vw' }} modal>
+        <div className="flex flex-column gap-3">
+          <div>
+            <label className="block text-sm font-medium text-700 mb-1">Full Name</label>
+            <InputText value={editForm.full_name} onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })} className="w-full" />
+          </div>
+          <div className="grid">
+            <div className="col-6">
+              <label className="block text-sm font-medium text-700 mb-1">Role</label>
+              <Dropdown value={editForm.role} options={ROLES} onChange={(e) => setEditForm({ ...editForm, role: e.value })} className="w-full" />
+            </div>
+            <div className="col-6">
+              <label className="block text-sm font-medium text-700 mb-1">Department</label>
+              <InputText value={editForm.department} onChange={(e) => setEditForm({ ...editForm, department: e.target.value })} className="w-full" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-700 mb-1">Email</label>
+            <InputText value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className="w-full" />
+          </div>
+          <Button label="Save Changes" onClick={handleUpdate} loading={updateUser.isPending} className="w-full mt-1" />
+        </div>
+      </Dialog>
+
+      <Dialog header={`Delete User${deleteTarget ? ` — ${deleteTarget.username}` : ''}`} visible={!!deleteTarget} onHide={() => setDeleteTarget(null)} style={{ width: '420px' }} breakpoints={{ '640px': '95vw' }} modal>
+        <div className="flex flex-column gap-3">
+          <p className="text-sm text-600 m-0">
+            This deactivates the user so they can no longer sign in. The account is retained for the
+            audit trail rather than permanently removed, and can be reactivated later.
+          </p>
+          <Button label="Delete (Deactivate)" severity="danger" onClick={handleDelete} loading={toggleUser.isPending} className="w-full" />
         </div>
       </Dialog>
     </div>
