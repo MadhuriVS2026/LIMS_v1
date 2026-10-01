@@ -120,8 +120,8 @@ A1_DEFINITION = {
                 {"key": "std2_area", "kind": "area", "label": "STD 2 Area"},
             ],
             "footer": [
-                {"label": "Mean (STD 1) — from replicates", "ref": "std_2.mean_std1"},
-                {"label": "Mean (STD 2)", "ref": "std_2.mean_std2"},
+                {"label": "Mean (STD 1) — from replicates", "ref": "stats.mean_std"},
+                {"label": "Mean (STD 2)", "ref": "stats.mean_std2"},
                 {"label": "Standard Co-relation", "ref": "stats.std_corelation", "unit": "%"},
             ],
         },
@@ -210,21 +210,29 @@ A1_DEFINITION = {
             ],
             "fields": [
                 {"key": "prep_ref", "kind": "input", "type": "text", "label": "Prep. Ref."},
+                #  Avg Weight per row (read-only), echoing the single worksheet
+                #  Average Weight / Vial from the Context section.
+                {
+                    "key": "avg_wt",
+                    "kind": "calculated",
+                    "label": "Avg Weight",
+                    "expression": "avg_weight",
+                },
+                #  Label Claim per row (read-only), echoing the single worksheet
+                #  Label Claim — auto-filled from the TRF when numeric, else
+                #  entered manually in Context. Divisor in %Assay.
+                {
+                    "key": "lc",
+                    "kind": "calculated",
+                    "label": "Label Claim (L.C.)",
+                    "expression": "label_claim",
+                },
                 {
                     "key": "sample_weight",
                     "kind": "input",
                     "label": "Sample Wt.",
                     "unit": "mg",
                     "required": True,
-                },
-                #  Label Claim shown per row (read-only), echoing the single
-                #  worksheet Label Claim — auto-filled from the TRF when numeric,
-                #  else entered manually in the Context section. Divisor in %Assay.
-                {
-                    "key": "lc",
-                    "kind": "calculated",
-                    "label": "Label Claim (L.C.)",
-                    "expression": "label_claim",
                 },
                 *dilution_fields("s_"),
                 {"key": "area_1", "kind": "area", "label": "Area 1"},
@@ -255,35 +263,9 @@ A1_DEFINITION = {
             ],
         },
     ],
-    "criteria": [
-        {
-            "key": "sst_std_rsd",
-            "label": "%RSD of standard replicate injections",
-            "target": "stats.rsd_std",
-            "operator": "lte",
-            "limit": 2.0,
-            "severity": "blocking",
-            "limitText": "NMT 2.0 %",
-        },
-        {
-            "key": "sst_bkt_rsd",
-            "label": "%RSD of pooled bracketing standards",
-            "target": "stats.rsd_bkt_1",
-            "operator": "lte",
-            "limit": 2.0,
-            "severity": "blocking",
-            "limitText": "NMT 2.0 %",
-        },
-        {
-            "key": "std_corelation",
-            "label": "Standard co-relation",
-            "target": "stats.std_corelation",
-            "operator": "between",
-            "limit": [98.0, 102.0],
-            "severity": "advisory",
-            "limitText": "98.0 % to 102.0 %",
-        },
-    ],
+    #  Acceptance Criteria section removed per request — no suitability criteria
+    #  are evaluated or shown for this template.
+    "criteria": [],
 }
 
 A1 = SeedTemplate(
