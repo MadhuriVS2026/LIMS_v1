@@ -104,18 +104,58 @@ A1_DEFINITION = {
             ],
         },
         {
+            #  Weights for the two standards in the co-relation. STD-1 weight is
+            #  taken from Standard Details; STD-2 weight is entered manually.
+            "key": "corel_weights",
+            "kind": "singleton",
+            "label": "Standard Co-relation — Weights",
+            "fields": [
+                {
+                    "key": "std1_weight",
+                    "kind": "calculated",
+                    "label": "STD-1 Weight",
+                    "unit": "mg",
+                    "expression": "standard.weight_mg",
+                },
+                {"key": "std2_weight", "kind": "input", "label": "STD-2 Weight", "unit": "mg"},
+            ],
+        },
+        {
+            #  STD-2 injection areas only (add rows up to 6). STD-1's side of the
+            #  co-relation is taken from the Standard Replicate Injections mean,
+            #  so it is not re-entered here. The column mean feeds the co-relation.
+            "key": "corel_areas",
+            "kind": "table",
+            "label": "Standard Co-relation — Areas (STD 2)",
+            "rows": {"min": 1, "max": 6, "default": 6},
+            "fields": [
+                {"key": "std2_area", "kind": "area", "label": "STD 2 Area"},
+            ],
+            "footer": [
+                {"label": "Mean (STD 1) — from replicates", "ref": "std_2.mean_std1"},
+                {"label": "Mean (STD 2)", "ref": "std_2.mean_std2"},
+                {"label": "Standard Co-relation", "ref": "stats.std_corelation", "unit": "%"},
+            ],
+        },
+        {
+            #  Co-relation aggregates kept in their own singleton so the areas
+            #  table footer and the suitability criterion can reference them.
             "key": "std_2",
             "kind": "singleton",
-            "label": "Second Standard (co-relation)",
+            "label": "Standard Co-relation — Summary",
             "fields": [
-                {"key": "weight_mg", "kind": "input", "label": "STD-2 Weight", "unit": "mg"},
-                {"key": "area_1", "kind": "area", "label": "Area 1"},
-                {"key": "area_2", "kind": "area", "label": "Area 2"},
                 {
-                    "key": "mean_area",
+                    "key": "mean_std1",
                     "kind": "calculated",
-                    "label": "Mean Area",
-                    "expression": "mean([area_1, area_2])",
+                    "label": "Mean STD 1 Area",
+                    #  Auto-fetched from the Standard Replicate Injections mean.
+                    "expression": "stats.mean_std",
+                },
+                {
+                    "key": "mean_std2",
+                    "kind": "calculated",
+                    "label": "Mean STD 2 Area",
+                    "expression": "mean(corel_areas.std2_area)",
                 },
             ],
         },
@@ -177,11 +217,13 @@ A1_DEFINITION = {
                     "kind": "calculated",
                     "label": "Standard Co-relation",
                     "unit": "%",
-                    #  TRUNC applied to the ratio, then ×100 — so 0.9997 becomes
-                    #  99.9, not 100.0.
+                    #  Weight-normalised response ratio of the two co-relation
+                    #  standards: (mean STD-1 area / mean STD-2 area) ×
+                    #  (STD-2 weight / STD-1 weight). TRUNC the ratio, then ×100 —
+                    #  so 0.9997 becomes 99.9, not 100.0.
                     "expression": (
-                        "trunc(stats.mean_std / std_2.mean_area "
-                        "* std_2.weight_mg / standard.weight_mg, 3) * 100"
+                        "trunc(std_2.mean_std1 / std_2.mean_std2 "
+                        "* corel_weights.std2_weight / standard.weight_mg, 3) * 100"
                     ),
                 },
             ],
@@ -208,6 +250,15 @@ A1_DEFINITION = {
                     "label": "Sample Wt.",
                     "unit": "mg",
                     "required": True,
+                },
+                #  Label Claim shown per row (read-only), echoing the single
+                #  worksheet Label Claim — auto-filled from the TRF when numeric,
+                #  else entered manually in the Context section. Divisor in %Assay.
+                {
+                    "key": "lc",
+                    "kind": "calculated",
+                    "label": "Label Claim (L.C.)",
+                    "expression": "label_claim",
                 },
                 *dilution_fields("s_"),
                 {"key": "area_1", "kind": "area", "label": "Area 1"},

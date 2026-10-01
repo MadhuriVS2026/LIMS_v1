@@ -636,6 +636,11 @@ class WorksheetService:
             "trf.ar_number": trf.ar_number,
             "trf.batch_number": trf.batch_number,
             "trf.label_claim": trf.label_claim,
+            #  Label Claim is free text on the TRF ("50 mg/vial", "LC-0072e76").
+            #  Only auto-fill the numeric worksheet field when the TRF value is a
+            #  clean number; otherwise leave it blank for manual entry, since the
+            #  assay formula divides by it.
+            "trf.label_claim_numeric": WorksheetService._as_number(trf.label_claim),
             "trf.stage_of_sample": trf.stage_of_sample,
             "trf.group_name": trf.group_name,
             "trf.quantity": trf.quantity,
@@ -662,6 +667,21 @@ class WorksheetService:
             if value is not None:
                 seeded[cf.key] = value
         return seeded
+
+    @staticmethod
+    def _as_number(value: Any) -> float | None:
+        """Return the value as a float if it is a clean number (int/float, or a
+        string that is purely numeric), else None. Used so a free-text TRF Label
+        Claim is only auto-filled when it is actually a usable number."""
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            s = value.strip()
+            try:
+                return float(s)
+            except ValueError:
+                return None
+        return None
 
     @staticmethod
     def _filter_context(

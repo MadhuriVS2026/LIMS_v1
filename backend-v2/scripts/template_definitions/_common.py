@@ -72,7 +72,13 @@ def context_header(
             {
                 "key": "label_claim",
                 "kind": "context",
+                "type": "number",
                 "label": "Label Claim",
+                #  Auto-filled from the TRF only when its Label Claim is numeric;
+                #  otherwise this stays blank for manual entry. It is a divisor in
+                #  the assay formula, so a free-text TRF value ("LC-0072e76") must
+                #  not flow in. Remains overridable either way.
+                "source": "trf.label_claim_numeric",
                 "overridable": True,
             }
         )
