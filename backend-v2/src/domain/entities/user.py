@@ -23,11 +23,12 @@ class User(BaseEntity):
     username: str = field(default="")
     password_hash: str = field(default="", repr=False)
     full_name: str = field(default="")
-    role: str = field(default="Analyst")  # Admin, Analyst, Supervisor, QA, GL, TL, Scientist, FDGL, ADGL
+    role: str = field(default="Analyst")  # Admin, Analyst, Supervisor, QA, GL, TL, Scientist, FDGL, ADGL, Approver2
     #  GL (Group Leader) & TL (Team Leader) inherit Supervisor rights; Scientist
-    #  inherits Analyst rights. FDGL inherits Supervisor (FDGL TRF gate); ADGL
-    #  inherits QA (ADGL TRF gate). See src/api/v1/dependencies.py
-    #  ROLE_INHERITANCE (backend) and src/core/rbac/usePermissions.ts (frontend).
+    #  inherits Analyst rights. FDGL inherits Supervisor (FDGL TRF gate); ADGL and
+    #  Approver2 inherit QA (ADGL TRF gate + approvals). See
+    #  src/api/v1/dependencies.py ROLE_INHERITANCE (backend) and
+    #  src/core/rbac/usePermissions.ts (frontend).
     email: str | None = field(default=None)
     department: str | None = field(default=None)
     is_active: bool = field(default=True)

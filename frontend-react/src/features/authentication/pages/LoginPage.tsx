@@ -37,7 +37,7 @@ export const LoginPage = () => {
           >
             <i className="pi pi-shield text-white text-3xl" />
           </div>
-          <h1 className="text-2xl font-bold text-900 mb-1">Anti Gravity LIMS</h1>
+          <h1 className="text-2xl font-bold text-900 mb-1">R &amp; D LIMS</h1>
           <p className="text-500 text-sm">Laboratory Information Management System</p>
         </div>
 

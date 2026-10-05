@@ -85,7 +85,7 @@ export const MainLayout = () => {
         >
           {!collapsed && (
             <span className="font-bold text-lg" style={{ color: 'var(--color-primary)' }}>
-              ANTI GRAVITY
+              R &amp; D LIMS
             </span>
           )}
           <Button

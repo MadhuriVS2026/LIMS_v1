@@ -33,6 +33,9 @@ ROLE_INHERITANCE: dict[str, tuple[str, ...]] = {
     #  distinct approvers.
     "FDGL": ("Supervisor",),
     "ADGL": ("QA",),
+    #  Approver2: a second approver with the same approve authority as ADGL/QA
+    #  (ADGL-gate accept + release, worksheet review approval).
+    "Approver2": ("QA",),
 }
 
 

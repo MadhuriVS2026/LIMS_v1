@@ -5,7 +5,7 @@ export interface User {
   id: number;
   username: string;
   full_name: string;
-  role: 'Admin' | 'Analyst' | 'Supervisor' | 'QA' | 'GL' | 'TL' | 'Scientist' | 'FDGL' | 'ADGL';
+  role: 'Admin' | 'Analyst' | 'Supervisor' | 'QA' | 'GL' | 'TL' | 'Scientist' | 'FDGL' | 'ADGL' | 'Approver2';
   email?: string | null;
   department?: string | null;
   is_active: boolean;

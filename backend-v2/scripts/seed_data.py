@@ -55,6 +55,7 @@ async def seed() -> None:
             ("scientist", "scientist123", "Sam Scientist", "Scientist", "R&D"),
             ("fdgl", "fdgl123", "Fiona FDGL", "FDGL", "R&D"),
             ("adgl", "adgl123", "Adam ADGL", "ADGL", "QA"),
+            ("approver2", "approver2123", "Second Approver", "Approver2", "QA"),
         ]
         for username, password, full_name, role, department in users_data:
             session.add(UserModel(

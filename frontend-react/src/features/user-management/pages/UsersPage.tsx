@@ -14,7 +14,7 @@ import { userManagementApi } from '../api/userManagementApi';
 
 import type { User } from '@features/authentication/models/auth.types';
 
-const ROLES = ['Admin', 'Analyst', 'Supervisor', 'QA', 'GL', 'TL', 'Scientist', 'FDGL', 'ADGL'];
+const ROLES = ['Admin', 'Analyst', 'Supervisor', 'QA', 'GL', 'TL', 'Scientist', 'FDGL', 'ADGL', 'Approver2'];
 
 export const UsersPage = () => {
   const qc = useQueryClient();
