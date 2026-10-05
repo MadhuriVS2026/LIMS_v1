@@ -44,6 +44,8 @@ export interface FieldDef {
   overridable?: boolean;
   /** AREA: `ManualEntry` today; the Waters import will set `CDS_IMPORT`. */
   areaSource?: string;
+  /** When true, the field is still computed/stored but not rendered in the UI. */
+  hidden?: boolean;
 }
 
 export interface RowSpec {

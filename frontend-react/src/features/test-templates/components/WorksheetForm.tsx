@@ -637,8 +637,11 @@ export const WorksheetForm = ({
       {/* ── Groups ── */}
       {groups.map((group) => {
         const fields = group.fields ?? [];
-        const editableFields = fields.filter(isEditableField);
-        const calculatedFields = fields.filter((f) => f.kind === 'calculated');
+        //  `hidden` fields are still seeded/computed/stored (seedValues and the
+        //  evaluator iterate the full definition), but are not rendered — used to
+        //  keep intermediate calculations and defaults out of the visible table.
+        const editableFields = fields.filter((f) => isEditableField(f) && !f.hidden);
+        const calculatedFields = fields.filter((f) => f.kind === 'calculated' && !f.hidden);
         const rows = values[group.key] ?? [];
         const min = group.rows?.min ?? 1;
         const max = group.rows?.max ?? 1;

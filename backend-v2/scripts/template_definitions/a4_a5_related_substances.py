@@ -301,13 +301,29 @@ A5_DEFINITION = {
         ],
     ),
     "groups": [
+        #  Sample preparation header: average vial weight, sample weight and the
+        #  dilution volumes. Recorded for the sheet; the normalisation maths does
+        #  not use them, so they carry no formula.
+        {
+            "key": "sample_prep",
+            "kind": "singleton",
+            "label": "Sample Preparation",
+            "fields": [
+                {"key": "avg_wt", "kind": "input", "label": "Av. Wt.", "unit": "mg"},
+                {"key": "sample_weight", "kind": "input", "label": "Sample Wt.", "unit": "mg"},
+                {"key": "vol_1", "kind": "input", "label": "Vol 1", "unit": "mL", "default": 1},
+                {"key": "vol_2", "kind": "input", "label": "Vol 2", "unit": "mL", "default": 1},
+                {"key": "vol_3", "kind": "input", "label": "Vol 3", "unit": "mL", "default": 1},
+            ],
+        },
         {
             "key": "main",
             "kind": "singleton",
             "label": "Main Peak",
             "fields": [
-                {"key": "rt", "kind": "input", "label": "RT", "unit": "min"},
-                {"key": "area", "kind": "area", "label": "Main Peak Area", "unit": "µV·s"},
+                {"key": "rt", "kind": "input", "label": "Main Peak RT", "unit": "min"},
+                {"key": "area", "kind": "area",
+                 "label": "Main Peak Area in Test solution", "unit": "µV·s"},
             ],
         },
         #  Total area lives in its own group rather than in `summary`. Dependencies
@@ -322,7 +338,7 @@ A5_DEFINITION = {
                 {
                     "key": "total_area",
                     "kind": "calculated",
-                    "label": "Total Peak Area",
+                    "label": "Total Area",
                     #  Includes the main peak — normalising against the impurities
                     #  alone would inflate every result enormously.
                     "expression": "sum(peaks.area) + main.area",
@@ -335,8 +351,16 @@ A5_DEFINITION = {
             "label": "Impurity Peaks",
             "rows": {"min": 1, "max": 40, "default": 5, "labelFrom": "name"},
             "fields": [
-                {"key": "name", "kind": "input", "type": "text", "label": "Peak"},
+                {"key": "name", "kind": "input", "type": "text", "label": "Impurity Name"},
                 {"key": "rt", "kind": "input", "label": "RT", "unit": "min"},
+                {"key": "area", "kind": "area", "label": "Area", "unit": "µV·s"},
+                {
+                    "key": "rrt",
+                    "kind": "calculated",
+                    "label": "RRT",
+                    "expression": "rt / main.rt",
+                    "rounding": {"mode": "round", "digits": 2},
+                },
                 {"key": "rrf", "kind": "input", "label": "RRF", "default": 1},
                 {
                     "key": "loq",
@@ -344,42 +368,42 @@ A5_DEFINITION = {
                     "label": "LOQ",
                     "unit": "%",
                     "default": 0.05,
-                },
-                {"key": "area", "kind": "area", "label": "Area", "unit": "µV·s"},
-                {
-                    "key": "rrt",
-                    "kind": "calculated",
-                    "label": "RRT",
-                    "expression": "rt / main.rt",
-                    "rounding": {"mode": "round", "digits": 3},
+                    "hidden": True,
                 },
                 {
+                    #  Intermediate: still computed (feeds `pct`) but hidden from
+                    #  the table to keep the visible columns to the reportables.
                     "key": "pct_uncorrected",
                     "kind": "calculated",
                     "label": "% area (before RRF)",
                     "unit": "%",
                     "expression": "area / normalisation.total_area * 100",
+                    "hidden": True,
                 },
                 {
                     "key": "pct",
                     "kind": "calculated",
-                    "label": "% area",
+                    "label": "% Impurity",
                     "unit": "%",
                     "expression": _RRF_APPLIED,
                     "rounding": {"mode": "round", "digits": 3},
                 },
                 {
+                    #  Feeds the total; hidden from the table.
                     "key": "pct_for_total",
                     "kind": "calculated",
                     "label": "% counted in total",
                     "unit": "%",
                     "expression": "if(pct < loq, 0, pct)",
+                    "hidden": True,
                 },
                 {
+                    #  BLQ display helper; hidden from the table.
                     "key": "reported",
                     "kind": "calculated",
                     "label": "Reported",
                     "expression": 'if(pct < loq, "BLQ", pct)',
+                    "hidden": True,
                 },
             ],
         },
@@ -388,24 +412,22 @@ A5_DEFINITION = {
             "kind": "singleton",
             "label": "Summary",
             "fields": [
-                #  Same guard as A4: an untouched sheet must not report 0.000 %.
+                #  Single Maximum Impurity is entered manually by the analyst.
                 {
                     "key": "max_single_impurity",
-                    "kind": "calculated",
+                    "kind": "input",
                     "label": "Single Maximum Impurity",
                     "unit": "%",
-                    "expression": (
-                        "if(isblank(mean(peaks.pct)), blank(), max(peaks.pct_for_total))"
-                    ),
-                    "rounding": {"mode": "round", "digits": 3},
                 },
+                #  Total Impurities = sum of the displayed % Impurity column.
+                #  Guarded so an untouched sheet does not report 0.000 %.
                 {
                     "key": "total_impurities",
                     "kind": "calculated",
                     "label": "Total Impurities",
                     "unit": "%",
                     "expression": (
-                        "if(isblank(mean(peaks.pct)), blank(), sum(peaks.pct_for_total))"
+                        "if(isblank(mean(peaks.pct)), blank(), sum(peaks.pct))"
                     ),
                     "rounding": {"mode": "round", "digits": 3},
                 },
