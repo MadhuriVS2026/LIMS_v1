@@ -71,8 +71,46 @@ A4_DEFINITION = {
         standard_group(
             label="Impurity Standard Details", conc_label="Standard Concentration"
         ),
+        #  Free-text title for the first replicate set (alphanumeric).
+        {
+            "key": "sri1_header",
+            "kind": "singleton",
+            "label": "Standard Replicate Injections",
+            "fields": [
+                {"key": "title", "kind": "input", "type": "text", "label": "Title"},
+            ],
+        },
         replicate_area_group(label="Standard Replicate Injections"),
         standard_statistics_group(),
+        #  A4-only: a second, independent replicate-injection set with its own
+        #  Mean/SD/%RSD, shown directly below the first.
+        #  Free-text title for the second replicate set (alphanumeric).
+        {
+            "key": "sri2_header",
+            "kind": "singleton",
+            "label": "Standard Replicate Injections 2",
+            "fields": [
+                {"key": "title", "kind": "input", "type": "text", "label": "Title"},
+            ],
+        },
+        replicate_area_group(
+            key="std_areas_2",
+            label="Standard Replicate Injections 2",
+            stats_group="stats_2",
+        ),
+        {
+            "key": "stats_2",
+            "kind": "singleton",
+            "label": "Standard Statistics 2",
+            "fields": [
+                {"key": "mean_std", "kind": "calculated", "label": "Mean STD Area",
+                 "expression": "mean(std_areas_2.area)"},
+                {"key": "sd_std", "kind": "calculated", "label": "SD",
+                 "expression": "sd(std_areas_2.area)"},
+                {"key": "rsd_std", "kind": "calculated", "label": "%RSD", "unit": "%",
+                 "expression": "rsd(std_areas_2.area)"},
+            ],
+        },
         {
             "key": "sample_prep",
             "kind": "singleton",
