@@ -69,7 +69,15 @@ A4_DEFINITION = {
         #  MW correction matters more here: many impurity standards are salts
         #  where the parent is not.
         standard_group(
-            label="Impurity Standard Details", conc_label="Standard Concentration"
+            label="Reference Standard Details", conc_label="Standard Concentration"
+        ),
+        #  Second, independent reference standard (same fields + its own
+        #  Standard Concentration). Recorded alongside the first; the impurity
+        #  calculation still runs against `standard` (the first).
+        standard_group(
+            key="standard_2",
+            label="Reference Standard 2 Details",
+            conc_label="Standard Concentration",
         ),
         #  Free-text title for the first replicate set (alphanumeric).
         {
