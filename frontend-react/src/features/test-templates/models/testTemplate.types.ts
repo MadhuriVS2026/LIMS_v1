@@ -46,6 +46,15 @@ export interface FieldDef {
   areaSource?: string;
   /** When true, the field is still computed/stored but not rendered in the UI. */
   hidden?: boolean;
+  /**
+   * Row-aligned mirror of another table's column, as `"<group>.<field>"`. The
+   * worksheet form copies the source table's value at the same row index into
+   * this cell and renders it read-only. Used to echo the shared Time Interval
+   * column into the % Content / % Release tables without re-entry. The
+   * calculation engine can't do cross-table row lookups, so this is handled in
+   * the UI layer.
+   */
+  mirrorFrom?: string;
 }
 
 export interface RowSpec {

@@ -710,6 +710,33 @@ def _f_coalesce(args: list[Any]) -> Any:
     return EMPTY
 
 
+def _f_number(args: list[Any]) -> Any:
+    """Coerce a value to a number, parsing numeric strings.
+
+    TRF/context values are often free text ("2", "2.0", "50 mg/vial"), so a
+    formula that does arithmetic on them must tolerate a string that is really a
+    number. Returns the float when the value is numeric or a cleanly-numeric
+    string, else EMPTY (blank) — never raises, matching the sheets' IFERROR
+    semantics. A leading number in a mixed string (e.g. "20mg") is NOT guessed;
+    only a wholly-numeric string converts, to avoid silently misreading data.
+    """
+    if not args:
+        return EMPTY
+    v = args[0]
+    if _is_blank(v):
+        return EMPTY
+    if isinstance(v, bool):
+        return 1.0 if v else 0.0
+    if isinstance(v, (int, float)):
+        return float(v)
+    if isinstance(v, str):
+        try:
+            return float(v.strip())
+        except ValueError:
+            return EMPTY
+    return EMPTY
+
+
 def _f_pool(args: list[Any]) -> Any:
     """
     Flatten several ranges into one series.
@@ -756,6 +783,8 @@ _FUNCTIONS: dict[str, Callable[[list[Any]], Any]] = {
     "blank": _f_blank,
     "isblank": _f_isblank,
     "coalesce": _f_coalesce,
+    "number": _f_number,
+    "value": _f_number,
     "pool": _f_pool,
     "cumsum": _f_cumsum,
     "if": _f_blank,  # handled lazily in _Evaluator._call; entry marks it as known

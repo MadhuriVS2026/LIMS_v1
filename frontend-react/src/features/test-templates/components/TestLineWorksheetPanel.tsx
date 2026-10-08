@@ -261,6 +261,12 @@ export const TestLineWorksheetPanel = ({
         </div>
 
         <div className="flex gap-2 flex-wrap">
+          <Button
+            label="Print"
+            icon="pi pi-print"
+            outlined
+            onClick={() => window.open(`/worksheets/${detail.worksheet.id}/print`, '_blank')}
+          />
           {pendingReview && canReview && (
             <>
               <Button
@@ -345,6 +351,20 @@ export const TestLineWorksheetPanel = ({
         editable={editable}
         saving={saveValues.isPending}
         onSave={handleSave}
+        //  Autosave only in plain entry mode: correction mode requires a reason
+        //  dialog, so it must never be saved silently. Saves quietly in the
+        //  background without the "Worksheet saved" toast.
+        onAutosave={
+          canEnter
+            ? (payload) =>
+                saveValues.mutate({
+                  worksheetId: detail.worksheet.id,
+                  lineId,
+                  trfId,
+                  payload,
+                })
+            : undefined
+        }
         onSubmitForReview={canEnter ? () => setReviewAction('submit') : undefined}
         submittingForReview={submitForReview.isPending}
       />

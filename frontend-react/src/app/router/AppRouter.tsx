@@ -26,7 +26,7 @@ import { UsersPage } from '@features/user-management/pages/UsersPage';
 import { AuditPage } from '@features/audit/pages/AuditPage';
 import { MaterialQueuePage, MRNDetailPage, MyMRNsPage } from '@features/mrn';
 import { PrintATRPage, TRFDetailPage, TRFListPage } from '@features/trf';
-import { TemplateDetailPage, TemplateListPage } from '@features/test-templates';
+import { PrintWorksheetPage, TemplateDetailPage, TemplateListPage } from '@features/test-templates';
 import { CoaListPage, PrintCoaPage } from '@features/coa';
 import { PrintProtocolPage, PrintReportPage, ProtocolDetailPage, ProtocolsPage } from '@features/stability';
 
@@ -40,6 +40,7 @@ export const AppRouter = () => (
       <Route path="/trf/:id/atr/print" element={<PrintATRPage />} />
       {/* Outside MainLayout so the printed page carries no sidebar or topbar. */}
       <Route path="/coa/:id/print" element={<PrintCoaPage />} />
+      <Route path="/worksheets/:id/print" element={<PrintWorksheetPage />} />
 
       <Route element={<MainLayout />}>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />

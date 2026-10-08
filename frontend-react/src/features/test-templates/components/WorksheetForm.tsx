@@ -45,6 +45,15 @@ interface WorksheetFormProps {
     context_values: Record<string, unknown>;
     group_values: Values;
   }) => void;
+  /**
+   * Debounced background save of in-progress edits. Same payload as onSave but
+   * must persist WITHOUT prompting (no correction-reason dialog), so it is only
+   * wired in plain entry mode. Omit to disable autosave.
+   */
+  onAutosave?: (payload: {
+    context_values: Record<string, unknown>;
+    group_values: Values;
+  }) => void;
   /** When provided, shows a "Submit for Review" button beside Save. */
   onSubmitForReview?: () => void;
   submittingForReview?: boolean;
@@ -60,6 +69,26 @@ function rowCount(group: GroupDef, stored: WorksheetRow[] | undefined): number {
   if (group.kind === 'singleton') return 1;
   if (stored && stored.length) return stored.length;
   return group.rows?.default ?? group.rows?.min ?? 1;
+}
+
+/**
+ * Responsive column span for a singleton field, sized to its label so a long
+ * caption like "Retention Time of Main peak (For RRT)" gets a wider box instead
+ * of being crammed into a fixed quarter-width column. Short labels stay compact
+ * so a row still fits several fields side by side. Always full width on mobile.
+ */
+function fieldColClass(field: FieldDef): string {
+  //  Free-text single fields (Title, Remarks, Parameter, Product name, ...) read
+  //  as a line of prose, so give them the full page width rather than a narrow
+  //  numeric-sized box. Dropdowns keep their own sizing below.
+  if (field.type === 'text' && !(field.options && field.options.length)) {
+    return 'col-12';
+  }
+  const caption = `${field.label ?? field.key}${field.unit ? ` (${field.unit})` : ''}`;
+  const len = caption.length;
+  if (len > 44) return 'col-12 md:col-8 lg:col-6';
+  if (len > 26) return 'col-12 md:col-6 lg:col-4';
+  return 'col-12 md:col-4 lg:col-3';
 }
 
 /** Seeds editable form state from the worksheet's stored values. */
@@ -138,6 +167,7 @@ export const WorksheetForm = ({
   editable,
   saving,
   onSave,
+  onAutosave,
   onSubmitForReview,
   submittingForReview,
 }: WorksheetFormProps) => {
@@ -238,17 +268,97 @@ export const WorksheetForm = ({
     setContextValues({});
     setDirty(false);
     setEditingGroups(new Set());
-    //  Use the computed state the detail response already carried. We do NOT
-    //  auto-fire a preview on load: replaying stored values through the engine
-    //  on every open produced repeated 400s when a stored value was incomplete
-    //  (e.g. a zero denominator). Calculated cells recompute on the next edit.
+    //  Use the computed state the detail response already carried.
     preview.reset(detail.computed);
+    //  If the worksheet has no computed snapshot yet (never previewed, or the
+    //  template gained calculated fields after it was last saved) but it does
+    //  carry stored input data, fire a one-off preview so calculated cells show
+    //  on open instead of staying blank until the analyst edits something. The
+    //  engine is blank-tolerant (missing inputs yield blanks, not errors), so
+    //  this no longer risks the 400s that an eager preview once caused.
+    const hasComputedRows =
+      detail.computed?.rows && Object.keys(detail.computed.rows).length > 0;
+    const hasStoredInput =
+      detail.worksheet.group_values &&
+      Object.values(detail.worksheet.group_values).some(
+        (rows) => Array.isArray(rows) && rows.length > 0,
+      );
+    if (!hasComputedRows && hasStoredInput) {
+      preview.request({ group_values: seeded, context_values: {} });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail]);
 
   const recalculate = (nextValues: Values, nextContext: Record<string, unknown>) => {
     preview.request({ group_values: nextValues, context_values: nextContext });
   };
+
+  //  ── Autosave ──
+  //  Persist in-progress edits in the background so a closed tab or lost session
+  //  never discards unsaved work. Runs on a fixed 5-minute interval: on each
+  //  tick, if there are unsaved changes it saves the current state. A ref holds
+  //  the latest values + dirty flag so the interval always sees current state
+  //  without re-arming the timer on every keystroke. Only runs when the parent
+  //  supplied onAutosave (plain entry mode — never correction mode, which needs
+  //  a reason).
+  const AUTOSAVE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+  const latest = useRef({ values, contextValues, dirty, saving });
+  latest.current = { values, contextValues, dirty, saving };
+  useEffect(() => {
+    if (!onAutosave || !editable) return;
+    const timer = window.setInterval(() => {
+      const cur = latest.current;
+      if (!cur.dirty || cur.saving) return;
+      onAutosave({
+        context_values: cur.contextValues,
+        group_values: cur.values,
+      });
+    }, AUTOSAVE_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editable]);
+
+  //  ── Row-aligned mirroring ──
+  //  A field may declare `mirrorFrom: "<group>.<field>"` to echo another table's
+  //  column by row index (e.g. the shared Time Interval column into the %Content
+  //  / %Release tables). The calc engine only sees other tables as whole columns,
+  //  not row-aligned, so this is done here: copy the source cell into the mirror
+  //  cell whenever the source changes, and render the mirror read-only.
+  const mirrorSpecs = useMemo(() => {
+    const specs: { group: string; field: string; srcGroup: string; srcField: string }[] = [];
+    for (const g of groups) {
+      for (const f of g.fields ?? []) {
+        if (f.mirrorFrom && f.mirrorFrom.includes('.')) {
+          const [srcGroup, srcField] = f.mirrorFrom.split('.', 2);
+          specs.push({ group: g.key, field: f.key, srcGroup, srcField });
+        }
+      }
+    }
+    return specs;
+  }, [groups]);
+
+  useEffect(() => {
+    if (mirrorSpecs.length === 0) return;
+    let changed = false;
+    const next: Values = { ...values };
+    for (const spec of mirrorSpecs) {
+      const src = values[spec.srcGroup];
+      const dst = values[spec.group];
+      if (!src || !dst) continue;
+      const updated = dst.map((row, i) => {
+        const srcVal = src[i]?.[spec.srcField] ?? null;
+        if ((row?.[spec.field] ?? null) === srcVal) return row;
+        changed = true;
+        return { ...row, [spec.field]: srcVal };
+      });
+      if (updated.some((r, i) => r !== dst[i])) next[spec.group] = updated;
+    }
+    if (changed) setValues(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values, mirrorSpecs]);
+
+  //  Fields that mirror another column are display-only (filled from the source).
+  const isMirrorField = (field: FieldDef) => !!field.mirrorFrom;
 
   const setCell = (groupKey: string, rowIndex: number, fieldKey: string, value: unknown) => {
     const next: Values = {
@@ -296,7 +406,8 @@ export const WorksheetForm = ({
 
   const renderInput = (group: GroupDef, rowIndex: number, field: FieldDef) => {
     const value = values[group.key]?.[rowIndex]?.[field.key] ?? null;
-    const disabled = !isGroupEditing(group.key);
+    //  Mirror fields are filled from their source column and never typed here.
+    const disabled = !isGroupEditing(group.key) || isMirrorField(field);
     const label = `${group.label ?? group.key} row ${rowIndex + 1} ${field.label ?? field.key}`;
 
     if (field.options && field.options.length) {
@@ -658,7 +769,7 @@ export const WorksheetForm = ({
               </div>
               <div className="grid">
                 {editableFields.map((field) => (
-                  <div className="col-12 md:col-4 lg:col-3" key={field.key}>
+                  <div className={fieldColClass(field)} key={field.key}>
                     <label className="block text-xs text-500 mb-1">
                       {field.label ?? field.key}
                       {field.unit ? ` (${field.unit})` : ''}
@@ -673,7 +784,7 @@ export const WorksheetForm = ({
                   </div>
                 ))}
                 {calculatedFields.map((field) => (
-                  <div className="col-12 md:col-4 lg:col-3" key={field.key}>
+                  <div className={fieldColClass(field)} key={field.key}>
                     <label className="block text-xs text-500 mb-1">
                       {field.label ?? field.key}
                       {field.unit ? ` (${field.unit})` : ''}
@@ -691,6 +802,19 @@ export const WorksheetForm = ({
 
         const editingThisGroup = isGroupEditing(group.key);
         const hasEditableCols = editableFields.length > 0;
+        //  Wide tables (e.g. the 12-vessel dissolution timepoints) have far more
+        //  columns than fit the card. A fixed layout squeezes them until some
+        //  columns collapse to near-zero width and look "missing", so for
+        //  many-column tables use an auto layout with a per-column min-width and
+        //  let the wrapper scroll horizontally.
+        const tableColCount = 1 + editableFields.length + calculatedFields.length + (canAddRows ? 1 : 0);
+        const wideTable = tableColCount > 8;
+        //  Render columns in definition order (not editable-first) so a template
+        //  that places an input column after calculated ones — e.g. Spec Limit
+        //  after Max in the dissolution release table — shows in that position.
+        const visibleFields = fields.filter(
+          (f) => !f.hidden && (isEditableField(f) || f.kind === 'calculated'),
+        );
         return (
           <Card key={group.key}>
             <div className="flex justify-content-between align-items-center mb-2">
@@ -717,44 +841,41 @@ export const WorksheetForm = ({
 
             {renderGroupHeaderContext(group)}
 
-            <div>
+            <div style={wideTable ? { overflowX: 'auto' } : undefined}>
               <table
                 className="w-full text-sm"
-                style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}
+                style={
+                  wideTable
+                    ? { borderCollapse: 'collapse', tableLayout: 'auto', minWidth: `${tableColCount * 4.5}rem` }
+                    : { borderCollapse: 'collapse', tableLayout: 'fixed' }
+                }
               >
                 <thead>
                   <tr className="bg-gray-50">
                     <th className="text-left p-2 text-500 font-medium" style={{ width: '3rem' }}>
                       #
                     </th>
-                    {editableFields.map((field) => (
-                      <th
-                        key={field.key}
-                        className="text-left p-2 text-500 font-medium"
-                        style={{ wordBreak: 'break-word' }}
-                      >
-                        {field.label ?? field.key}
-                        {field.unit ? ` (${field.unit})` : ''}
-                        {field.kind === 'area' && (
-                          <i
-                            className="pi pi-chart-line ml-1 text-blue-500"
-                            title="Chromatographic area — manual entry pending the Waters integration"
-                          />
-                        )}
-                      </th>
-                    ))}
-                    {calculatedFields.map((field) => (
-                      <th
-                        key={field.key}
-                        className="text-right p-2 text-500 font-medium"
-                        style={{ wordBreak: 'break-word' }}
-                        title={field.expression}
-                      >
-                        {field.label ?? field.key}
-                        {field.unit ? ` (${field.unit})` : ''}
-                        <i className="pi pi-calculator ml-1" />
-                      </th>
-                    ))}
+                    {visibleFields.map((field) => {
+                      const calc = field.kind === 'calculated';
+                      return (
+                        <th
+                          key={field.key}
+                          className={`p-2 text-500 font-medium ${calc ? 'text-right' : 'text-left'}`}
+                          style={{ wordBreak: 'break-word' }}
+                          title={calc ? field.expression : undefined}
+                        >
+                          {field.label ?? field.key}
+                          {field.unit ? ` (${field.unit})` : ''}
+                          {field.kind === 'area' && (
+                            <i
+                              className="pi pi-chart-line ml-1 text-blue-500"
+                              title="Chromatographic area — manual entry pending the Waters integration"
+                            />
+                          )}
+                          {calc && <i className="pi pi-calculator ml-1" />}
+                        </th>
+                      );
+                    })}
                     {canAddRows && <th style={{ width: '3rem' }} />}
                   </tr>
                 </thead>
@@ -762,16 +883,17 @@ export const WorksheetForm = ({
                   {rows.map((_row, rowIndex) => (
                     <tr key={rowIndex} className="border-top-1 border-200">
                       <td className="p-2 text-500 font-mono">{rowIndex + 1}</td>
-                      {editableFields.map((field) => (
-                        <td className="p-1" key={field.key}>
-                          {renderInput(group, rowIndex, field)}
-                        </td>
-                      ))}
-                      {calculatedFields.map((field) => (
-                        <td className="p-2" key={field.key}>
-                          {computedCell(group, rowIndex, field)}
-                        </td>
-                      ))}
+                      {visibleFields.map((field) =>
+                        field.kind === 'calculated' ? (
+                          <td className="p-2" key={field.key}>
+                            {computedCell(group, rowIndex, field)}
+                          </td>
+                        ) : (
+                          <td className="p-1" key={field.key}>
+                            {renderInput(group, rowIndex, field)}
+                          </td>
+                        ),
+                      )}
                       {canAddRows && (
                         <td className="p-1">
                           {editingThisGroup && (

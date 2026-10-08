@@ -3,9 +3,14 @@ REM ============================================================
 REM  R & D LIMS - local launcher
 REM  Starts the FastAPI backend (port 8443) and the Vite
 REM  frontend (port 5174), each in its own window.
+REM
+REM  Before launching, any process already holding 8443 or 5174
+REM  is stopped. This guarantees the backend that answers 8443 is
+REM  THIS repo's backend (reading backend-v2\lims.db) and not a
+REM  stale copy from another checkout that grabbed the port first.
 REM ============================================================
 
-setlocal
+setlocal EnableDelayedExpansion
 REM  Resolve paths relative to this script, so it runs from anywhere.
 set "ROOT=%~dp0"
 set "BACKEND=%ROOT%backend-v2"
@@ -16,6 +21,18 @@ echo   Starting R ^& D LIMS
 echo   Backend : http://127.0.0.1:8443   (API docs: /docs)
 echo   Frontend: http://localhost:5174
 echo ============================================================
+echo.
+
+REM  --- Free the ports so THIS repo's apps own them ---
+echo Freeing ports 8443 and 5174 if already in use...
+for %%P in (8443 5174) do (
+    for /f "tokens=5" %%I in ('netstat -ano ^| findstr /r /c:":%%P .*LISTENING"') do (
+        if not "%%I"=="0" (
+            echo   stopping PID %%I on port %%P
+            taskkill /PID %%I /F >nul 2>&1
+        )
+    )
+)
 echo.
 
 REM  --- Backend ---
