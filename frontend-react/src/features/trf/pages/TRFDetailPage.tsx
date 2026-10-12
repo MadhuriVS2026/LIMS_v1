@@ -127,6 +127,7 @@ export const TRFDetailPage = () => {
     return counts;
   }, [activeTemplates]);
   const [newLine, setNewLine] = useState<{ test_id?: number; specification?: string; raw_data_reference?: string; remark?: string }>({});
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | undefined>(undefined);
   const [resultDrafts, setResultDrafts] = useState<Record<number, { result: string; remark: string }>>({});
 
   if (isLoading || !trf) {
@@ -170,6 +171,7 @@ export const TRFDetailPage = () => {
           toastService.success('Test line added.', 'TRF Updated');
           setShowAddLine(false);
           setNewLine({});
+          setSelectedTemplateId(undefined);
         },
         onError: (e) => toastService.error(getErrorMessage(e), 'Could Not Add Test Line'),
       }
@@ -442,23 +444,24 @@ export const TRFDetailPage = () => {
 
       <AttachmentsPanel trfId={trf.id} trfStatus={trf.status} testLines={trf.test_lines} />
 
-      <Dialog header="Add Test Line" visible={showAddLine} onHide={() => setShowAddLine(false)} style={{ width: '480px' }} breakpoints={{ '640px': '95vw' }} modal>
+      <Dialog header="Add Test Line" visible={showAddLine} onHide={() => { setShowAddLine(false); setNewLine({}); setSelectedTemplateId(undefined); }} style={{ width: '480px' }} breakpoints={{ '640px': '95vw' }} modal>
         <div className="flex flex-column gap-3">
           <div>
-            <label className="block text-sm font-medium text-700 mb-1">Test</label>
+            <label className="block text-sm font-medium text-700 mb-1">Test Template</label>
             <Dropdown
-              value={newLine.test_id}
-              //  Flag templated tests here, so the initiator knows before adding the
-              //  line that the analyst will get a calculation worksheet for it.
-              options={tests.map((t) => {
-                const templates = templateCountByTest.get(t.id) ?? 0;
-                return {
-                  label: `${t.name} (${t.code})${templates > 0 ? '  ·  calculation template' : ''}`,
-                  value: t.id,
-                };
-              })}
-              onChange={(e) => setNewLine({ ...newLine, test_id: e.value })}
-              placeholder="Select test..."
+              value={selectedTemplateId}
+              //  Options come from the active test templates — the initiator picks
+              //  a template by name; its bound test_id is what the line is created with.
+              options={activeTemplates.map((tpl) => ({
+                label: `${tpl.code} ${tpl.name}${tpl.test_name ? ` — ${tpl.test_name}` : ''}`,
+                value: tpl.id,
+              }))}
+              onChange={(e) => {
+                const tpl = activeTemplates.find((t) => t.id === e.value);
+                setSelectedTemplateId(e.value);
+                setNewLine({ ...newLine, test_id: tpl?.test_id });
+              }}
+              placeholder="Select test template..."
               className="w-full"
               filter
             />

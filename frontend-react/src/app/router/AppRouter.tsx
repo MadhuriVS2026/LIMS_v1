@@ -26,7 +26,12 @@ import { UsersPage } from '@features/user-management/pages/UsersPage';
 import { AuditPage } from '@features/audit/pages/AuditPage';
 import { MaterialQueuePage, MRNDetailPage, MyMRNsPage } from '@features/mrn';
 import { PrintATRPage, TRFDetailPage, TRFListPage } from '@features/trf';
-import { PrintWorksheetPage, TemplateDetailPage, TemplateListPage } from '@features/test-templates';
+import {
+  PrintWorksheetPage,
+  TemplateDetailPage,
+  TemplateListPage,
+  WorksheetPreviewPage,
+} from '@features/test-templates';
 import { CoaListPage, PrintCoaPage } from '@features/coa';
 import { PrintProtocolPage, PrintReportPage, ProtocolDetailPage, ProtocolsPage } from '@features/stability';
 
@@ -70,6 +75,7 @@ export const AppRouter = () => (
 
         <Route path="/test-templates" element={<TemplateListPage />} />
         <Route path="/test-templates/:id" element={<TemplateDetailPage />} />
+        <Route path="/test-templates/:id/worksheet" element={<WorksheetPreviewPage />} />
 
         <Route path="/coa" element={<CoaListPage />} />
 

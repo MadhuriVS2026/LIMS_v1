@@ -162,6 +162,18 @@ export const TemplateListPage = () => {
             )}
           />
           <Column field="name" header="Name" />
+          <Column
+            header="Worksheet"
+            body={(row: TestTemplateSummary) => (
+              <Button
+                label={`${row.code} ${row.name}`}
+                size="small"
+                text
+                aria-label={`View worksheet for ${row.code} ${row.name}`}
+                onClick={() => navigate(`/test-templates/${row.id}/worksheet`)}
+              />
+            )}
+          />
           <Column field="archetype" header="Archetype" />
           <Column
             header="Test"
