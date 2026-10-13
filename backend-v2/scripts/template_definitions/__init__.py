@@ -27,6 +27,7 @@ from scripts.template_definitions._common import SeedTemplate
 from scripts.template_definitions.a1_assay import TEMPLATES as _A1
 from scripts.template_definitions.a2_a3_content import TEMPLATES as _A2_A3
 from scripts.template_definitions.a2_lyso_content import TEMPLATES as _A2_LYSO
+from scripts.template_definitions.a2_lyso_content_mgvial import TEMPLATES as _A2_LYSO_MGVIAL
 from scripts.template_definitions.a4_a5_related_substances import TEMPLATES as _A4_A5
 from scripts.template_definitions.a6_dissolution import TEMPLATES as _A6
 from scripts.template_definitions.a6d_franz_ivrt import TEMPLATES as _A6D
@@ -42,6 +43,7 @@ SEED_TEMPLATES: list[SeedTemplate] = [
     *_A1,
     *_A2_A3,
     *_A2_LYSO,
+    *_A2_LYSO_MGVIAL,
     *_A4_A5,
     *_A6,
     *_A6D,

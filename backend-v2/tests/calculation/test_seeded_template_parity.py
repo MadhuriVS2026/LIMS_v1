@@ -225,6 +225,115 @@ class TestA2MultiAnalyte:
         assert result.row_value("samples", 0, "area") is EMPTY
 
 
+class TestA2LysoContentMgVial:
+    """
+    Source: `Content of Lyso PC PG_ mgvial_Ampho.xlsx` — the mg/vial sibling of
+    the mg/mL Lyso content sheet. Structurally identical, but each reportable
+    content formula (C61/D61) carries an extra trailing x12.5 vial factor, exposed
+    here as the overridable `vial_factor` context field.
+
+    Expected values are the sheet's own stored results (data_only read):
+      L34 = 11468461.5          M34 = 6420652.166666667   (standard means)
+      L46 = 11333895            M46 = 6431312.5           (pooled BKT means)
+      L48 = 2.4634183…          M48 = 1.8988014…          (pooled %RSD)
+      L57 = 3012568             M57 = 2067344             (sample inj-1 sums)
+      C61 = 9.034219643511904   D61 = 5.5766651873235995  (mg/vial)
+      E61 = 903.4219643511904   F61 = 557.6665187323599   (Assay %)
+    Standard %RSD L36/M36 are 2.211/2.323, both above the NMT 2.0 limit, so the
+    SST criteria legitimately FAIL on this data — the test pins that, it does not
+    claim a clean pass.
+    """
+
+    CONTEXT = {"vial_factor": 12.5}
+    #  Per-row summed PC/PG injection areas transcribed from the sheet; the whole
+    #  sum is placed in the first sub-peak slot (sum == pc_1 / pg_1).
+    _STD_PC = [11627818, 11766470, 11359907, 11205243, 11178008, 11673323]
+    _STD_PG = [6413351, 6624511, 6243373, 6564217, 6385523, 6292938]
+    #  Bracketing injections 1–4 (rows 40–43); rows 44–45 blank on the sheet.
+    _BKT_PC = [11366840, 11161713, 10906605, 11093023]
+    _BKT_PG = [6569572, 6393008, 6389790, 6436842]
+    GROUPS = {
+        "standard": [{
+            "pc_weight": 17.547, "pc_vol1": 50, "pc_pip": 4, "pc_vol2": 20,
+            "pc_mw_base": 1, "pc_mw_salt": 1, "pc_potency": 98, "pc_lc": 1,
+            "pg_weight": 18.411, "pg_vol1": 100, "pg_pip": 4, "pg_vol2": 20,
+            "pg_mw_base": 511.61, "pg_mw_salt": 534.6, "pg_potency": 98.3, "pg_lc": 1,
+        }],
+        "std_injections": [
+            {"pc_1": pc, "pg_1": pg} for pc, pg in zip(_STD_PC, _STD_PG)
+        ],
+        "bkt_injections": [
+            {"pc_1": pc, "pg_1": pg} for pc, pg in zip(_BKT_PC, _BKT_PG)
+        ],
+        "sample_prep": [{"ml": 10, "vol": 200, "pip": 10, "vol2": 20}],
+        "sample_results": [{"pc_1": 3012568, "pg_1": 2067344}],
+    }
+
+    @pytest.fixture()
+    def result(self):
+        return evaluator("TPL-A2-0003").evaluate(self.CONTEXT, self.GROUPS)
+
+    def test_standard_means(self, result):
+        assert result.values["stats.mean_std_pc"] == pytest.approx(11468461.5, abs=1e-1)
+        assert result.values["stats.mean_std_pg"] == pytest.approx(
+            6420652.166666667, abs=1e-1
+        )
+
+    def test_standard_rsd(self, result):
+        assert result.values["stats.rsd_std_pc"] == pytest.approx(2.211413, abs=1e-5)
+        assert result.values["stats.rsd_std_pg"] == pytest.approx(2.322627, abs=1e-5)
+
+    def test_pooled_bracketing_statistics(self, result):
+        assert result.values["stats.mean_pool_pc"] == pytest.approx(11333895.0, abs=1.0)
+        assert result.values["stats.mean_pool_pg"] == pytest.approx(6431312.5, abs=1.0)
+        assert result.values["stats.rsd_pool_pc"] == pytest.approx(2.463418, abs=1e-5)
+        assert result.values["stats.rsd_pool_pg"] == pytest.approx(1.898801, abs=1e-5)
+
+    def test_sample_injection_sums(self, result):
+        assert result.row_value("sample_results", 0, "sum_pc") == pytest.approx(3012568.0)
+        assert result.row_value("sample_results", 0, "sum_pg") == pytest.approx(2067344.0)
+
+    def test_reportable_mg_per_vial(self, result):
+        # C61 = 3012568/11468461.5 * 17.547/50 * 4/20 * 1/1 * 200/10 * 20/10
+        #       * 98/100 * 12.5 = 9.034219643511904 mg/vial
+        assert result.row_value("sample_results", 0, "pc_mgvial") == pytest.approx(
+            9.034219643511904, abs=1e-6
+        )
+        # D61 = 2067344/6420652.1667 * 18.411/100 * 4/20 * 20/10 * 200/10
+        #       * 511.61/534.6 * 98.3/100 * 12.5 = 5.5766651873235995 mg/vial
+        assert result.row_value("sample_results", 0, "pg_mgvial") == pytest.approx(
+            5.5766651873235995, abs=1e-6
+        )
+
+    def test_assay_percentages(self, result):
+        # E61 = C61 * 100 / 1 ; F61 = D61 * 100 / 1
+        assert result.row_value("sample_results", 0, "pc_assay") == pytest.approx(
+            903.4219643511904, abs=1e-4
+        )
+        assert result.row_value("sample_results", 0, "pg_assay") == pytest.approx(
+            557.6665187323599, abs=1e-4
+        )
+
+    def test_vial_factor_is_live_and_overridable(self):
+        #  Overriding the factor to 1.0 recovers the mg/mL result — the x12.5 is
+        #  not a buried literal. Compared against the x12.5 result divided back
+        #  down, allowing for 6-digit rounding at each factor.
+        at_one = evaluator("TPL-A2-0003").evaluate(
+            {"vial_factor": 1.0}, self.GROUPS
+        )
+        assert at_one.row_value("sample_results", 0, "pc_mgvial") == pytest.approx(
+            9.034219643511904 / 12.5, abs=1e-6
+        )
+        assert at_one.row_value("sample_results", 0, "pg_mgvial") == pytest.approx(
+            5.5766651873235995 / 12.5, abs=1e-6
+        )
+
+    def test_standard_rsd_criteria_fail_on_this_data(self, result):
+        #  Sheet %RSD 2.21/2.32 are both over the NMT 2.0 limit, so the SST
+        #  criteria legitimately block on the example inputs.
+        assert result.has_blocking_failure is True
+
+
 # ── A3: Saturation solubility ────────────────────────────────────────
 
 
