@@ -25,6 +25,7 @@ import { Message } from 'primereact/message';
 import { Tag } from 'primereact/tag';
 import { formatLimit } from '../models/describeDefinition';
 import { usePreview } from '../hooks/useWorksheet';
+import { WorksheetChart } from './WorksheetChart';
 import type {
   CriterionResult,
   FieldDef,
@@ -759,6 +760,21 @@ export const WorksheetForm = ({
         const canAddRows = editable && group.kind !== 'singleton' && max > min;
 
         if (group.kind === 'singleton') {
+          //  A singleton may carry a non-standard `chart` hint (UI-only). When
+          //  present, render a line chart from another group's computed rows
+          //  instead of a field grid, keeping the group label as the section
+          //  header. Gated on `group.chart`, so every other singleton is
+          //  unaffected.
+          if (group.chart) {
+            return (
+              <Card key={group.key}>
+                <div className="flex justify-content-between align-items-center mb-2">
+                  <h3 className="m-0 text-base">{group.label ?? group.key}</h3>
+                </div>
+                <WorksheetChart chart={group.chart} computed={computed} stale={preview.stale} />
+              </Card>
+            );
+          }
           //  Only show the toolbar on sections the analyst can actually fill in.
           const hasEditable = editableFields.length > 0;
           return (

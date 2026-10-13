@@ -89,6 +89,32 @@ export interface GroupHeaderContextItem {
   ref: string;
 }
 
+/** A single plottable series on a chart group, keyed by a field in the source
+ * group's computed rows (e.g. `mean`, `unit_1`). */
+export interface ChartSeries {
+  key: string;
+  label: string;
+}
+
+/**
+ * UI-only rendering hint carried on a `singleton` group: draws a line chart from
+ * another group's computed rows instead of a field grid. The calculation engine
+ * ignores it — it never reaches the schema and does not affect any computed
+ * value, so templates without it render exactly as before.
+ */
+export interface ChartConfig {
+  title?: string;
+  /** Group key whose computed rows feed the chart, e.g. `timepoints_release`. */
+  sourceGroup: string;
+  /** Row field used for the X axis, e.g. `time_hr`. */
+  xField: string;
+  xLabel?: string;
+  yLabel?: string;
+  series: ChartSeries[];
+  /** Series keys plotted by default; falls back to `["mean"]` in the UI. */
+  defaultSeries?: string[];
+}
+
 export interface GroupDef {
   key: string;
   kind: GroupKind;
@@ -99,6 +125,12 @@ export interface GroupDef {
   footer?: GroupFooterItem[];
   /** Optional read-only context summary shown directly above the table. */
   headerContext?: GroupHeaderContextItem[];
+  /**
+   * Optional, non-standard UI-only hint: when present on a `singleton` group the
+   * worksheet form renders a line chart (not a field grid) from the referenced
+   * source group's computed rows. The calc engine ignores it.
+   */
+  chart?: ChartConfig;
 }
 
 export interface CriterionDef {

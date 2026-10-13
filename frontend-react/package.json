@@ -20,6 +20,7 @@
     "react-hook-form": "^7.54.0",
     "zod": "^3.24.0",
     "@hookform/resolvers": "^3.9.0",
+    "chart.js": "^4.4.0",
     "primereact": "^10.8.0",
     "primeicons": "^7.0.0",
     "primeflex": "^3.3.1"
