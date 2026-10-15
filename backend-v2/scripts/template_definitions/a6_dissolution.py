@@ -19,6 +19,16 @@ Two things the source sheets get right and a naive implementation gets wrong:
 * **Release is cumulative.** `release[t] = uncorrected[t] + Σ corrections[1..t-1]`,
   which is what `sum(prior.correction_n)` expresses. Sequence groups exist for
   precisely this.
+
+Source-sync note (TPL-A6A-0004 / "Dissolution_12units"):
+    The active 12-unit template TPL-A6A-0004 (test_templates.id=34) is NOT produced
+    by this module. It uses a different 12-unit structure and field names
+    (`unit_1..12`, `uncorrected_N`, `correction_N`, group key `timepoints_release`),
+    and lives DB-only. Its corrected `timepoints_release` formulas — reproducing the
+    Bupivacaine sheet — are the authoritative reference and are pinned by
+    `tests/calculation/test_dissolution_a6a_release.py`. Regenerating the -0001/-A6B/
+    -A6C variants below does NOT touch -0004; do not retrofit -0004 here (that would be
+    a new template version and could overwrite the live row on reseed).
 """
 from scripts.template_definitions._common import (
     SeedTemplate,

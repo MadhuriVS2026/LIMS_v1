@@ -1,0 +1,983 @@
+{
+  "resultRef": null,
+  "context": [
+    {
+      "key": "product",
+      "kind": "context",
+      "type": "text",
+      "label": "PRODUCT",
+      "source": "product.name",
+      "overridable": true
+    },
+    {
+      "key": "batch_no",
+      "kind": "context",
+      "type": "text",
+      "label": "Batch No.",
+      "source": "trf.batch_number",
+      "overridable": true
+    },
+    {
+      "key": "label_claim_mgml",
+      "kind": "context",
+      "label": "LABEL CLAIM (mg/mL)",
+      "source": "trf.label_claim_numeric",
+      "overridable": true
+    },
+    {
+      "key": "trf_no",
+      "kind": "context",
+      "type": "text",
+      "label": "TRF No.",
+      "source": "trf.trf_number",
+      "overridable": true
+    },
+    {
+      "key": "ar_no",
+      "kind": "context",
+      "type": "text",
+      "label": "A.R. No.",
+      "source": "trf.ar_number",
+      "overridable": true
+    },
+    {
+      "key": "date_of_analysis",
+      "kind": "context",
+      "type": "date",
+      "label": "DATE OF ANALYSIS",
+      "source": "session.date",
+      "overridable": true
+    },
+    {
+      "key": "avg_weight",
+      "kind": "context",
+      "label": "Average Weight / Vial",
+      "default": 1,
+      "overridable": true
+    },
+    {
+      "key": "initial_volume",
+      "kind": "context",
+      "label": "Initial Media Volume",
+      "unit": "mL",
+      "default": 500,
+      "overridable": true
+    },
+    {
+      "key": "withdrawal_volume",
+      "kind": "context",
+      "label": "Withdrawal Volume",
+      "unit": "mL",
+      "default": 5,
+      "overridable": true
+    },
+    {
+      "key": "method_no",
+      "kind": "context",
+      "type": "text",
+      "label": "Method No.",
+      "overridable": true
+    },
+    {
+      "key": "instrument_id",
+      "kind": "context",
+      "type": "text",
+      "label": "Instrument ID",
+      "overridable": true
+    },
+    {
+      "key": "analysed_by",
+      "kind": "context",
+      "type": "text",
+      "label": "Analysed By",
+      "source": "session.analyst"
+    }
+  ],
+  "groups": [
+    {
+      "key": "additional_info",
+      "kind": "singleton",
+      "label": "Additional Info",
+      "fields": [
+        {
+          "key": "strength",
+          "kind": "input",
+          "type": "text",
+          "label": "STRENGTH"
+        },
+        {
+          "key": "test_performed",
+          "kind": "input",
+          "type": "text",
+          "label": "TEST PERFORMED"
+        },
+        {
+          "key": "pct_assay",
+          "kind": "input",
+          "label": "% Assay",
+          "unit": "%"
+        },
+        {
+          "key": "disso_media",
+          "kind": "input",
+          "type": "text",
+          "label": "Disso Media"
+        },
+        {
+          "key": "apparatus",
+          "kind": "input",
+          "type": "text",
+          "label": "Apparatus"
+        },
+        {
+          "key": "rpm",
+          "kind": "input",
+          "label": "RPM"
+        },
+        {
+          "key": "temp_c",
+          "kind": "input",
+          "type": "text",
+          "label": "Temp (\u00b0C)"
+        },
+        {
+          "key": "lnb_no",
+          "kind": "input",
+          "type": "text",
+          "label": "LNB No."
+        },
+        {
+          "key": "parameter",
+          "kind": "input",
+          "type": "text",
+          "label": "Parameter"
+        },
+        {
+          "key": "wt_per_ml",
+          "kind": "input",
+          "label": "Wt./mL"
+        },
+        {
+          "key": "disso_id",
+          "kind": "input",
+          "type": "text",
+          "label": "DISSO ID"
+        },
+        {
+          "key": "hplc_id",
+          "kind": "input",
+          "type": "text",
+          "label": "HPLC ID"
+        },
+        {
+          "key": "column_id",
+          "kind": "input",
+          "type": "text",
+          "label": "Column ID"
+        },
+        {
+          "key": "standard_wrs_no",
+          "kind": "input",
+          "type": "text",
+          "label": "Standard WRS.No",
+          "default": "WS/026/038"
+        },
+        {
+          "key": "media_volume",
+          "kind": "input",
+          "type": "number",
+          "label": "Media Volume",
+          "unit": "mL"
+        },
+        {
+          "key": "protocol_no",
+          "kind": "input",
+          "type": "text",
+          "label": "Protocol No.",
+          "default": "A/MP/AD/EP20_117-09/01"
+        }
+      ]
+    },
+    {
+      "key": "standard",
+      "kind": "singleton",
+      "label": "Standard details for dissolution",
+      "fields": [
+        {
+          "key": "name",
+          "kind": "input",
+          "type": "text",
+          "label": "STANDARD PREPARATION",
+          "default": "Doxorubicin HCl WS"
+        },
+        {
+          "key": "weight_mg",
+          "kind": "input",
+          "label": "Wt. in mg",
+          "unit": "mg",
+          "required": true,
+          "default": 5
+        },
+        {
+          "key": "vol_1",
+          "kind": "input",
+          "label": "Dilution 1 (mL) / Water (mL)",
+          "required": true,
+          "default": 25
+        },
+        {
+          "key": "pip_1",
+          "kind": "input",
+          "label": "Pipette1 (ml)",
+          "default": 5
+        },
+        {
+          "key": "vol_2",
+          "kind": "input",
+          "label": "Dilution 2 (mL) / Media (mL)",
+          "default": 100
+        },
+        {
+          "key": "pip_2",
+          "kind": "input",
+          "label": "Pipette 2 (mL)",
+          "default": 5
+        },
+        {
+          "key": "vol_3",
+          "kind": "input",
+          "label": "Dilution (mL) 3",
+          "default": 50
+        },
+        {
+          "key": "potency",
+          "kind": "input",
+          "label": "%Potency",
+          "unit": "%",
+          "default": 99.4
+        },
+        {
+          "key": "conc_ppm",
+          "kind": "calculated",
+          "label": "Concen. (ppm)",
+          "unit": "ppm",
+          "expression": "weight_mg / vol_1 * pip_1 / vol_2 * pip_2 / vol_3 * potency / 100 * 1000",
+          "rounding": {
+            "mode": "round",
+            "digits": 2
+          }
+        }
+      ]
+    },
+    {
+      "key": "std_areas",
+      "kind": "table",
+      "label": "Standard Replicate Injections",
+      "rows": {
+        "min": 1,
+        "max": 6,
+        "default": 5
+      },
+      "fields": [
+        {
+          "key": "area",
+          "kind": "area",
+          "label": "STD Area"
+        }
+      ],
+      "footer": [
+        {
+          "label": "Mean",
+          "ref": "stats.mean_std"
+        },
+        {
+          "label": "SD",
+          "ref": "stats.sd_std"
+        },
+        {
+          "label": "% RSD",
+          "ref": "stats.rsd_std",
+          "unit": "%"
+        }
+      ]
+    },
+    {
+      "key": "corel_weights",
+      "kind": "singleton",
+      "label": "Standard Co-relation \u2014 Weights",
+      "fields": [
+        {
+          "key": "std1_weight",
+          "kind": "calculated",
+          "label": "STD-1 Weight",
+          "unit": "mg",
+          "expression": "standard.weight_mg"
+        },
+        {
+          "key": "std2_weight",
+          "kind": "input",
+          "label": "STD-2 Weight",
+          "unit": "mg"
+        }
+      ]
+    },
+    {
+      "key": "corel_areas",
+      "kind": "table",
+      "label": "Standard Co-relation \u2014 Areas (STD 2)",
+      "rows": {
+        "min": 1,
+        "max": 6,
+        "default": 2
+      },
+      "fields": [
+        {
+          "key": "std2_area",
+          "kind": "input",
+          "label": "STD 2 Area"
+        }
+      ],
+      "footer": [
+        {
+          "label": "Mean",
+          "ref": "stats.mean_std2"
+        },
+        {
+          "label": "Co-Relation",
+          "ref": "stats.std_corelation",
+          "rounding": {
+            "mode": "round",
+            "digits": 3
+          }
+        }
+      ]
+    },
+    {
+      "key": "stats",
+      "kind": "singleton",
+      "label": "Standard Statistics",
+      "fields": [
+        {
+          "key": "mean_std",
+          "kind": "calculated",
+          "label": "Mean (STD 1) \u2014 from replicates",
+          "expression": "mean(std_areas.area)"
+        },
+        {
+          "key": "sd_std",
+          "kind": "calculated",
+          "label": "SD",
+          "expression": "sd(std_areas.area)"
+        },
+        {
+          "key": "rsd_std",
+          "kind": "calculated",
+          "label": "%RSD",
+          "unit": "%",
+          "expression": "rsd(std_areas.area)"
+        },
+        {
+          "key": "mean_std2",
+          "kind": "calculated",
+          "label": "Mean (STD 2)",
+          "expression": "mean(corel_areas.std2_area)"
+        },
+        {
+          "key": "std_corelation",
+          "kind": "calculated",
+          "label": "Standard Co-relation",
+          "unit": "%",
+          "expression": "trunc(stats.mean_std / stats.mean_std2 * corel_weights.std2_weight / standard.weight_mg, 3) * 100"
+        },
+        {
+          "key": "mean_bkt_1",
+          "kind": "calculated",
+          "label": "Mean (pooled BKT)",
+          "expression": "mean(pool(std_areas.area, bkt_1.area))"
+        },
+        {
+          "key": "sd_bkt_1",
+          "kind": "calculated",
+          "label": "SD (pooled BKT)",
+          "expression": "sd(pool(std_areas.area, bkt_1.area))"
+        },
+        {
+          "key": "rsd_bkt_1",
+          "kind": "calculated",
+          "label": "%RSD (pooled BKT)",
+          "unit": "%",
+          "expression": "rsd(pool(std_areas.area, bkt_1.area))"
+        },
+        {
+          "key": "mean_cum_bkt",
+          "kind": "calculated",
+          "label": "Mean (Cumulative BKT)",
+          "expression": "mean(pool(std_areas.area, bkt_1.area))",
+          "rounding": {
+            "mode": "round",
+            "digits": 4
+          }
+        },
+        {
+          "key": "rsd_cum_bkt",
+          "kind": "calculated",
+          "label": "%RSD (Cumulative BKT)",
+          "unit": "%",
+          "expression": "rsd(pool(std_areas.area, bkt_1.area))",
+          "rounding": {
+            "mode": "round",
+            "digits": 3
+          }
+        }
+      ]
+    },
+    {
+      "key": "bkt_1",
+      "kind": "table",
+      "label": "Bracketing Standard",
+      "rows": {
+        "min": 1,
+        "max": 20,
+        "default": 2
+      },
+      "fields": [
+        {
+          "key": "area",
+          "kind": "input",
+          "label": "BKT STD Area"
+        },
+        {
+          "key": "pooled_mean",
+          "kind": "calculated",
+          "label": "Pooled Mean",
+          "expression": "mean(pool(std_areas.area, area))",
+          "rounding": {
+            "mode": "round",
+            "digits": 4
+          }
+        },
+        {
+          "key": "pooled_rsd",
+          "kind": "calculated",
+          "label": "Pooled %RSD",
+          "unit": "%",
+          "expression": "rsd(pool(std_areas.area, area))",
+          "rounding": {
+            "mode": "round",
+            "digits": 3
+          }
+        }
+      ],
+      "footer": [
+        {
+          "label": "Mean (pooled)",
+          "ref": "stats.mean_bkt_1"
+        },
+        {
+          "label": "SD (pooled)",
+          "ref": "stats.sd_bkt_1"
+        },
+        {
+          "label": "% RSD (pooled)",
+          "ref": "stats.rsd_bkt_1",
+          "unit": "%"
+        },
+        {
+          "label": "Mean (Cumulative BKT)",
+          "ref": "stats.mean_cum_bkt"
+        },
+        {
+          "label": "% RSD (Cumulative BKT)",
+          "ref": "stats.rsd_cum_bkt",
+          "unit": "%"
+        }
+      ]
+    },
+    {
+      "key": "sst",
+      "kind": "singleton",
+      "label": "System Suitability Criteria",
+      "fields": [
+        {
+          "key": "interference",
+          "kind": "input",
+          "type": "text",
+          "label": "1. No interference peak from the Blank solution should be observed at the retention time of peak due to Doxorubicin in Test solution.",
+          "default": "Complies"
+        },
+        {
+          "key": "tailing_factor",
+          "kind": "input",
+          "label": "2. The Tailing factor for peak due to Doxorubicin in 5th injection of Standard solution should be not more than 2.0"
+        },
+        {
+          "key": "theoretical_plates",
+          "kind": "input",
+          "label": "3. Theoretical plates for peak due to Doxorubicin in 5th injection of Standard solution should be not less than 2000."
+        },
+        {
+          "key": "rsd_replicates",
+          "kind": "calculated",
+          "unit": "%",
+          "label": "4. % RSD of the peak area of Doxorubicin from five replicate injections of Standard solution should be not more than 2.0.",
+          "expression": "stats.rsd_std",
+          "rounding": {
+            "mode": "round",
+            "digits": 5
+          }
+        },
+        {
+          "key": "rsd_bracketing",
+          "kind": "calculated",
+          "unit": "%",
+          "label": "5. The %RSD of the peak area of Doxorubicin from Bracketing standards and replicate injections of Standard solution should be not more than 2.0.",
+          "expression": "stats.rsd_bkt_1",
+          "rounding": {
+            "mode": "round",
+            "digits": 5
+          }
+        }
+      ]
+    },
+    {
+      "key": "test_prep",
+      "kind": "singleton",
+      "label": "Test Preparation",
+      "fields": [
+        {
+          "key": "sample_volume",
+          "kind": "input",
+          "label": "Sample (Wt.)"
+        },
+        {
+          "key": "dilution_volume",
+          "kind": "input",
+          "label": "(With Water) Diluent 1 (mL)"
+        },
+        {
+          "key": "aliquot_volume",
+          "kind": "input",
+          "label": "Pippette1 (mL)",
+          "default": 1
+        },
+        {
+          "key": "medium_volume",
+          "kind": "input",
+          "label": "Media Volume (mL)"
+        },
+        {
+          "key": "pippette_2",
+          "kind": "input",
+          "label": "Pippette 2 (mL)",
+          "default": 1
+        },
+        {
+          "key": "tp_vol_3",
+          "kind": "input",
+          "label": "Vol3 (mL)",
+          "default": 1
+        },
+        {
+          "key": "withdrawal_volume",
+          "kind": "input",
+          "label": "Withdrawal Volume (mL)",
+          "default": 5
+        },
+        {
+          "key": "replenishment_volume",
+          "kind": "input",
+          "label": "Replenishment Volume (mL)",
+          "default": 0
+        }
+      ]
+    },
+    {
+      "key": "ti_header",
+      "kind": "singleton",
+      "label": "Timepoints For Sample",
+      "fields": [
+        {
+          "key": "title",
+          "kind": "input",
+          "type": "text",
+          "label": "TIME INTERVAL TABLE FOR"
+        }
+      ]
+    },
+    {
+      "key": "time_intervals",
+      "kind": "table",
+      "label": "Timepoints For Sample",
+      "rows": {
+        "min": 1,
+        "max": 20,
+        "default": 12
+      },
+      "fields": [
+        {
+          "key": "time_hr",
+          "kind": "input",
+          "label": "Time Interval (Hours)",
+          "unit": "hr"
+        },
+        {
+          "key": "unit_1",
+          "kind": "input",
+          "label": "1"
+        },
+        {
+          "key": "unit_2",
+          "kind": "input",
+          "label": "2"
+        },
+        {
+          "key": "unit_3",
+          "kind": "input",
+          "label": "3"
+        },
+        {
+          "key": "unit_4",
+          "kind": "input",
+          "label": "4"
+        },
+        {
+          "key": "unit_5",
+          "kind": "input",
+          "label": "5"
+        },
+        {
+          "key": "unit_6",
+          "kind": "input",
+          "label": "6"
+        },
+        {
+          "key": "unit_7",
+          "kind": "input",
+          "label": "7"
+        },
+        {
+          "key": "unit_8",
+          "kind": "input",
+          "label": "8"
+        },
+        {
+          "key": "unit_9",
+          "kind": "input",
+          "label": "9"
+        },
+        {
+          "key": "unit_10",
+          "kind": "input",
+          "label": "10"
+        },
+        {
+          "key": "unit_11",
+          "kind": "input",
+          "label": "11"
+        },
+        {
+          "key": "unit_12",
+          "kind": "input",
+          "label": "12"
+        }
+      ]
+    },
+    {
+      "key": "tpr_header",
+      "kind": "singleton",
+      "label": "Timepoint of % Release",
+      "fields": [
+        {
+          "key": "title",
+          "kind": "input",
+          "type": "text",
+          "label": "% Release of",
+          "default": "Doxorubicin Hydrochloride"
+        }
+      ]
+    },
+    {
+      "key": "timepoints_release",
+      "kind": "sequence",
+      "label": "Timepoint of % Release",
+      "rows": {
+        "min": 1,
+        "max": 20,
+        "default": 12
+      },
+      "fields": [
+        {
+          "key": "time_hr",
+          "kind": "input",
+          "label": "Time Interval (Hours)",
+          "unit": "hr",
+          "mirrorFrom": "time_intervals.time_hr"
+        },
+        {
+          "key": "media",
+          "kind": "calculated",
+          "hidden": true,
+          "expression": "test_prep.medium_volume - (rowno - 1) * test_prep.withdrawal_volume"
+        },
+        {
+          "key": "carry_1",
+          "kind": "calculated",
+          "hidden": true,
+          "expression": "coalesce(prev.carry_1, 0) + coalesce(prev.unit_1, 0) / media * test_prep.withdrawal_volume"
+        },
+        {
+          "key": "unit_1",
+          "kind": "calculated",
+          "label": "1",
+          "expression": "time_intervals.unit_1[rowno - 1] / stats.mean_std * standard.weight_mg / standard.vol_1 * standard.pip_1 / standard.vol_2 * standard.pip_2 / standard.vol_3 * test_prep.dilution_volume / 1 * media / test_prep.aliquot_volume * standard.potency / 100 / number(label_claim_mgml) * 100 + carry_1"
+        },
+        {
+          "key": "carry_2",
+          "kind": "calculated",
+          "hidden": true,
+          "expression": "coalesce(prev.carry_2, 0) + coalesce(prev.unit_2, 0) / media * test_prep.withdrawal_volume"
+        },
+        {
+          "key": "unit_2",
+          "kind": "calculated",
+          "label": "2",
+          "expression": "time_intervals.unit_2[rowno - 1] / stats.mean_std * standard.weight_mg / standard.vol_1 * standard.pip_1 / standard.vol_2 * standard.pip_2 / standard.vol_3 * test_prep.dilution_volume / 1 * media / test_prep.aliquot_volume * standard.potency / 100 / number(label_claim_mgml) * 100 + carry_2"
+        },
+        {
+          "key": "carry_3",
+          "kind": "calculated",
+          "hidden": true,
+          "expression": "coalesce(prev.carry_3, 0) + coalesce(prev.unit_3, 0) / media * test_prep.withdrawal_volume"
+        },
+        {
+          "key": "unit_3",
+          "kind": "calculated",
+          "label": "3",
+          "expression": "time_intervals.unit_3[rowno - 1] / stats.mean_std * standard.weight_mg / standard.vol_1 * standard.pip_1 / standard.vol_2 * standard.pip_2 / standard.vol_3 * test_prep.dilution_volume / 1 * media / test_prep.aliquot_volume * standard.potency / 100 / number(label_claim_mgml) * 100 + carry_3"
+        },
+        {
+          "key": "carry_4",
+          "kind": "calculated",
+          "hidden": true,
+          "expression": "coalesce(prev.carry_4, 0) + coalesce(prev.unit_4, 0) / media * test_prep.withdrawal_volume"
+        },
+        {
+          "key": "unit_4",
+          "kind": "calculated",
+          "label": "4",
+          "expression": "time_intervals.unit_4[rowno - 1] / stats.mean_std * standard.weight_mg / standard.vol_1 * standard.pip_1 / standard.vol_2 * standard.pip_2 / standard.vol_3 * test_prep.dilution_volume / 1 * media / test_prep.aliquot_volume * standard.potency / 100 / number(label_claim_mgml) * 100 + carry_4"
+        },
+        {
+          "key": "carry_5",
+          "kind": "calculated",
+          "hidden": true,
+          "expression": "coalesce(prev.carry_5, 0) + coalesce(prev.unit_5, 0) / media * test_prep.withdrawal_volume"
+        },
+        {
+          "key": "unit_5",
+          "kind": "calculated",
+          "label": "5",
+          "expression": "time_intervals.unit_5[rowno - 1] / stats.mean_std * standard.weight_mg / standard.vol_1 * standard.pip_1 / standard.vol_2 * standard.pip_2 / standard.vol_3 * test_prep.dilution_volume / 1 * media / test_prep.aliquot_volume * standard.potency / 100 / number(label_claim_mgml) * 100 + carry_5"
+        },
+        {
+          "key": "carry_6",
+          "kind": "calculated",
+          "hidden": true,
+          "expression": "coalesce(prev.carry_6, 0) + coalesce(prev.unit_6, 0) / media * test_prep.withdrawal_volume"
+        },
+        {
+          "key": "unit_6",
+          "kind": "calculated",
+          "label": "6",
+          "expression": "time_intervals.unit_6[rowno - 1] / stats.mean_std * standard.weight_mg / standard.vol_1 * standard.pip_1 / standard.vol_2 * standard.pip_2 / standard.vol_3 * test_prep.dilution_volume / 1 * media / test_prep.aliquot_volume * standard.potency / 100 / number(label_claim_mgml) * 100 + carry_6"
+        },
+        {
+          "key": "carry_7",
+          "kind": "calculated",
+          "label": null,
+          "expression": "coalesce(prev.carry_7, 0) + coalesce(prev.unit_7, 0) / media * test_prep.withdrawal_volume",
+          "hidden": true
+        },
+        {
+          "key": "unit_7",
+          "kind": "calculated",
+          "label": "7",
+          "expression": "time_intervals.unit_7[rowno - 1] / stats.mean_std * standard.weight_mg / standard.vol_1 * standard.pip_1 / standard.vol_2 * standard.pip_2 / standard.vol_3 * test_prep.dilution_volume / 1 * media / test_prep.aliquot_volume * standard.potency / 100 / number(label_claim_mgml) * 100 + carry_7"
+        },
+        {
+          "key": "carry_8",
+          "kind": "calculated",
+          "label": null,
+          "expression": "coalesce(prev.carry_8, 0) + coalesce(prev.unit_8, 0) / media * test_prep.withdrawal_volume",
+          "hidden": true
+        },
+        {
+          "key": "unit_8",
+          "kind": "calculated",
+          "label": "8",
+          "expression": "time_intervals.unit_8[rowno - 1] / stats.mean_std * standard.weight_mg / standard.vol_1 * standard.pip_1 / standard.vol_2 * standard.pip_2 / standard.vol_3 * test_prep.dilution_volume / 1 * media / test_prep.aliquot_volume * standard.potency / 100 / number(label_claim_mgml) * 100 + carry_8"
+        },
+        {
+          "key": "carry_9",
+          "kind": "calculated",
+          "label": null,
+          "expression": "coalesce(prev.carry_9, 0) + coalesce(prev.unit_9, 0) / media * test_prep.withdrawal_volume",
+          "hidden": true
+        },
+        {
+          "key": "unit_9",
+          "kind": "calculated",
+          "label": "9",
+          "expression": "time_intervals.unit_9[rowno - 1] / stats.mean_std * standard.weight_mg / standard.vol_1 * standard.pip_1 / standard.vol_2 * standard.pip_2 / standard.vol_3 * test_prep.dilution_volume / 1 * media / test_prep.aliquot_volume * standard.potency / 100 / number(label_claim_mgml) * 100 + carry_9"
+        },
+        {
+          "key": "carry_10",
+          "kind": "calculated",
+          "label": null,
+          "expression": "coalesce(prev.carry_10, 0) + coalesce(prev.unit_10, 0) / media * test_prep.withdrawal_volume",
+          "hidden": true
+        },
+        {
+          "key": "unit_10",
+          "kind": "calculated",
+          "label": "10",
+          "expression": "time_intervals.unit_10[rowno - 1] / stats.mean_std * standard.weight_mg / standard.vol_1 * standard.pip_1 / standard.vol_2 * standard.pip_2 / standard.vol_3 * test_prep.dilution_volume / 1 * media / test_prep.aliquot_volume * standard.potency / 100 / number(label_claim_mgml) * 100 + carry_10"
+        },
+        {
+          "key": "carry_11",
+          "kind": "calculated",
+          "label": null,
+          "expression": "coalesce(prev.carry_11, 0) + coalesce(prev.unit_11, 0) / media * test_prep.withdrawal_volume",
+          "hidden": true
+        },
+        {
+          "key": "unit_11",
+          "kind": "calculated",
+          "label": "11",
+          "expression": "time_intervals.unit_11[rowno - 1] / stats.mean_std * standard.weight_mg / standard.vol_1 * standard.pip_1 / standard.vol_2 * standard.pip_2 / standard.vol_3 * test_prep.dilution_volume / 1 * media / test_prep.aliquot_volume * standard.potency / 100 / number(label_claim_mgml) * 100 + carry_11"
+        },
+        {
+          "key": "carry_12",
+          "kind": "calculated",
+          "label": null,
+          "expression": "coalesce(prev.carry_12, 0) + coalesce(prev.unit_12, 0) / media * test_prep.withdrawal_volume",
+          "hidden": true
+        },
+        {
+          "key": "unit_12",
+          "kind": "calculated",
+          "label": "12",
+          "expression": "time_intervals.unit_12[rowno - 1] / stats.mean_std * standard.weight_mg / standard.vol_1 * standard.pip_1 / standard.vol_2 * standard.pip_2 / standard.vol_3 * test_prep.dilution_volume / 1 * media / test_prep.aliquot_volume * standard.potency / 100 / number(label_claim_mgml) * 100 + carry_12"
+        },
+        {
+          "key": "mean",
+          "kind": "calculated",
+          "label": "Mean",
+          "expression": "mean(unit_1,unit_2,unit_3,unit_4,unit_5,unit_6,unit_7,unit_8,unit_9,unit_10,unit_11,unit_12)"
+        },
+        {
+          "key": "sd",
+          "kind": "calculated",
+          "label": "SD",
+          "expression": "sd(unit_1,unit_2,unit_3,unit_4,unit_5,unit_6,unit_7,unit_8,unit_9,unit_10,unit_11,unit_12)"
+        },
+        {
+          "key": "rsd",
+          "kind": "calculated",
+          "label": "%RSD",
+          "expression": "rsd(unit_1,unit_2,unit_3,unit_4,unit_5,unit_6,unit_7,unit_8,unit_9,unit_10,unit_11,unit_12)"
+        },
+        {
+          "key": "min_val",
+          "kind": "calculated",
+          "label": "Min.",
+          "expression": "min(unit_1,unit_2,unit_3,unit_4,unit_5,unit_6,unit_7,unit_8,unit_9,unit_10,unit_11,unit_12)"
+        },
+        {
+          "key": "max_val",
+          "kind": "calculated",
+          "label": "Max.",
+          "expression": "max(unit_1,unit_2,unit_3,unit_4,unit_5,unit_6,unit_7,unit_8,unit_9,unit_10,unit_11,unit_12)"
+        }
+      ]
+    },
+    {
+      "key": "release_chart",
+      "kind": "singleton",
+      "label": "Graphical data",
+      "fields": [
+        {
+          "key": "title",
+          "kind": "input",
+          "type": "text",
+          "label": "Chart Title",
+          "default": "% Release vs Time"
+        }
+      ],
+      "chart": {
+        "title": "% Release vs Time",
+        "sourceGroup": "timepoints_release",
+        "xField": "time_hr",
+        "xLabel": "Time Interval (Hours)",
+        "yLabel": "% Release",
+        "series": [
+          {
+            "key": "unit_1",
+            "label": "Unit 1"
+          },
+          {
+            "key": "unit_2",
+            "label": "Unit 2"
+          },
+          {
+            "key": "unit_3",
+            "label": "Unit 3"
+          },
+          {
+            "key": "unit_4",
+            "label": "Unit 4"
+          },
+          {
+            "key": "unit_5",
+            "label": "Unit 5"
+          },
+          {
+            "key": "unit_6",
+            "label": "Unit 6"
+          },
+          {
+            "key": "mean",
+            "label": "Mean"
+          }
+        ],
+        "defaultSeries": [
+          "mean"
+        ]
+      }
+    },
+    {
+      "key": "remarks",
+      "kind": "singleton",
+      "label": "Remarks",
+      "fields": [
+        {
+          "key": "remarks",
+          "kind": "input",
+          "type": "text",
+          "label": "REMARKS"
+        }
+      ]
+    }
+  ],
+  "criteria": [
+    {
+      "key": "sst_std_rsd",
+      "label": "%RSD of standard replicate injections",
+      "target": "stats.rsd_std",
+      "operator": "lte",
+      "limit": 2.0,
+      "severity": "blocking",
+      "limitText": "NMT 2.0 %"
+    }
+  ]
+}
