@@ -173,6 +173,8 @@ export const WorksheetForm = ({
   submittingForReview,
 }: WorksheetFormProps) => {
   const definition = detail.template.definition ?? {};
+  //  Per-column clear control is scoped to this template only (TPL-A6A-0004).
+  const allowClearColumn = detail.worksheet.template_code === 'TPL-A6A-0004';
   const groups = definition.groups ?? [];
   const contextFields = definition.context ?? [];
 
@@ -183,6 +185,10 @@ export const WorksheetForm = ({
   //  its key in here. Whole-worksheet editability (from the TRF status) is the
   //  outer gate; this is the finer, per-subsection control on top of it.
   const [editingGroups, setEditingGroups] = useState<Set<string>>(new Set());
+  //  Columns the user has deleted from a table (UI-only, keyed "<group>.<field>").
+  //  Deleting hides the column AND blanks its values so it drops out of the
+  //  calculations; the template field itself is untouched.
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
 
   const preview = usePreview(detail.worksheet.id);
   //  Server-computed state: the freshest preview, falling back to what the
@@ -403,6 +409,43 @@ export const WorksheetForm = ({
     setValues(next);
     setDirty(true);
     recalculate(next, contextValues);
+  };
+
+  //  Delete a whole input column from a table: hide it from view AND blank its
+  //  values so it drops out of the calculations. The (shared, versioned)
+  //  template field is untouched; this is a per-worksheet UI action.
+  const deleteColumn = (group: GroupDef, fieldKey: string) => {
+    const next = {
+      ...values,
+      [group.key]: values[group.key].map((row) => ({ ...row, [fieldKey]: null })),
+    };
+    setValues(next);
+    setHiddenColumns((prev) => new Set(prev).add(`${group.key}.${fieldKey}`));
+    setDirty(true);
+    recalculate(next, contextValues);
+  };
+
+  //  Deletable (input) columns of a group, in definition order.
+  const deletableColumns = (group: GroupDef): FieldDef[] =>
+    (group.fields ?? []).filter((f) => !f.hidden && isEditableField(f));
+
+  //  "Add column" is the inverse of delete: restore the first hidden input
+  //  column of this group (up to the template's provisioned columns). There is
+  //  no runtime schema change — only previously-deleted columns can come back.
+  const hiddenCountFor = (group: GroupDef): number =>
+    deletableColumns(group).filter((f) => hiddenColumns.has(`${group.key}.${f.key}`)).length;
+
+  const addColumn = (group: GroupDef) => {
+    const toRestore = deletableColumns(group).find((f) =>
+      hiddenColumns.has(`${group.key}.${f.key}`),
+    );
+    if (!toRestore) return;
+    setHiddenColumns((prev) => {
+      const nextSet = new Set(prev);
+      nextSet.delete(`${group.key}.${toRestore.key}`);
+      return nextSet;
+    });
+    setDirty(true);
   };
 
   const renderInput = (group: GroupDef, rowIndex: number, field: FieldDef) => {
@@ -823,13 +866,31 @@ export const WorksheetForm = ({
         //  columns collapse to near-zero width and look "missing", so for
         //  many-column tables use an auto layout with a per-column min-width and
         //  let the wrapper scroll horizontally.
-        const tableColCount = 1 + editableFields.length + calculatedFields.length + (canAddRows ? 1 : 0);
+        //  Count deleted (hidden) columns in this group so the width logic
+        //  reflects what is actually rendered after a column delete.
+        const hiddenInGroup = [...editableFields, ...calculatedFields].filter((f) =>
+          hiddenColumns.has(`${group.key}.${f.key}`),
+        ).length;
+        const tableColCount =
+          1 + editableFields.length + calculatedFields.length - hiddenInGroup + (canAddRows ? 1 : 0);
         const wideTable = tableColCount > 8;
+        //  Very wide tables (e.g. the 15-unit dissolution timepoints, ~16 cols)
+        //  must show every column without horizontal scrolling. Compact mode
+        //  shrinks the per-column min-width, cell padding and font so all
+        //  columns fit the card width.
+        const veryWideTable = tableColCount > 12;
+        //  Per-column min-width: compact for very wide tables so 15+ columns fit.
+        const colMinRem = veryWideTable ? 3 : 4.5;
+        const cellPad = veryWideTable ? 'p-1' : 'p-2';
+        const inputCellPad = veryWideTable ? 'p-1' : 'p-1';
         //  Render columns in definition order (not editable-first) so a template
         //  that places an input column after calculated ones — e.g. Spec Limit
         //  after Max in the dissolution release table — shows in that position.
         const visibleFields = fields.filter(
-          (f) => !f.hidden && (isEditableField(f) || f.kind === 'calculated'),
+          (f) =>
+            !f.hidden &&
+            !hiddenColumns.has(`${group.key}.${f.key}`) &&
+            (isEditableField(f) || f.kind === 'calculated'),
         );
         return (
           <Card key={group.key}>
@@ -851,24 +912,47 @@ export const WorksheetForm = ({
                     />
                   </>
                 )}
+                {/* Add Column: restore a deleted column (scoped to this template, edit mode). */}
+                {allowClearColumn && editingThisGroup && (
+                  <Button
+                    label="Add Column"
+                    icon="pi pi-plus"
+                    size="small"
+                    text
+                    onClick={() => addColumn(group)}
+                    disabled={hiddenCountFor(group) === 0}
+                    tooltip={
+                      hiddenCountFor(group) === 0
+                        ? 'All columns are shown'
+                        : `Restore a deleted column (${hiddenCountFor(group)} hidden)`
+                    }
+                  />
+                )}
                 {hasEditableCols && renderGroupToolbar(group)}
               </div>
             </div>
 
             {renderGroupHeaderContext(group)}
 
-            <div style={wideTable ? { overflowX: 'auto' } : undefined}>
+            <div style={wideTable && !veryWideTable ? { overflowX: 'auto' } : undefined}>
               <table
-                className="w-full text-sm"
+                className={`w-full ${veryWideTable ? 'text-xs' : 'text-sm'}`}
                 style={
-                  wideTable
-                    ? { borderCollapse: 'collapse', tableLayout: 'auto', minWidth: `${tableColCount * 4.5}rem` }
-                    : { borderCollapse: 'collapse', tableLayout: 'fixed' }
+                  veryWideTable
+                    ? //  Fit all columns to the card width: fixed layout spreads
+                      //  the compact columns evenly, no horizontal scroll.
+                      { borderCollapse: 'collapse', tableLayout: 'fixed', width: '100%' }
+                    : wideTable
+                      ? { borderCollapse: 'collapse', tableLayout: 'auto', minWidth: `${tableColCount * colMinRem}rem` }
+                      : { borderCollapse: 'collapse', tableLayout: 'fixed' }
                 }
               >
                 <thead>
                   <tr className="bg-gray-50">
-                    <th className="text-left p-2 text-500 font-medium" style={{ width: '3rem' }}>
+                    <th
+                      className={`text-left ${cellPad} text-500 font-medium`}
+                      style={{ width: veryWideTable ? '1.6rem' : '3rem' }}
+                    >
                       #
                     </th>
                     {visibleFields.map((field) => {
@@ -876,7 +960,7 @@ export const WorksheetForm = ({
                       return (
                         <th
                           key={field.key}
-                          className={`p-2 text-500 font-medium ${calc ? 'text-right' : 'text-left'}`}
+                          className={`${cellPad} text-500 font-medium ${calc ? 'text-right' : 'text-left'}`}
                           style={{ wordBreak: 'break-word' }}
                           title={calc ? field.expression : undefined}
                         >
@@ -889,29 +973,39 @@ export const WorksheetForm = ({
                             />
                           )}
                           {calc && <i className="pi pi-calculator ml-1" />}
+                          {/* Per-column delete (scoped to this template; input columns; edit mode). */}
+                          {allowClearColumn && !calc && isEditableField(field) && editingThisGroup && (
+                            <i
+                              className="pi pi-trash ml-1 text-red-400 cursor-pointer"
+                              title={`Delete column "${field.label ?? field.key}"`}
+                              role="button"
+                              aria-label={`Delete column ${field.label ?? field.key}`}
+                              onClick={() => deleteColumn(group, field.key)}
+                            />
+                          )}
                         </th>
                       );
                     })}
-                    {canAddRows && <th style={{ width: '3rem' }} />}
+                    {canAddRows && <th style={{ width: veryWideTable ? '1.8rem' : '3rem' }} />}
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((_row, rowIndex) => (
                     <tr key={rowIndex} className="border-top-1 border-200">
-                      <td className="p-2 text-500 font-mono">{rowIndex + 1}</td>
+                      <td className={`${cellPad} text-500 font-mono`}>{rowIndex + 1}</td>
                       {visibleFields.map((field) =>
                         field.kind === 'calculated' ? (
-                          <td className="p-2" key={field.key}>
+                          <td className={cellPad} key={field.key}>
                             {computedCell(group, rowIndex, field)}
                           </td>
                         ) : (
-                          <td className="p-1" key={field.key}>
+                          <td className={inputCellPad} key={field.key}>
                             {renderInput(group, rowIndex, field)}
                           </td>
                         ),
                       )}
                       {canAddRows && (
-                        <td className="p-1">
+                        <td className={inputCellPad}>
                           {editingThisGroup && (
                             <Button
                               icon="pi pi-trash"

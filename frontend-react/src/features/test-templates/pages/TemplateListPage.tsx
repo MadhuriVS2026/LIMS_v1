@@ -57,6 +57,7 @@ export const TemplateListPage = () => {
 
   const [statusFilter, setStatusFilter] = useState('All');
   const [archetypeFilter, setArchetypeFilter] = useState('All');
+  const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<DraftForm>(emptyForm);
 
@@ -70,15 +71,28 @@ export const TemplateListPage = () => {
     [],
   );
 
-  const filtered = useMemo(
-    () =>
-      templates.filter(
-        (t) =>
-          (statusFilter === 'All' || t.status === statusFilter) &&
-          (archetypeFilter === 'All' || t.archetype === archetypeFilter),
-      ),
-    [templates, statusFilter, archetypeFilter],
-  );
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return templates.filter((t) => {
+      if (statusFilter !== 'All' && t.status !== statusFilter) return false;
+      if (archetypeFilter !== 'All' && t.archetype !== archetypeFilter) return false;
+      if (!q) return true;
+      //  Free-text search across the columns an analyst would recognise a
+      //  template by: code, name, archetype, bound test, and result unit.
+      const haystack = [
+        t.code,
+        t.name,
+        t.archetype,
+        t.test_name,
+        t.test_code,
+        t.result_unit,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [templates, statusFilter, archetypeFilter, search]);
 
   const closeCreate = () => {
     setShowCreate(false);
@@ -125,6 +139,25 @@ export const TemplateListPage = () => {
       <div className="flex justify-content-between align-items-center mb-3">
         <div className="flex align-items-center gap-3 flex-wrap">
           <p className="text-sm text-500 m-0">{filtered.length} template(s)</p>
+          <span className="p-input-icon-left p-input-icon-right">
+            <i className="pi pi-search" />
+            <InputText
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search code, name, test..."
+              className="w-20rem"
+              aria-label="Search templates"
+            />
+            {search && (
+              <i
+                className="pi pi-times cursor-pointer"
+                onClick={() => setSearch('')}
+                title="Clear search"
+                role="button"
+                aria-label="Clear search"
+              />
+            )}
+          </span>
           <Dropdown
             value={archetypeFilter}
             options={archetypeOptions}

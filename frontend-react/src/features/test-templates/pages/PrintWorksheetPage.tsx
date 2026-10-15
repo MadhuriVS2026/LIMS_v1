@@ -12,6 +12,7 @@ import { Fragment, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from 'primereact/button';
 import { useWorksheet } from '../hooks/useWorksheet';
+import { WorksheetChartPrintImage } from '../components/WorksheetChartPrintImage';
 import type { FieldDef, GroupDef, WorksheetComputed } from '../models/testTemplate.types';
 
 const fmtDateTime = (value?: string | null) => (value ? new Date(value).toLocaleString() : '-');
@@ -70,6 +71,17 @@ export const PrintWorksheetPage = () => {
 
   const rowsOf = (groupKey: string) => computed.rows?.[groupKey] ?? [];
 
+  //  Switch the printed page to landscape when any table is wide. A multi-row
+  //  (table/sequence) group prints one column per visible field plus the "#"
+  //  column; dissolution worksheets with many unit columns overflow portrait.
+  //  Threshold: more than 10 columns -> landscape, otherwise portrait.
+  const maxTableColumns = groups.reduce((max, group) => {
+    if (group.kind === 'singleton') return max;
+    const cols = visibleFields(group).length + 1; // +1 for the row-number column
+    return Math.max(max, cols);
+  }, 0);
+  const landscape = maxTableColumns > 10;
+
   return (
     <div
       style={{
@@ -86,6 +98,8 @@ export const PrintWorksheetPage = () => {
       </div>
 
       <style>{`
+        /* Orientation: landscape when a table exceeds 10 columns, else portrait. */
+        @page { size: ${landscape ? 'landscape' : 'portrait'}; }
         @media print {
           .no-print { display: none !important; }
           body { margin: 0; }
@@ -149,6 +163,18 @@ export const PrintWorksheetPage = () => {
 
       {/* ── Groups ── */}
       {groups.map((group) => {
+        //  A group carrying a chart config prints the chart as a static image
+        //  (a live canvas would print blank). Rendered regardless of fields —
+        //  a chart group's only field is a title input.
+        if (group.chart) {
+          return (
+            <div className="ws-section" key={group.key}>
+              <h4>{group.label ?? group.key}</h4>
+              <WorksheetChartPrintImage chart={group.chart} computed={computed} />
+            </div>
+          );
+        }
+
         const fields = visibleFields(group);
         if (fields.length === 0) return null;
         const isSingleton = group.kind === 'singleton';
