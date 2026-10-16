@@ -328,7 +328,7 @@ _A6B_BASE = (
     " * standard.weight_mg / standard.vol_1"
     " * standard.pip_1 / standard.vol_2"
     " * standard.pip_2 / standard.vol_3"
-    " * test_prep.total_volume / gravimetric.net_{n}"
+    " * test_prep.total_volume / gravimetric.net[{idx}]"
     " * test_prep.dilution_volume / test_prep.aliquot_volume"
     " * standard.potency / 100 / number(label_claim)"
     " * wt_per_ml * 100"
@@ -459,30 +459,45 @@ def _a6b_corel_group() -> dict:
 
 
 def _a6b_gravimetric_group() -> dict:
-    #  Sample weights, units-as-columns (sheet rows 41-43). Net = Filled - Empty.
-    #  Summary over the 12 net weights.
-    fields: list[dict] = []
-    for n in _A6B_UNIT_RANGE:
-        fields.append({"key": f"filled_{n}", "kind": "input",
-                       "label": f"Filled Wt. Unite-{n}", "unit": "g"})
-    for n in _A6B_UNIT_RANGE:
-        fields.append({"key": f"empty_{n}", "kind": "input",
-                       "label": f"Empty Wt. Unite-{n}", "unit": "g"})
-    for n in _A6B_UNIT_RANGE:
-        fields.append({"key": f"net_{n}", "kind": "calculated",
-                       "label": f"Net Wt. Unite-{n}", "unit": "g",
-                       "expression": f"filled_{n} - empty_{n}"})
-    nets = "[" + ", ".join(f"net_{n}" for n in _A6B_UNIT_RANGE) + "]"
-    fields.extend([
-        {"key": "net_mean", "kind": "calculated", "label": "Mean", "unit": "g",
-         "expression": f"mean({nets})"},
-        {"key": "net_min", "kind": "calculated", "label": "Min", "unit": "g",
-         "expression": f"min({nets})"},
-        {"key": "net_max", "kind": "calculated", "label": "Max", "unit": "g",
-         "expression": f"max({nets})"},
-    ])
-    return {"key": "gravimetric", "kind": "singleton", "label": "Sample Weight",
-            "fields": fields}
+    #  Sample weights as a table, UNITS AS ROWS (Unit | Filled | Empty | Net),
+    #  12 rows. Net = Filled - Empty. The release table (units-as-columns) reads
+    #  each unit's net weight by ROW index: gravimetric.net[n-1].
+    return {
+        "key": "gravimetric", "kind": "table", "label": "Sample Weight",
+        "rows": {"min": 1, "max": _A6B_UNITS, "default": _A6B_UNITS},
+        "fields": [
+            {"key": "filled", "kind": "input", "label": "Filled Vial Weight", "unit": "g"},
+            {"key": "empty", "kind": "input", "label": "Empty Vial Weight", "unit": "g"},
+            {"key": "net", "kind": "calculated", "label": "Net Weight", "unit": "g",
+             "expression": "filled - empty",
+             "rounding": {"mode": "round", "digits": 5}},
+        ],
+        "footer": [
+            {"label": "Mean", "ref": "gravimetric_stats.net_mean"},
+            {"label": "Min", "ref": "gravimetric_stats.net_min"},
+            {"label": "Max", "ref": "gravimetric_stats.net_max"},
+        ],
+    }
+
+
+def _a6b_gravimetric_stats_group() -> dict:
+    #  Companion singleton holding the net-weight aggregates the gravimetric
+    #  table footer references (footers address computed.values by group.field).
+    return {
+        "key": "gravimetric_stats", "kind": "singleton",
+        "label": "Sample Weight — Summary",
+        "fields": [
+            {"key": "net_mean", "kind": "calculated", "label": "Mean", "unit": "g",
+             "expression": "mean(gravimetric.net)",
+             "rounding": {"mode": "round", "digits": 2}},
+            {"key": "net_min", "kind": "calculated", "label": "Min", "unit": "g",
+             "expression": "min(gravimetric.net)",
+             "rounding": {"mode": "round", "digits": 5}},
+            {"key": "net_max", "kind": "calculated", "label": "Max", "unit": "g",
+             "expression": "max(gravimetric.net)",
+             "rounding": {"mode": "round", "digits": 2}},
+        ],
+    }
 
 
 def _a6b_sample_area_group() -> dict:
@@ -507,7 +522,7 @@ def _a6b_release_group() -> dict:
     #  Hidden uncorrected base columns.
     for n in _A6B_UNIT_RANGE:
         fields.append({"key": f"base_{n}", "kind": "calculated", "hidden": True,
-                       "expression": _A6B_BASE.format(n=n)})
+                       "expression": _A6B_BASE.format(n=n, idx=n - 1)})
     #  Visible cumulative content columns.
     for n in _A6B_UNIT_RANGE:
         fields.append({"key": f"content_{n}", "kind": "calculated",
@@ -633,6 +648,7 @@ A6B_DEFINITION = {
               "label": "Replenishment Volume", "unit": "mL", "default": 10},
          ]},
         _a6b_gravimetric_group(),
+        _a6b_gravimetric_stats_group(),
         _a6b_sample_area_group(),
         _a6b_release_group(),
         _a6b_amount_group(),
