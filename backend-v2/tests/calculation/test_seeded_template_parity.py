@@ -562,36 +562,103 @@ class TestA6ADissolutionWithoutReplacement:
 
 
 class TestA6BDissolutionWithReplacement:
-    CONTEXT = {"label_claim": 100.0, "avg_weight": 1.0,
-               "initial_volume": 750.0, "withdrawal_volume": 5.0}
-    GROUPS = {
-        "standard": [{
-            "weight_mg": 100.0, "vol_1": 750.0, "pip_1": 1.0, "vol_2": 1.0,
-            "pip_2": 1.0, "vol_3": 1.0, "mw_base": 1.0, "mw_salt": 1.0, "potency": 100.0,
-        }],
-        "std_areas": [{"area": 1000.0}],
-        "timepoints": [
-            {"minutes": "15", **{f"area_{n}": 200.0 for n in range(1, 7)}},
-            {"minutes": "30", **{f"area_{n}": 400.0 for n in range(1, 7)}},
-        ],
+    """Source: `Dissolution sheet_with replacement_whole vial_ QC release_12
+    units_Doxo.xlsx` (Doxorubicin HCl Liposome 2 mg/mL).
+
+    The 12-unit with-replacement rebuild. The `release` sequence group reproduces
+    the sheet's `% Content` table (rows 59-63) with the cumulative carry-over
+    `content_n = base_n + prev.content_n * withdrawal/total`; `amount` reproduces
+    the `% Release` table (rows 67-71) as `%Assay - content_n`. Expected values are
+    the sheet's own computed cells.
+    """
+
+    CONTEXT = {"label_claim": "2", "pct_assay": 99.6, "wt_per_ml": 1.0313}
+
+    _STD_AREAS = [1299388, 1284245, 1289430, 1289886, 1287196]
+    _FILLED = [21.9327, 22.1476, 22.0521, 21.9414, 21.8935, 21.9936,
+               22.0209, 22.0609, 22.0521, 21.9191, 22.0266, 21.9838]
+    _EMPTY = [11.1039, 11.2356, 11.1678, 11.1045, 10.9857, 11.2220,
+              11.1901, 11.1863, 11.2010, 11.0338, 11.1808, 11.1143]
+    _SAMPLE_AREAS = {
+        0.5: [1227280, 1277227, 1229204, 1276649, 1250485, 1286297,
+              1271200, 1267003, 1269451, 1282701, 1281267, 1254794],
+        3: [1136967, 1126729, 1138015, 1139926, 1088086, 1142220,
+            1147695, 1111327, 1117030, 1157151, 1142177, 1056869],
+        7: [940328, 982406, 900376, 964273, 963445, 906795,
+            937264, 977387, 961532, 912326, 896411, 947898],
+        24: [447679, 455421, 525614, 498235, 523075, 479419,
+             572565, 457795, 538670, 421424, 521716, 467013],
+        48: [143975, 119807, 187136, 168381, 165071, 122795,
+             128689, 131383, 123442, 121995, 161484, 126112],
     }
+    _TIMES = [0.5, 3, 7, 24, 48]
+
+    @property
+    def GROUPS(self):
+        gravimetric = {}
+        for i in range(12):
+            gravimetric[f"filled_{i + 1}"] = self._FILLED[i]
+            gravimetric[f"empty_{i + 1}"] = self._EMPTY[i]
+        sample_rows = []
+        for t in self._TIMES:
+            row = {"time_hr": t}
+            for i in range(12):
+                row[f"unit_{i + 1}"] = self._SAMPLE_AREAS[t][i]
+            sample_rows.append(row)
+        return {
+            "standard": [{"weight_mg": 30.11, "vol_1": 100, "pip_1": 5, "vol_2": 50,
+                          "pip_2": 5, "vol_3": 10, "potency": 100}],
+            "std_areas": [{"area": a} for a in self._STD_AREAS],
+            "bkt": [{"area": 1289948}, {"area": 1317112}],
+            "corel_std1": [{"area": a} for a in (1299388, 1284245, 1289430)],
+            "corel_std2": [{"area": a} for a in (1281451, 1286859)],
+            "corel": [{"std1_weight": 30.11, "std2_weight": 30.02}],
+            "test_prep": [{"sample_volume": 1, "medium_volume": 600, "total_volume": 610,
+                           "aliquot_volume": 3, "dilution_volume": 6,
+                           "withdrawal_volume": 10, "replenishment_volume": 10}],
+            "gravimetric": [gravimetric],
+            "sample_area": sample_rows,
+            "release": [{"time_hr": t} for t in self._TIMES],
+            "amount": [{"time_hr": t} for t in self._TIMES],
+        }
 
     @pytest.fixture()
     def result(self):
         return evaluator("TPL-A6B-0001").evaluate(self.CONTEXT, self.GROUPS)
 
-    def test_volume_stays_constant(self, result):
-        # Replacement restores what was withdrawn, so the series is flat.
-        assert result.row_value("timepoints", 0, "media_volume") == pytest.approx(750.0)
-        assert result.row_value("timepoints", 1, "media_volume") == pytest.approx(750.0)
+    def test_standard_and_suitability(self, result):
+        # R13 = ROUND(30.11/100 * 5/50 * 5/10 * 100/100 * 1000, 3)
+        assert result.values["standard.conc_ppm"] == pytest.approx(15.055, abs=5e-4)
+        # H16 = AVERAGE(replicates); I16 = TRUNC(STDEV/mean*100, 5)
+        assert result.values["stats.mean_std"] == pytest.approx(1290029, abs=0.5)
+        assert result.values["stats.rsd_std"] == pytest.approx(0.44098, abs=5e-6)
+        # I19 pooled %RSD over the 5 replicates + 2 bracket areas
+        assert result.values["stats.rsd_bkt"] == pytest.approx(0.86913, abs=5e-6)
+        # P25 = O24/P24 * L20/L19
+        assert result.values["corel.co_relation"] == pytest.approx(1.00234, abs=5e-6)
 
-    def test_release_still_carries_over(self, result):
-        # 200/1000 * (100/750) * 750/100 * 100 = 20 %
-        assert result.row_value("timepoints", 0, "uncorrected_1") == pytest.approx(20.0)
-        # TRUNC(5/750 * 20, 3) = TRUNC(0.1333, 3) = 0.133
-        assert result.row_value("timepoints", 0, "correction_1") == pytest.approx(0.133)
-        # 40 % + 0.133 = 40.133 → 1dp = 40.1
-        assert result.row_value("timepoints", 1, "released_1") == pytest.approx(40.1)
+    def test_unit1_release_carryover(self, result):
+        # Sheet B59..B63: cumulative with-replacement release for Unit-1.
+        expected = {0: 83.2069, 1: 78.4479, 2: 65.0382, 3: 31.4179, 4: 10.2762}
+        for i, exp in expected.items():
+            assert result.row_value("release", i, "content_1") == pytest.approx(exp, abs=5e-4)
+
+    def test_per_timepoint_summary(self, result):
+        # Sheet N59/O59/P59/Q59/R59 for the 0.5hr row, plus later-row means.
+        assert result.row_value("release", 0, "mean") == pytest.approx(85.4977, abs=5e-4)
+        assert result.row_value("release", 0, "sd") == pytest.approx(1.4558, abs=5e-4)
+        assert result.row_value("release", 0, "rsd") == pytest.approx(1.7027, abs=5e-4)
+        assert result.row_value("release", 0, "min_val") == pytest.approx(82.9124, abs=5e-4)
+        assert result.row_value("release", 0, "max_val") == pytest.approx(87.6712, abs=5e-4)
+        assert result.row_value("release", 1, "mean") == pytest.approx(77.4944, abs=5e-4)
+        assert result.row_value("release", 2, "mean") == pytest.approx(64.8847, abs=5e-4)
+        assert result.row_value("release", 3, "mean") == pytest.approx(34.3579, abs=5e-4)
+        assert result.row_value("release", 4, "mean") == pytest.approx(10.1428, abs=5e-4)
+
+    def test_amount_remaining(self, result):
+        # Sheet B67 = %Assay - B59; N67 = mean over the 12 units at 0.5hr.
+        assert result.row_value("amount", 0, "remain_1") == pytest.approx(16.3931, abs=5e-4)
+        assert result.row_value("amount", 0, "mean") == pytest.approx(14.1023, abs=5e-4)
 
 
 class TestA6CWholeVialResidual:
