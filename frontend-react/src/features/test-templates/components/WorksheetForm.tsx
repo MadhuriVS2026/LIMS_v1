@@ -809,12 +809,37 @@ export const WorksheetForm = ({
           //  header. Gated on `group.chart`, so every other singleton is
           //  unaffected.
           if (group.chart) {
+            //  Editable title: the chart config may name a `titleField` on this
+            //  group whose entered value becomes the chart's displayed title.
+            const titleFieldKey = group.chart.titleField;
+            const titleField = titleFieldKey
+              ? (group.fields ?? []).find((f) => f.key === titleFieldKey)
+              : undefined;
+            const titleValue =
+              (titleFieldKey
+                ? (values[group.key]?.[0]?.[titleFieldKey] as string | undefined)
+                : undefined) ||
+              group.chart.title ||
+              (group.label ?? group.key);
             return (
               <Card key={group.key}>
                 <div className="flex justify-content-between align-items-center mb-2">
                   <h3 className="m-0 text-base">{group.label ?? group.key}</h3>
                 </div>
-                <WorksheetChart chart={group.chart} computed={computed} stale={preview.stale} />
+                {titleField && (
+                  <div className="mb-3" style={{ maxWidth: '32rem' }}>
+                    <label className="block text-xs text-500 mb-1">
+                      {titleField.label ?? 'Graph Title'}
+                    </label>
+                    {renderInput(group, 0, titleField)}
+                  </div>
+                )}
+                <WorksheetChart
+                  chart={group.chart}
+                  computed={computed}
+                  stale={preview.stale}
+                  title={titleValue}
+                />
               </Card>
             );
           }

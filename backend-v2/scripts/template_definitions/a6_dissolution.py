@@ -515,8 +515,10 @@ def _a6b_sample_area_group() -> dict:
 
 def _a6b_release_group() -> dict:
     #  % Content table (brief "% Release"): cumulative with-replacement carry-over.
+    #  Time Interval auto-fetches (read-only) from the Sample Area table.
     fields: list[dict] = [
-        {"key": "time_hr", "kind": "input", "label": "Time Interval (Hours)"},
+        {"key": "time_hr", "kind": "input", "label": "Time Interval (Hours)",
+         "mirrorFrom": "sample_area.time_hr"},
     ]
     #  Hidden uncorrected base columns.
     for n in _A6B_UNIT_RANGE:
@@ -536,14 +538,20 @@ def _a6b_release_group() -> dict:
 
 def _a6b_amount_group() -> dict:
     #  % Release table (brief "amount remaining"): %Assay - release.content_n.
+    #  Time Interval auto-fetches (read-only) from the Sample Area table.
     fields: list[dict] = [
-        {"key": "time_hr", "kind": "input", "label": "Time Interval (Hours)"},
+        {"key": "time_hr", "kind": "input", "label": "Time Interval (Hours)",
+         "mirrorFrom": "sample_area.time_hr"},
     ]
     for n in _A6B_UNIT_RANGE:
         fields.append({"key": f"remain_{n}", "kind": "calculated",
                        "label": f"Unit-{n}", "unit": "%",
                        "expression": f"number(pct_assay) - release.content_{n}[rowno - 1]"})
     fields.extend(_a6b_summary_fields("remain"))
+    #  Acceptance range per timepoint, entered as free text (e.g. "NLT 80%",
+    #  "20-40%") — the spec differs by timepoint, so it is a per-row input.
+    fields.append({"key": "spec_limit", "kind": "input", "type": "text",
+                   "label": "Spec Limit"})
     return {"key": "amount", "kind": "table",
             "label": "% Release of Doxorubicin Hydrochloride",
             "rows": {"min": 1, "max": 20, "default": 5, "labelFrom": "time_hr"},
@@ -551,17 +559,46 @@ def _a6b_amount_group() -> dict:
 
 
 def _a6b_chart_group() -> dict:
+    #  Chart 1 — % Content of Doxorubicin (from the `release` group). Editable
+    #  title text box; the series are the 12 units + Mean, Mean shown by default.
     series = [{"key": f"content_{n}", "label": f"Unit {n}"} for n in _A6B_UNIT_RANGE]
     series.append({"key": "mean", "label": "Mean"})
     return {
-        "key": "release_chart", "kind": "singleton", "label": "Graphical data",
+        "key": "release_chart", "kind": "singleton",
+        "label": "Graphical data — % Content of Doxorubicin Hydrochloride",
         "fields": [
-            {"key": "note", "kind": "input", "type": "text", "label": "Note",
-             "default": ""},
+            {"key": "title", "kind": "input", "type": "text", "label": "Graph Title",
+             "default": "% Content of Doxorubicin Hydrochloride vs Time"},
         ],
         "chart": {
-            "title": "% Release vs Time",
+            "title": "% Content of Doxorubicin Hydrochloride vs Time",
+            "titleField": "title",
             "sourceGroup": "release",
+            "xField": "time_hr",
+            "xLabel": "Time Interval (Hours)",
+            "yLabel": "% Content",
+            "series": series,
+            "defaultSeries": ["mean"],
+        },
+    }
+
+
+def _a6b_amount_chart_group() -> dict:
+    #  Chart 2 — % Release of Doxorubicin (from the `amount` group). Same shape:
+    #  editable title, 12 unit series + Mean, Mean by default.
+    series = [{"key": f"remain_{n}", "label": f"Unit {n}"} for n in _A6B_UNIT_RANGE]
+    series.append({"key": "mean", "label": "Mean"})
+    return {
+        "key": "amount_chart", "kind": "singleton",
+        "label": "Graphical data — % Release of Doxorubicin Hydrochloride",
+        "fields": [
+            {"key": "title", "kind": "input", "type": "text", "label": "Graph Title",
+             "default": "% Release of Doxorubicin Hydrochloride vs Time"},
+        ],
+        "chart": {
+            "title": "% Release of Doxorubicin Hydrochloride vs Time",
+            "titleField": "title",
+            "sourceGroup": "amount",
             "xField": "time_hr",
             "xLabel": "Time Interval (Hours)",
             "yLabel": "% Release",
@@ -652,6 +689,7 @@ A6B_DEFINITION = {
         _a6b_release_group(),
         _a6b_amount_group(),
         _a6b_chart_group(),
+        _a6b_amount_chart_group(),
     ],
     "criteria": [sst_rsd_criterion()],
 }

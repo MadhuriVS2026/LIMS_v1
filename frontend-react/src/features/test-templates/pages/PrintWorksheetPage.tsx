@@ -167,10 +167,17 @@ export const PrintWorksheetPage = () => {
         //  (a live canvas would print blank). Rendered regardless of fields —
         //  a chart group's only field is a title input.
         if (group.chart) {
+          //  Prefer the analyst's edited title (the group's titleField value)
+          //  over the config default, so the PDF matches the screen.
+          const tfKey = group.chart.titleField;
+          const editedTitle = tfKey
+            ? (detail.worksheet.group_values?.[group.key]?.[0]?.[tfKey] as string | undefined)
+            : undefined;
+          const chartTitle = editedTitle || group.chart.title;
           return (
             <div className="ws-section" key={group.key}>
               <h4>{group.label ?? group.key}</h4>
-              <WorksheetChartPrintImage chart={group.chart} computed={computed} />
+              <WorksheetChartPrintImage chart={group.chart} computed={computed} title={chartTitle} />
             </div>
           );
         }

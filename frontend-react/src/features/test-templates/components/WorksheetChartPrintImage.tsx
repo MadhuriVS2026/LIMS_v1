@@ -39,6 +39,8 @@ Chart.register(
 interface Props {
   chart: ChartConfig;
   computed: WorksheetComputed;
+  /** Overrides chart.title (e.g. the analyst's edited title). */
+  title?: string;
 }
 
 function toNum(value: unknown): number | null {
@@ -66,7 +68,7 @@ function buildPoints(rows: WorksheetRow[], xField: string, yKey: string): Point[
 
 const SERIES_COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
 
-export const WorksheetChartPrintImage = ({ chart, computed }: Props) => {
+export const WorksheetChartPrintImage = ({ chart, computed, title }: Props) => {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -109,7 +111,9 @@ export const WorksheetChartPrintImage = ({ chart, computed }: Props) => {
         devicePixelRatio: 2,
         plugins: {
           legend: { display: true, position: 'bottom' },
-          title: chart.title ? { display: true, text: chart.title } : { display: false },
+          title: (title || chart.title)
+            ? { display: true, text: (title || chart.title) as string }
+            : { display: false },
         },
         scales: {
           x: {
@@ -131,7 +135,7 @@ export const WorksheetChartPrintImage = ({ chart, computed }: Props) => {
       instance.destroy();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chart, computed]);
+  }, [chart, computed, title]);
 
   if (!dataUrl) {
     return <p style={{ fontSize: 11, color: '#555' }}>Chart unavailable.</p>;

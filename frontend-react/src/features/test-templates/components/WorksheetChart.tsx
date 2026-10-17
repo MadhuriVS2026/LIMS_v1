@@ -19,6 +19,8 @@ interface WorksheetChartProps {
   computed: WorksheetComputed;
   /** Dim the canvas while a recalculation is in flight. */
   stale?: boolean;
+  /** Displayed chart title (from the editable title field, falls back to config). */
+  title?: string;
 }
 
 interface Point {
@@ -60,7 +62,7 @@ const SERIES_COLORS = [
   '#14b8a6', // teal
 ];
 
-export const WorksheetChart = ({ chart, computed, stale }: WorksheetChartProps) => {
+export const WorksheetChart = ({ chart, computed, stale, title }: WorksheetChartProps) => {
   const seriesKeys = useMemo(() => chart.series.map((s) => s.key), [chart.series]);
 
   const [visible, setVisible] = useState<Set<string>>(() => {
@@ -113,6 +115,7 @@ export const WorksheetChart = ({ chart, computed, stale }: WorksheetChartProps) 
       plugins: {
         //  We render our own toggle chips, so hide Chart.js's built-in legend.
         legend: { display: false },
+        title: title ? { display: true, text: title, font: { size: 14 } } : { display: false },
       },
       scales: {
         x: {
@@ -125,7 +128,7 @@ export const WorksheetChart = ({ chart, computed, stale }: WorksheetChartProps) 
         },
       },
     }),
-    [chart.xLabel, chart.yLabel],
+    [chart.xLabel, chart.yLabel, title],
   );
 
   return (

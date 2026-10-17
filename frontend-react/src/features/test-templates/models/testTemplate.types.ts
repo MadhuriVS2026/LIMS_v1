@@ -104,6 +104,8 @@ export interface ChartSeries {
  */
 export interface ChartConfig {
   title?: string;
+  /** Key of an editable field on the chart's own group whose value overrides `title`. */
+  titleField?: string;
   /** Group key whose computed rows feed the chart, e.g. `timepoints_release`. */
   sourceGroup: string;
   /** Row field used for the X axis, e.g. `time_hr`. */
