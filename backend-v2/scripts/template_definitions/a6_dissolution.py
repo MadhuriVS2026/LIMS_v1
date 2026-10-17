@@ -507,8 +507,7 @@ def _a6b_sample_area_group() -> dict:
          "required": True},
     ]
     for n in _A6B_UNIT_RANGE:
-        fields.append({"key": f"unit_{n}", "kind": "area", "label": f"Unite-{n}",
-                       "unit": "µV·s"})
+        fields.append({"key": f"unit_{n}", "kind": "area", "label": f"Unit-{n}"})
     return {"key": "sample_area", "kind": "table", "label": "Sample Area",
             "rows": {"min": 1, "max": 20, "default": 5, "labelFrom": "time_hr"},
             "fields": fields}
@@ -526,7 +525,7 @@ def _a6b_release_group() -> dict:
     #  Visible cumulative content columns.
     for n in _A6B_UNIT_RANGE:
         fields.append({"key": f"content_{n}", "kind": "calculated",
-                       "label": f"Unite-{n}", "unit": "%",
+                       "label": f"Unit-{n}", "unit": "%",
                        "expression": _A6B_CONTENT.format(n=n)})
     fields.extend(_a6b_summary_fields("content"))
     return {"key": "release", "kind": "sequence",
@@ -542,7 +541,7 @@ def _a6b_amount_group() -> dict:
     ]
     for n in _A6B_UNIT_RANGE:
         fields.append({"key": f"remain_{n}", "kind": "calculated",
-                       "label": f"Unite-{n}", "unit": "%",
+                       "label": f"Unit-{n}", "unit": "%",
                        "expression": f"number(pct_assay) - release.content_{n}[rowno - 1]"})
     fields.extend(_a6b_summary_fields("remain"))
     return {"key": "amount", "kind": "table",
