@@ -200,6 +200,39 @@ export const WorksheetForm = ({
     [contextFields],
   );
 
+  //  ── Dynamic header text (labelFrom) ──
+  //  A field may declare `labelFrom: "<group>.<field>"` (optionally with a
+  //  "[idx]" suffix) to source its column header / singleton label text from a
+  //  worksheet value instead of the static `field.label`. Generic for any
+  //  template: when a "[idx]" suffix is present read that group's row at the
+  //  index; otherwise read the group's row-aligned cell (`rowIndex`), falling
+  //  back to row 0 for a header rendered once for a whole column. Prefers the
+  //  server-computed row value, then the editable entered value. Returns the
+  //  trimmed string when non-blank, else null so the caller falls back to
+  //  `field.label`. UI-only — it never changes a computed number.
+  const resolveLabelFrom = (spec: string, rowIndex = 0): string | null => {
+    const match = spec.match(/^([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)(?:\[(\d+)\])?$/);
+    if (!match) return null;
+    const [, groupKey, fieldKey, idxRaw] = match;
+    const idx = idxRaw !== undefined ? Number(idxRaw) : rowIndex;
+    const fromComputed = computed.rows?.[groupKey]?.[idx]?.[fieldKey];
+    const fromValues = values[groupKey]?.[idx]?.[fieldKey];
+    const raw = fromComputed !== undefined && fromComputed !== null ? fromComputed : fromValues;
+    if (raw === null || raw === undefined) return null;
+    const text = String(raw).trim();
+    return text === '' ? null : text;
+  };
+
+  //  The resolved header/label text for a field: `labelFrom` when set and it
+  //  resolves to a non-blank value, else the static label (then the key).
+  const headerText = (field: FieldDef, rowIndex = 0): string => {
+    if (field.labelFrom) {
+      const resolved = resolveLabelFrom(field.labelFrom, rowIndex);
+      if (resolved !== null) return resolved;
+    }
+    return field.label ?? field.key;
+  };
+
   //  Human labels for every field key/ref, so a blank calculated cell can name
   //  the inputs it is still waiting on rather than showing a bare dash.
   const labelByRef = useMemo(() => {
@@ -855,7 +888,7 @@ export const WorksheetForm = ({
                 {editableFields.map((field) => (
                   <div className={fieldColClass(field)} key={field.key}>
                     <label className="block text-xs text-500 mb-1">
-                      {field.label ?? field.key}
+                      {headerText(field)}
                       {field.unit ? ` (${field.unit})` : ''}
                       {field.kind === 'area' && (
                         <i
@@ -870,7 +903,7 @@ export const WorksheetForm = ({
                 {calculatedFields.map((field) => (
                   <div className={fieldColClass(field)} key={field.key}>
                     <label className="block text-xs text-500 mb-1">
-                      {field.label ?? field.key}
+                      {headerText(field)}
                       {field.unit ? ` (${field.unit})` : ''}
                       <i className="pi pi-calculator ml-1 text-500" title={field.expression} />
                     </label>
@@ -989,7 +1022,7 @@ export const WorksheetForm = ({
                           style={{ wordBreak: 'break-word' }}
                           title={calc ? field.expression : undefined}
                         >
-                          {field.label ?? field.key}
+                          {headerText(field)}
                           {field.unit ? ` (${field.unit})` : ''}
                           {field.kind === 'area' && (
                             <i

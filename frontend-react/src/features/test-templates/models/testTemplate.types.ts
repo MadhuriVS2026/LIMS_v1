@@ -55,6 +55,16 @@ export interface FieldDef {
    * the UI layer.
    */
   mirrorFrom?: string;
+  /**
+   * UI-only dynamic column-header (or singleton field-label) text, as
+   * `"<group>.<field>"` with an optional `[idx]` suffix, e.g.
+   * `"standard.name[0]"`. Counterpart to `mirrorFrom` (which copies VALUES into
+   * a cell): this drives the HEADER text, resolving it from the worksheet's
+   * computed/entered values — row-aligned for a table group, or by explicit
+   * index. Falls back to `label` when the source resolves blank. The calc
+   * engine ignores it, so templates without it render headers exactly as before.
+   */
+  labelFrom?: string;
 }
 
 export interface RowSpec {

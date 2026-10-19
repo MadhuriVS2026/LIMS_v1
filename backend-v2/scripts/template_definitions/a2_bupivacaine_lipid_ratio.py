@@ -157,32 +157,84 @@ def _standard_default_rows() -> list[dict]:
     return rows
 
 
-def _area_columns() -> list[dict]:
-    """The 4 per-compound AREA columns shared by the replicate and BKT tables."""
+#  Six replicate-injection columns per compound row. The sheet records up to six
+#  replicate injections (rows 25–30) and up to six bracketing injections; blank
+#  cells are tolerated by mean/sd/rsd (they skip blanks).
+_INJ_COLUMNS = 6
+
+
+def _injection_columns() -> list[dict]:
+    """The inj_1..inj_6 AREA columns shared by the replicate and BKT row tables."""
     return [
-        {"key": f"{prefix}_area", "kind": "area", "label": f"{name} Area", "unit": "µV·s"}
-        for prefix, name in _COMPOUNDS
+        {"key": f"inj_{k}", "kind": "area", "label": f"Injection {k}", "unit": "µV·s"}
+        for k in range(1, _INJ_COLUMNS + 1)
+    ]
+
+
+def _inj_list(prefix: str = "") -> str:
+    """List literal of the six injection fields, optionally group-qualified and
+    row-indexed, e.g. `[inj_1, ...]` or `[std_areas.inj_1[rowno - 1], ...]`."""
+    if prefix:
+        return "[" + ", ".join(f"{prefix}.inj_{k}[rowno - 1]" for k in range(1, _INJ_COLUMNS + 1)) + "]"
+    return "[" + ", ".join(f"inj_{k}" for k in range(1, _INJ_COLUMNS + 1)) + "]"
+
+
+def _std_area_fields() -> list[dict]:
+    """
+    Standard replicate injections as a TABLE — one ROW per compound.
+
+    House rule: with more than 2 standards the replicate block is transposed to
+    compounds-as-rows (the compound name mirrors Standard Details), with six
+    area columns and per-row Mean/SD/%RSD over that row's injections. This keeps
+    the whole-column series `std_areas.inj_k` available for the pooled BKT stats
+    to index by row, while each row's Mean/SD/%RSD read that row's own cells.
+    """
+    inj = _inj_list()
+    return [
+        {"key": "compound", "kind": "input", "type": "text", "label": "Compound", "mirrorFrom": "standard.name"},
+        *_injection_columns(),
+        {"key": "mean", "kind": "calculated", "label": "Mean", "expression": f"mean({inj})"},
+        {"key": "sd", "kind": "calculated", "label": "SD", "expression": f"sd({inj})"},
+        {"key": "rsd", "kind": "calculated", "label": "% RSD", "unit": "%", "expression": f"rsd({inj})"},
+    ]
+
+
+def _bkt_area_fields() -> list[dict]:
+    """
+    BKT (bracketing) standard injections as a TABLE — one ROW per compound.
+
+    Per-row Mean/SD/%RSD are POOLED with the matching `std_areas` row (the same
+    compound, found by `rowno - 1`), matching the sheet's
+    `AVERAGE(H25:H30,B25:B30)` / `STDEV(B25:B30,H25:H30)`. `pool([...],[...])`
+    flattens both lists and drops blanks.
+    """
+    pooled = f"pool({_inj_list('std_areas')}, {_inj_list()})"
+    return [
+        {"key": "compound", "kind": "input", "type": "text", "label": "Compound", "mirrorFrom": "standard.name"},
+        *_injection_columns(),
+        {"key": "mean", "kind": "calculated", "label": "Mean", "expression": f"mean({pooled})"},
+        {"key": "sd", "kind": "calculated", "label": "SD", "expression": f"sd({pooled})"},
+        {"key": "rsd", "kind": "calculated", "label": "% RSD", "unit": "%", "expression": f"rsd({pooled})"},
     ]
 
 
 def _stats_fields() -> list[dict]:
     """
-    Replicate stats (sheet B31/B32/B33) and pooled replicate+bracketing stats
-    (sheet H31/H32/H33) per compound. The pooled mean/SD/%RSD combine the six
-    replicate injections with the bracketing injections via pool(...), matching
-    the sheet's `AVERAGE(H25:H30,B25:B30)` / `STDEV(B25:B30,H25:H30)`.
+    Thin-indirection statistics singleton: each per-compound stat reads the
+    transposed row table by the compound's index in _COMPOUNDS. Keeping these
+    `stats.*` KEYS identical means `lipid_samples` %Assay and the 8 SST criteria
+    need no change — only the source of each number moved from a per-compound
+    column mean to a per-row table mean.
     """
     fields: list[dict] = []
-    for prefix, name in _COMPOUNDS:
-        rep = f"std_areas.{prefix}_area"
-        pooled = f"pool(std_areas.{prefix}_area, bkt_areas.{prefix}_area)"
+    for idx, (prefix, name) in enumerate(_COMPOUNDS):
         fields += [
-            {"key": f"mean_std_{prefix}", "kind": "calculated", "label": f"{name} Mean STD", "expression": f"mean({rep})"},
-            {"key": f"sd_std_{prefix}", "kind": "calculated", "label": f"{name} SD", "expression": f"sd({rep})"},
-            {"key": f"rsd_std_{prefix}", "kind": "calculated", "label": f"{name} %RSD", "unit": "%", "expression": f"rsd({rep})"},
-            {"key": f"mean_pool_{prefix}", "kind": "calculated", "label": f"{name} Pooled Mean", "expression": f"mean({pooled})"},
-            {"key": f"sd_pool_{prefix}", "kind": "calculated", "label": f"{name} Pooled SD", "expression": f"sd({pooled})"},
-            {"key": f"rsd_pool_{prefix}", "kind": "calculated", "label": f"{name} Pooled %RSD", "unit": "%", "expression": f"rsd({pooled})"},
+            {"key": f"mean_std_{prefix}", "kind": "calculated", "label": f"{name} Mean STD", "expression": f"std_areas.mean[{idx}]"},
+            {"key": f"sd_std_{prefix}", "kind": "calculated", "label": f"{name} SD", "expression": f"std_areas.sd[{idx}]"},
+            {"key": f"rsd_std_{prefix}", "kind": "calculated", "label": f"{name} %RSD", "unit": "%", "expression": f"std_areas.rsd[{idx}]"},
+            {"key": f"mean_pool_{prefix}", "kind": "calculated", "label": f"{name} Pooled Mean", "expression": f"bkt_areas.mean[{idx}]"},
+            {"key": f"sd_pool_{prefix}", "kind": "calculated", "label": f"{name} Pooled SD", "expression": f"bkt_areas.sd[{idx}]"},
+            {"key": f"rsd_pool_{prefix}", "kind": "calculated", "label": f"{name} Pooled %RSD", "unit": "%", "expression": f"bkt_areas.rsd[{idx}]"},
         ]
     return fields
 
@@ -237,17 +289,22 @@ def _lipid_sample_fields() -> list[dict]:
         {"key": "vol_l", "kind": "input", "label": "Vol", "unit": "mL", "default": 1},        # L
     ]
     #  Per-compound injection-1 and injection-2 area columns (sheet M39 / M43 ...).
-    for prefix, name in _COMPOUNDS:
-        fields.append({"key": f"{prefix}_area1", "kind": "area", "label": f"{name} Area (Inj 1)", "unit": "µV·s"})
-        fields.append({"key": f"{prefix}_area2", "kind": "area", "label": f"{name} Area (Inj 2)", "unit": "µV·s"})
+    #  `labelFrom` makes the column HEADER read the compound name from Standard
+    #  Details (row idx) in the UI, so renaming a standard renames these columns.
+    for idx, (prefix, name) in enumerate(_COMPOUNDS):
+        label_from = f"standard.name[{idx}]"
+        fields.append({"key": f"{prefix}_area1", "kind": "area", "label": f"{name} Area (Inj 1)", "unit": "µV·s", "labelFrom": label_from})
+        fields.append({"key": f"{prefix}_area2", "kind": "area", "label": f"{name} Area (Inj 2)", "unit": "µV·s", "labelFrom": label_from})
     #  Per-compound %Assay (inj 1 / inj 2) and %Mean (sheet N/O columns).
-    for prefix, name in _COMPOUNDS:
+    for idx, (prefix, name) in enumerate(_COMPOUNDS):
+        label_from = f"standard.name[{idx}]"
         fields += [
             {
                 "key": f"{prefix}_assay1",
                 "kind": "calculated",
                 "label": f"{name} % Assay (Inj 1)",
                 "unit": "%",
+                "labelFrom": label_from,
                 "expression": _assay_expression(prefix, f"{prefix}_area1"),
             },
             {
@@ -255,6 +312,7 @@ def _lipid_sample_fields() -> list[dict]:
                 "kind": "calculated",
                 "label": f"{name} % Assay (Inj 2)",
                 "unit": "%",
+                "labelFrom": label_from,
                 "expression": _assay_expression(prefix, f"{prefix}_area2"),
             },
             {
@@ -262,6 +320,7 @@ def _lipid_sample_fields() -> list[dict]:
                 "kind": "calculated",
                 "label": f"{name} % Mean",
                 "unit": "%",
+                "labelFrom": label_from,
                 #  Sheet O43 = AVERAGE(N39, N43); a blank 2nd injection leaves the
                 #  inj-1 value (mean skips blanks), matching the sheet.
                 "expression": f"mean([{prefix}_assay1, {prefix}_assay2])",
@@ -280,13 +339,14 @@ def _drug_lipid_fields() -> list[dict]:
     ]
     #  I18 = H18 * G18 / 100 = (Lipid %Mean for this batch) * compound LC / 100.
     #  `lipid_samples.<c>_mean[rowno-1]` reads the matching batch row.
-    for prefix, name in _COMPOUNDS:
+    for idx, (prefix, name) in enumerate(_COMPOUNDS):
         fields.append(
             {
                 "key": f"{prefix}_mgml",
                 "kind": "calculated",
                 "label": f"{name} mg/mL (Lipid)",
                 "unit": "mg/mL",
+                "labelFrom": f"standard.name[{idx}]",
                 "expression": f"lipid_samples.{prefix}_mean[rowno - 1] * lc_{prefix} / 100",
             }
         )
@@ -371,29 +431,32 @@ LIPID_RATIO_DEFINITION = {
             "rows": {"min": 1, "max": 10, "default": len(_COMPOUNDS), "labelFrom": "name"},
             "fields": _standard_fields(),
         },
-        #  Six standard replicate injections (sheet rows 25–30, columns B/C/D/E).
+        #  Standard replicate injections, transposed to one ROW per compound
+        #  (sheet rows 25–30, columns B/C/D/E). Six injection columns; per-row
+        #  Mean/SD/%RSD. The compound cell mirrors Standard Details.
         {
             "key": "std_areas",
             "kind": "table",
             "label": "Standard Replicate Injections",
-            "rows": {"min": 1, "max": 6, "default": 6},
-            "fields": _area_columns(),
+            "rows": {"min": 1, "max": 10, "default": len(_COMPOUNDS), "labelFrom": "compound"},
+            "fields": _std_area_fields(),
             "footer": [
-                {"label": "Mean", "ref": "stats.mean_std_tri"},
+                {"label": "Mean (Tricaprylin)", "ref": "stats.mean_std_tri"},
                 {"label": "SD", "ref": "stats.sd_std_tri"},
                 {"label": "% RSD", "ref": "stats.rsd_std_tri", "unit": "%"},
             ],
         },
-        #  Bracketing standard injections (sheet rows 25–28, columns H/I/J/K);
-        #  only four rows carry data, blank rows tolerated by pool().
+        #  Bracketing standard injections, transposed to one ROW per compound
+        #  (sheet rows 25–28, columns H/I/J/K). Per-row Mean/SD/%RSD are POOLED
+        #  with the matching std_areas row (by rowno-1); blank cells tolerated.
         {
             "key": "bkt_areas",
             "kind": "table",
             "label": "BKT Standard Injections",
-            "rows": {"min": 1, "max": 6, "default": 4},
-            "fields": _area_columns(),
+            "rows": {"min": 1, "max": 10, "default": len(_COMPOUNDS), "labelFrom": "compound"},
+            "fields": _bkt_area_fields(),
             "footer": [
-                {"label": "Mean", "ref": "stats.mean_pool_tri"},
+                {"label": "Mean (Tricaprylin)", "ref": "stats.mean_pool_tri"},
                 {"label": "SD", "ref": "stats.sd_pool_tri"},
                 {"label": "% RSD", "ref": "stats.rsd_pool_tri", "unit": "%"},
             ],
