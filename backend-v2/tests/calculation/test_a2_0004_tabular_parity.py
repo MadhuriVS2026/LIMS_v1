@@ -2,11 +2,13 @@
 GxP parity for TPL-A2-0004 (Bupivacaine Lipid Content & Drug-to-Lipid Ratio)
 after the tabular transpose of the standard replicate / BKT injection blocks.
 
-The two injection blocks were transposed from compounds-as-COLUMNS to
-compounds-as-ROWS (one row per compound, six injection columns, per-row
-Mean/SD/%RSD; BKT rows pooled with the matching std row). The `stats` singleton
-now reads those row tables by compound index, keeping every `stats.*` KEY so the
-%Assay chain and the 8 SST criteria are untouched.
+The two injection blocks are laid out as INJECTIONS-AS-ROWS / COMPOUNDS-AS-COLUMNS
+(one row per injection; four area columns tri/dppg/chol/depc; no per-row
+Mean/SD/%RSD). Per-compound Mean/SD/%RSD aggregate DOWN each compound column and
+are published by the `stats` singleton — `mean(std_areas.<c>_area)` for the
+replicate block and `mean(pool(std_areas.<c>_area, bkt_areas.<c>_area))` for the
+pooled BKT block. Every `stats.*` KEY is unchanged, so the %Assay chain and the 8
+SST criteria are untouched.
 
 Every expected value below is derived by hand from the workbook
 `_dumps/Bupivacaine Lipid _ Drug to lipid Ratio.txt` (sheet cells named in the
@@ -39,21 +41,23 @@ STANDARD = [
 ]
 
 #  Standard replicate injections (sheet rows 25–30, cols B/C/D/E) — one row per
-#  compound after the transpose.
+#  injection, one column per compound (tri/dppg/chol/depc).
 STD_AREAS = [
-    {"inj_1": 8711513, "inj_2": 8674291, "inj_3": 8679908, "inj_4": 8671826, "inj_5": 8715229, "inj_6": 8695954},
-    {"inj_1": 4437526, "inj_2": 4473096, "inj_3": 4461331, "inj_4": 4528571, "inj_5": 4403707, "inj_6": 4463992},
-    {"inj_1": 32277247, "inj_2": 32439471, "inj_3": 32393636, "inj_4": 32357224, "inj_5": 32429381, "inj_6": 32523530},
-    {"inj_1": 44369260, "inj_2": 44366857, "inj_3": 44211085, "inj_4": 43613144, "inj_5": 43626749, "inj_6": 43893218},
+    {"inj_label": "Injection 1", "tri_area": 8711513, "dppg_area": 4437526, "chol_area": 32277247, "depc_area": 44369260},
+    {"inj_label": "Injection 2", "tri_area": 8674291, "dppg_area": 4473096, "chol_area": 32439471, "depc_area": 44366857},
+    {"inj_label": "Injection 3", "tri_area": 8679908, "dppg_area": 4461331, "chol_area": 32393636, "depc_area": 44211085},
+    {"inj_label": "Injection 4", "tri_area": 8671826, "dppg_area": 4528571, "chol_area": 32357224, "depc_area": 43613144},
+    {"inj_label": "Injection 5", "tri_area": 8715229, "dppg_area": 4403707, "chol_area": 32429381, "depc_area": 43626749},
+    {"inj_label": "Injection 6", "tri_area": 8695954, "dppg_area": 4463992, "chol_area": 32523530, "depc_area": 43893218},
 ]
 
-#  BKT injections (sheet rows 25–28, cols H/I/J/K) — four injections per
-#  compound, inj_5/inj_6 blank.
+#  BKT injections (sheet rows 25–28, cols H/I/J/K) — four injection rows, one
+#  column per compound; injections 5/6 absent (blanks skipped by the aggregate).
 BKT_AREAS = [
-    {"inj_1": 8713270, "inj_2": 8686255, "inj_3": 8719164, "inj_4": 8729929},
-    {"inj_1": 4473297, "inj_2": 4509972, "inj_3": 4448498, "inj_4": 4472750},
-    {"inj_1": 32509936, "inj_2": 32485699, "inj_3": 32455877, "inj_4": 32460029},
-    {"inj_1": 43884434, "inj_2": 43979519, "inj_3": 43323151, "inj_4": 44269558},
+    {"inj_label": "Injection 1", "tri_area": 8713270, "dppg_area": 4473297, "chol_area": 32509936, "depc_area": 43884434},
+    {"inj_label": "Injection 2", "tri_area": 8686255, "dppg_area": 4509972, "chol_area": 32485699, "depc_area": 43979519},
+    {"inj_label": "Injection 3", "tri_area": 8719164, "dppg_area": 4448498, "chol_area": 32455877, "depc_area": 43323151},
+    {"inj_label": "Injection 4", "tri_area": 8729929, "dppg_area": 4472750, "chol_area": 32460029, "depc_area": 44269558},
 ]
 
 #  Batch EP20_117-299-B (sheet rows 39/43): inj-1 areas only (inj-2 blank → %Mean
@@ -89,22 +93,24 @@ class TestA2_0004TabularParity:
         assert result.row_value("standard", 2, "conc_ppm") == pytest.approx(285.1, abs=1e-2)
         assert result.row_value("standard", 3, "conc_ppm") == pytest.approx(489.25, abs=1e-2)
 
-    def test_std_area_row_means(self, result):
-        #  Per-compound mean of its six replicate injections (sheet B31/C31/D31/E31).
-        assert result.row_value("std_areas", 0, "mean") == pytest.approx(8691453.5, abs=1e-2)
-        assert result.row_value("std_areas", 1, "mean") == pytest.approx(4461370.5, abs=1e-2)
-        assert result.row_value("std_areas", 2, "mean") == pytest.approx(32403414.83, abs=1e-2)
-        assert result.row_value("std_areas", 3, "mean") == pytest.approx(44013385.5, abs=1e-2)
+    def test_std_area_column_means(self, result):
+        #  Per-compound mean DOWN each column of six replicate injections
+        #  (sheet B31/C31/D31/E31), published by the stats singleton.
+        assert result.values["stats.mean_std_tri"] == pytest.approx(8691453.5, abs=1e-2)
+        assert result.values["stats.mean_std_dppg"] == pytest.approx(4461370.5, abs=1e-2)
+        assert result.values["stats.mean_std_chol"] == pytest.approx(32403414.83, abs=1e-2)
+        assert result.values["stats.mean_std_depc"] == pytest.approx(44013385.5, abs=1e-2)
 
     def test_bkt_pooled_tricaprylin(self, result):
         #  H31 = AVERAGE(H25:H30, B25:B30): the six std + four bkt Tricaprylin
         #  injections = (52148721 + 34848618) / 10 = 8699733.9; %RSD ≈ 0.2383.
-        assert result.row_value("bkt_areas", 0, "mean") == pytest.approx(8699733.9, abs=1e-2)
-        assert result.row_value("bkt_areas", 0, "rsd") == pytest.approx(0.2383, abs=1e-4)
+        assert result.values["stats.mean_pool_tri"] == pytest.approx(8699733.9, abs=1e-2)
+        assert result.values["stats.rsd_pool_tri"] == pytest.approx(0.2383, abs=1e-4)
 
     def test_stats_indirection_still_resolves(self, result):
-        #  The singleton must mirror the row tables by compound index.
-        assert result.values["stats.mean_std_tri"] == result.row_value("std_areas", 0, "mean")
+        #  The singleton must publish the per-compound column aggregates under the
+        #  unchanged stats.* keys that the %Assay chain and SST criteria reference.
+        assert result.values["stats.mean_std_tri"] == pytest.approx(8691453.5, abs=1e-2)
         assert result.values["stats.rsd_pool_tri"] == pytest.approx(0.2383, abs=1e-4)
 
     def test_batch_b_percent_assay_inj1(self, result):

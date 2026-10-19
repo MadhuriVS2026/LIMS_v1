@@ -77,6 +77,24 @@ the batches in the SAME order, each `drug_lipid` row reads its partner via
 row number). Chosen over recomputing mg/mL inside `lipid_samples` because it
 keeps the reference legible and mirrors the sheet's cross-sheet `='Lipid '!O43`.
 
+Injection-block orientation (decisions D1–D8): the Standard Replicate Injections
+(`std_areas`) and BKT Standard Injections (`bkt_areas`) are laid out as
+INJECTIONS-AS-ROWS / COMPOUNDS-AS-COLUMNS — one row per injection (Injection
+1..N, expandable, cap 12) and one AREA column per compound (`tri_area`,
+`dppg_area`, `chol_area`, `depc_area`, in _COMPOUNDS order), each column header
+auto-fetching the compound name from Standard Details via
+`labelFrom="standard.name[<idx>]"`. Per-compound Mean/SD/%RSD aggregate DOWN each
+compound column (`mean(std_areas.<c>_area)` etc., blanks skipped) and are
+published by the `stats` singleton and rendered in each group's footer (one ref
+per compound column). BKT Mean/SD/%RSD are POOLED per compound column with the
+matching `std_areas` column (`pool(std_areas.<c>_area, bkt_areas.<c>_area)`),
+matching the sheet's `AVERAGE(H25:H30,B25:B30)` / `STDEV(B25:B30,H25:H30)`.
+Because the aggregates live in `stats`/footer and NOT in data rows, each column
+series holds only injection values, so the whole-column aggregate is exactly the
+intended span and adapts to the expandable row count. The `stats.*` KEYS are
+UNCHANGED, so the `lipid_samples` %Assay chain and the 8 SST criteria are
+untouched — only each stat's SOURCE expression moved to a per-column aggregate.
+
 Rounding: the sheet wraps every formula in IFERROR but applies NO explicit ROUND,
 so NO mid-chain rounding is applied here (rounding mid-chain would perturb the
 gold values). The reportable `ratio` is left unrounded; display rounding is the
@@ -157,84 +175,95 @@ def _standard_default_rows() -> list[dict]:
     return rows
 
 
-#  Six replicate-injection columns per compound row. The sheet records up to six
-#  replicate injections (rows 25–30) and up to six bracketing injections; blank
-#  cells are tolerated by mean/sd/rsd (they skip blanks).
-_INJ_COLUMNS = 6
+#  Injection rows are EXPANDABLE: the sheet records up to six replicate
+#  injections (rows 25–30) and up to six bracketing injections, but the user may
+#  add more. Cap the row count at 12; blank injection cells are tolerated by
+#  mean/sd/rsd (they skip blanks), so a higher cap never perturbs the aggregates.
+_MAX_INJ_ROWS = 12
+_DEFAULT_INJ_ROWS = 6
 
 
-def _injection_columns() -> list[dict]:
-    """The inj_1..inj_6 AREA columns shared by the replicate and BKT row tables."""
+def _area_columns() -> list[dict]:
+    """
+    One AREA column per compound (tri, dppg, chol, depc — in _COMPOUNDS order),
+    shared by the transposed replicate and BKT tables. Each column HEADER
+    auto-fetches the compound name from Standard Details (row idx) via the
+    generic `labelFrom="standard.name[<idx>]"` resolver, so renaming a standard
+    renames the column.
+    """
     return [
-        {"key": f"inj_{k}", "kind": "area", "label": f"Injection {k}", "unit": "µV·s"}
-        for k in range(1, _INJ_COLUMNS + 1)
+        {
+            "key": f"{prefix}_area",
+            "kind": "area",
+            "label": f"{name} Area",
+            "unit": "µV·s",
+            "labelFrom": f"standard.name[{idx}]",
+        }
+        for idx, (prefix, name) in enumerate(_COMPOUNDS)
     ]
-
-
-def _inj_list(prefix: str = "") -> str:
-    """List literal of the six injection fields, optionally group-qualified and
-    row-indexed, e.g. `[inj_1, ...]` or `[std_areas.inj_1[rowno - 1], ...]`."""
-    if prefix:
-        return "[" + ", ".join(f"{prefix}.inj_{k}[rowno - 1]" for k in range(1, _INJ_COLUMNS + 1)) + "]"
-    return "[" + ", ".join(f"inj_{k}" for k in range(1, _INJ_COLUMNS + 1)) + "]"
 
 
 def _std_area_fields() -> list[dict]:
     """
-    Standard replicate injections as a TABLE — one ROW per compound.
+    Standard replicate injections as a TABLE — one ROW per injection, one COLUMN
+    per compound (sheet rows 25–30, cols B/C/D/E transposed).
 
-    House rule: with more than 2 standards the replicate block is transposed to
-    compounds-as-rows (the compound name mirrors Standard Details), with six
-    area columns and per-row Mean/SD/%RSD over that row's injections. This keeps
-    the whole-column series `std_areas.inj_k` available for the pooled BKT stats
-    to index by row, while each row's Mean/SD/%RSD read that row's own cells.
+    Orientation (decision D1/D2): injections-as-rows, compounds-as-columns. The
+    row label is a plain `inj_label` text input ("Injection 1" ..); the four
+    area columns are `tri_area/dppg_area/chol_area/depc_area` with `labelFrom`
+    headers. No per-row Mean/SD/%RSD — those aggregate DOWN each compound column
+    and are published by the `stats` singleton (and rendered in the group
+    footer), so the column series `std_areas.<c>_area` contains ONLY injection
+    rows and `mean(std_areas.<c>_area)` is the exact per-compound mean.
     """
-    inj = _inj_list()
     return [
-        {"key": "compound", "kind": "input", "type": "text", "label": "Compound", "mirrorFrom": "standard.name"},
-        *_injection_columns(),
-        {"key": "mean", "kind": "calculated", "label": "Mean", "expression": f"mean({inj})"},
-        {"key": "sd", "kind": "calculated", "label": "SD", "expression": f"sd({inj})"},
-        {"key": "rsd", "kind": "calculated", "label": "% RSD", "unit": "%", "expression": f"rsd({inj})"},
+        {"key": "inj_label", "kind": "input", "type": "text", "label": "Injection"},
+        *_area_columns(),
     ]
 
 
 def _bkt_area_fields() -> list[dict]:
     """
-    BKT (bracketing) standard injections as a TABLE — one ROW per compound.
+    BKT (bracketing) standard injections as a TABLE — one ROW per injection, one
+    COLUMN per compound (sheet rows 25–28, cols H/I/J/K transposed).
 
-    Per-row Mean/SD/%RSD are POOLED with the matching `std_areas` row (the same
-    compound, found by `rowno - 1`), matching the sheet's
-    `AVERAGE(H25:H30,B25:B30)` / `STDEV(B25:B30,H25:H30)`. `pool([...],[...])`
-    flattens both lists and drops blanks.
+    Same shape as `std_areas` (inj_label + four area columns). Pooling with the
+    matching `std_areas` compound column now lives in the `stats` singleton
+    (`pool(std_areas.<c>_area, bkt_areas.<c>_area)`), matching the sheet's
+    `AVERAGE(H25:H30,B25:B30)` / `STDEV(B25:B30,H25:H30)`, so `bkt_areas` carries
+    no calculated fields.
     """
-    pooled = f"pool({_inj_list('std_areas')}, {_inj_list()})"
     return [
-        {"key": "compound", "kind": "input", "type": "text", "label": "Compound", "mirrorFrom": "standard.name"},
-        *_injection_columns(),
-        {"key": "mean", "kind": "calculated", "label": "Mean", "expression": f"mean({pooled})"},
-        {"key": "sd", "kind": "calculated", "label": "SD", "expression": f"sd({pooled})"},
-        {"key": "rsd", "kind": "calculated", "label": "% RSD", "unit": "%", "expression": f"rsd({pooled})"},
+        {"key": "inj_label", "kind": "input", "type": "text", "label": "Injection"},
+        *_area_columns(),
     ]
 
 
 def _stats_fields() -> list[dict]:
     """
-    Thin-indirection statistics singleton: each per-compound stat reads the
-    transposed row table by the compound's index in _COMPOUNDS. Keeping these
-    `stats.*` KEYS identical means `lipid_samples` %Assay and the 8 SST criteria
-    need no change — only the source of each number moved from a per-compound
-    column mean to a per-row table mean.
+    Per-compound statistics singleton. Each stat now aggregates DOWN a compound
+    COLUMN of the transposed injection tables (decision D5/D6):
+        mean_std_<c>  = mean(std_areas.<c>_area)
+        mean_pool_<c> = mean(pool(std_areas.<c>_area, bkt_areas.<c>_area))
+        (and sd/rsd likewise)
+    The whole-column series spans every injection row and skips blanks, so the
+    aggregate adapts to the expandable row count for free. The `stats.*` KEYS,
+    labels and units are UNCHANGED (decision D7) — only each expression's SOURCE
+    moved from a per-row table cell to a per-column aggregate — so the
+    `lipid_samples` %Assay chain and the 8 SST criteria need no change.
     """
     fields: list[dict] = []
-    for idx, (prefix, name) in enumerate(_COMPOUNDS):
+    for prefix, name in _COMPOUNDS:
+        col = f"{prefix}_area"
+        std = f"std_areas.{col}"
+        pooled = f"pool(std_areas.{col}, bkt_areas.{col})"
         fields += [
-            {"key": f"mean_std_{prefix}", "kind": "calculated", "label": f"{name} Mean STD", "expression": f"std_areas.mean[{idx}]"},
-            {"key": f"sd_std_{prefix}", "kind": "calculated", "label": f"{name} SD", "expression": f"std_areas.sd[{idx}]"},
-            {"key": f"rsd_std_{prefix}", "kind": "calculated", "label": f"{name} %RSD", "unit": "%", "expression": f"std_areas.rsd[{idx}]"},
-            {"key": f"mean_pool_{prefix}", "kind": "calculated", "label": f"{name} Pooled Mean", "expression": f"bkt_areas.mean[{idx}]"},
-            {"key": f"sd_pool_{prefix}", "kind": "calculated", "label": f"{name} Pooled SD", "expression": f"bkt_areas.sd[{idx}]"},
-            {"key": f"rsd_pool_{prefix}", "kind": "calculated", "label": f"{name} Pooled %RSD", "unit": "%", "expression": f"bkt_areas.rsd[{idx}]"},
+            {"key": f"mean_std_{prefix}", "kind": "calculated", "label": f"{name} Mean STD", "expression": f"mean({std})"},
+            {"key": f"sd_std_{prefix}", "kind": "calculated", "label": f"{name} SD", "expression": f"sd({std})"},
+            {"key": f"rsd_std_{prefix}", "kind": "calculated", "label": f"{name} %RSD", "unit": "%", "expression": f"rsd({std})"},
+            {"key": f"mean_pool_{prefix}", "kind": "calculated", "label": f"{name} Pooled Mean", "expression": f"mean({pooled})"},
+            {"key": f"sd_pool_{prefix}", "kind": "calculated", "label": f"{name} Pooled SD", "expression": f"sd({pooled})"},
+            {"key": f"rsd_pool_{prefix}", "kind": "calculated", "label": f"{name} Pooled %RSD", "unit": "%", "expression": f"rsd({pooled})"},
         ]
     return fields
 
@@ -431,34 +460,59 @@ LIPID_RATIO_DEFINITION = {
             "rows": {"min": 1, "max": 10, "default": len(_COMPOUNDS), "labelFrom": "name"},
             "fields": _standard_fields(),
         },
-        #  Standard replicate injections, transposed to one ROW per compound
-        #  (sheet rows 25–30, columns B/C/D/E). Six injection columns; per-row
-        #  Mean/SD/%RSD. The compound cell mirrors Standard Details.
+        #  Standard replicate injections, transposed to one ROW per injection /
+        #  one COLUMN per compound (sheet rows 25–30, cols B/C/D/E). Rows are
+        #  EXPANDABLE (Injection 1..N, cap 12); the four area columns are
+        #  tri/dppg/chol/depc with labelFrom headers. Per-compound Mean/SD/%RSD
+        #  aggregate DOWN each column and are rendered in the footer (one ref per
+        #  compound column) from the `stats` singleton — footers are frontend-only
+        #  pass-throughs and never feed the calculation, so the column series
+        #  stays clean (decision D4).
         {
             "key": "std_areas",
             "kind": "table",
             "label": "Standard Replicate Injections",
-            "rows": {"min": 1, "max": 10, "default": len(_COMPOUNDS), "labelFrom": "compound"},
+            "rows": {"min": 1, "max": _MAX_INJ_ROWS, "default": _DEFAULT_INJ_ROWS, "labelFrom": "inj_label"},
             "fields": _std_area_fields(),
             "footer": [
-                {"label": "Mean (Tricaprylin)", "ref": "stats.mean_std_tri"},
+                {"label": "Mean", "ref": "stats.mean_std_tri"},
+                {"ref": "stats.mean_std_dppg"},
+                {"ref": "stats.mean_std_chol"},
+                {"ref": "stats.mean_std_depc"},
                 {"label": "SD", "ref": "stats.sd_std_tri"},
+                {"ref": "stats.sd_std_dppg"},
+                {"ref": "stats.sd_std_chol"},
+                {"ref": "stats.sd_std_depc"},
                 {"label": "% RSD", "ref": "stats.rsd_std_tri", "unit": "%"},
+                {"ref": "stats.rsd_std_dppg", "unit": "%"},
+                {"ref": "stats.rsd_std_chol", "unit": "%"},
+                {"ref": "stats.rsd_std_depc", "unit": "%"},
             ],
         },
-        #  Bracketing standard injections, transposed to one ROW per compound
-        #  (sheet rows 25–28, columns H/I/J/K). Per-row Mean/SD/%RSD are POOLED
-        #  with the matching std_areas row (by rowno-1); blank cells tolerated.
+        #  Bracketing standard injections, transposed to one ROW per injection /
+        #  one COLUMN per compound (sheet rows 25–28, cols H/I/J/K). Same shape as
+        #  std_areas; the footer Mean/SD/%RSD are POOLED per compound column with
+        #  the matching std_areas column (stats.*_pool_*), matching the sheet's
+        #  AVERAGE(H25:H30,B25:B30) / STDEV(B25:B30,H25:H30). Blank rows tolerated.
         {
             "key": "bkt_areas",
             "kind": "table",
             "label": "BKT Standard Injections",
-            "rows": {"min": 1, "max": 10, "default": len(_COMPOUNDS), "labelFrom": "compound"},
+            "rows": {"min": 1, "max": _MAX_INJ_ROWS, "default": _DEFAULT_INJ_ROWS, "labelFrom": "inj_label"},
             "fields": _bkt_area_fields(),
             "footer": [
-                {"label": "Mean (Tricaprylin)", "ref": "stats.mean_pool_tri"},
+                {"label": "Mean", "ref": "stats.mean_pool_tri"},
+                {"ref": "stats.mean_pool_dppg"},
+                {"ref": "stats.mean_pool_chol"},
+                {"ref": "stats.mean_pool_depc"},
                 {"label": "SD", "ref": "stats.sd_pool_tri"},
+                {"ref": "stats.sd_pool_dppg"},
+                {"ref": "stats.sd_pool_chol"},
+                {"ref": "stats.sd_pool_depc"},
                 {"label": "% RSD", "ref": "stats.rsd_pool_tri", "unit": "%"},
+                {"ref": "stats.rsd_pool_dppg", "unit": "%"},
+                {"ref": "stats.rsd_pool_chol", "unit": "%"},
+                {"ref": "stats.rsd_pool_depc", "unit": "%"},
             ],
         },
         #  Standard statistics (rows 31–33) + pooled BKT statistics (rows 31–33).
