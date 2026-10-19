@@ -110,34 +110,51 @@ _STANDARD_DEFAULTS = {
 
 
 def _standard_fields() -> list[dict]:
-    """Per-compound weighed-standard scalars + Conc (ppm) (sheet rows 18–21, K)."""
-    fields: list[dict] = []
+    """
+    Standard Details as a TABLE — one ROW per compound (sheet rows 18–21).
+
+    House rule: with more than 2 standards, the standard-details block is a
+    tabular group (compound per row) rather than per-compound column scalars.
+    The %Assay chain reaches a compound's standard values by row index:
+    `standard.<field>[idx]`, where idx is the compound's position in _COMPOUNDS.
+    """
+    fields = [
+        {"key": "name", "kind": "input", "type": "text", "label": "Compound Name"},
+        {"key": "weight", "kind": "input", "label": "Weight in mg", "unit": "mg"},
+        {"key": "vol1", "kind": "input", "label": "Vol", "unit": "mL"},
+        {"key": "pip1", "kind": "input", "label": "Pip", "unit": "mL"},
+        {"key": "vol2", "kind": "input", "label": "Vol", "unit": "mL"},
+        {"key": "pip2", "kind": "input", "label": "Pip", "unit": "mL"},
+        {"key": "vol3", "kind": "input", "label": "Vol", "unit": "mL"},
+        {"key": "potency", "kind": "input", "label": "Potency", "unit": "%"},
+        {"key": "mw_base", "kind": "input", "label": "M.W of Base"},
+        {"key": "mw_salt", "kind": "input", "label": "M.W. of Salt"},
+        {
+            "key": "conc_ppm",
+            "kind": "calculated",
+            "label": "Conc. (ppm)",
+            "unit": "ppm",
+            #  Sheet K18 = IFERROR(B/C*D/E*F/G*H/100*I/J*1000, "") — per row.
+            "expression": (
+                "weight / vol1 * pip1 / vol2 * pip2 / vol3 "
+                "* potency / 100 * mw_base / mw_salt * 1000"
+            ),
+            "rounding": {"mode": "round", "digits": 2},
+        },
+    ]
+    return fields
+
+
+def _standard_default_rows() -> list[dict]:
+    """Seed rows for the 4 compounds, in _COMPOUNDS order (sheet rows 18–21)."""
+    rows: list[dict] = []
     for prefix, name in _COMPOUNDS:
         w, v1, p1, v2, p2, v3, pot, mwb, mws = _STANDARD_DEFAULTS[prefix]
-        fields += [
-            {"key": f"{prefix}_weight", "kind": "input", "label": f"{name} Weight", "unit": "mg", "default": w},
-            {"key": f"{prefix}_vol1", "kind": "input", "label": f"{name} Vol 1", "unit": "mL", "default": v1},
-            {"key": f"{prefix}_pip1", "kind": "input", "label": f"{name} Pip 1", "unit": "mL", "default": p1},
-            {"key": f"{prefix}_vol2", "kind": "input", "label": f"{name} Vol 2", "unit": "mL", "default": v2},
-            {"key": f"{prefix}_pip2", "kind": "input", "label": f"{name} Pip 2", "unit": "mL", "default": p2},
-            {"key": f"{prefix}_vol3", "kind": "input", "label": f"{name} Vol 3", "unit": "mL", "default": v3},
-            {"key": f"{prefix}_potency", "kind": "input", "label": f"{name} Potency", "unit": "%", "default": pot},
-            {"key": f"{prefix}_mw_base", "kind": "input", "label": f"{name} MW — Base", "default": mwb},
-            {"key": f"{prefix}_mw_salt", "kind": "input", "label": f"{name} MW — Salt", "default": mws},
-            {
-                "key": f"{prefix}_conc_ppm",
-                "kind": "calculated",
-                "label": f"{name} Conc.",
-                "unit": "ppm",
-                #  Sheet K18 = IFERROR(B/C*D/E*F/G*H/100*I/J*1000, "")
-                "expression": (
-                    f"{prefix}_weight / {prefix}_vol1 * {prefix}_pip1 / {prefix}_vol2 "
-                    f"* {prefix}_pip2 / {prefix}_vol3 * {prefix}_potency / 100 "
-                    f"* {prefix}_mw_base / {prefix}_mw_salt * 1000"
-                ),
-            },
-        ]
-    return fields
+        rows.append({
+            "name": name, "weight": w, "vol1": v1, "pip1": p1, "vol2": v2,
+            "pip2": p2, "vol3": v3, "potency": pot, "mw_base": mwb, "mw_salt": mws,
+        })
+    return rows
 
 
 def _area_columns() -> list[dict]:
@@ -186,15 +203,18 @@ def _assay_expression(prefix: str, area_key: str) -> str:
       * standard.<c>_mw_base / standard.<c>_mw_salt  (I18/J18)
       * avg_weight                     (H39)
     """
+    #  Standard Details is a table (compound per row); reach this compound's
+    #  standard values by its row index in _COMPOUNDS.
+    idx = [p for p, _ in _COMPOUNDS].index(prefix)
     return (
         f"{area_key} / stats.mean_std_{prefix} "
-        f"* standard.{prefix}_weight / standard.{prefix}_vol1 "
-        f"* standard.{prefix}_pip1 / standard.{prefix}_vol2 "
-        f"* standard.{prefix}_pip2 / standard.{prefix}_vol3 "
+        f"* standard.weight[{idx}] / standard.vol1[{idx}] "
+        f"* standard.pip1[{idx}] / standard.vol2[{idx}] "
+        f"* standard.pip2[{idx}] / standard.vol3[{idx}] "
         f"* vol_j / sample_weight "
         f"* vol_l / pip_k "
-        f"* standard.{prefix}_potency / lc_{prefix} "
-        f"* standard.{prefix}_mw_base / standard.{prefix}_mw_salt "
+        f"* standard.potency[{idx}] / lc_{prefix} "
+        f"* standard.mw_base[{idx}] / standard.mw_salt[{idx}] "
         f"* avg_weight"
     )
 
@@ -342,11 +362,13 @@ LIPID_RATIO_DEFINITION = {
         ],
     ),
     "groups": [
-        #  Per-compound weighed standard details (sheet rows 18–21).
+        #  Weighed standard details as a table — one row per compound (sheet
+        #  rows 18–21). House rule: >2 standards -> tabular standard details.
         {
             "key": "standard",
-            "kind": "singleton",
+            "kind": "table",
             "label": "Standard Details",
+            "rows": {"min": 1, "max": 10, "default": len(_COMPOUNDS), "labelFrom": "name"},
             "fields": _standard_fields(),
         },
         #  Six standard replicate injections (sheet rows 25–30, columns B/C/D/E).
