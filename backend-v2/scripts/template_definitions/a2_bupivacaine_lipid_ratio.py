@@ -196,7 +196,6 @@ def _area_columns() -> list[dict]:
             "key": f"{prefix}_area",
             "kind": "area",
             "label": f"{name} Area",
-            "unit": "µV·s",
             "labelFrom": f"standard.name[{idx}]",
         }
         for idx, (prefix, name) in enumerate(_COMPOUNDS)
@@ -322,8 +321,8 @@ def _lipid_sample_fields() -> list[dict]:
     #  Details (row idx) in the UI, so renaming a standard renames these columns.
     for idx, (prefix, name) in enumerate(_COMPOUNDS):
         label_from = f"standard.name[{idx}]"
-        fields.append({"key": f"{prefix}_area1", "kind": "area", "label": f"{name} Area (Inj 1)", "unit": "µV·s", "labelFrom": label_from})
-        fields.append({"key": f"{prefix}_area2", "kind": "area", "label": f"{name} Area (Inj 2)", "unit": "µV·s", "labelFrom": label_from})
+        fields.append({"key": f"{prefix}_area1", "kind": "area", "label": f"{name} Area (Inj 1)", "labelFrom": label_from})
+        fields.append({"key": f"{prefix}_area2", "kind": "area", "label": f"{name} Area (Inj 2)", "labelFrom": label_from})
     #  Per-compound %Assay (inj 1 / inj 2) and %Mean (sheet N/O columns).
     for idx, (prefix, name) in enumerate(_COMPOUNDS):
         label_from = f"standard.name[{idx}]"
