@@ -80,7 +80,13 @@ export interface RowSpec {
  * table show its own Mean/SD/%RSD footer instead of only a separate stats card.
  */
 export interface GroupFooterItem {
-  label: string;
+  /**
+   * Row label for the footer line (e.g. `"Mean"`). Optional: a "column-aligned"
+   * footer (injections × compound columns) omits the label on the per-compound
+   * value items that follow a labeled one, so those cells sit under each column.
+   * A footer where every item carries its own label renders as the flat strip.
+   */
+  label?: string;
   /** Dotted path into computed.values, e.g. `stats.rsd_std`. */
   ref: string;
   unit?: string | null;

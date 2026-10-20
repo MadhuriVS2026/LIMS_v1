@@ -24,12 +24,14 @@ import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
 import { Tag } from 'primereact/tag';
 import { formatLimit } from '../models/describeDefinition';
+import { groupFooterRows, isColumnAlignedFooter } from '../models/groupFooter';
 import { usePreview } from '../hooks/useWorksheet';
 import { WorksheetChart } from './WorksheetChart';
 import type {
   CriterionResult,
   FieldDef,
   GroupDef,
+  GroupFooterItem,
   WorksheetComputed,
   WorksheetDetail,
   WorksheetRow,
@@ -550,39 +552,107 @@ export const WorksheetForm = ({
     );
   };
 
+  //  Format a single footer value exactly as the flat strip always has: honour
+  //  the item's rounding, else toPrecision(12), append the unit, em-dash blanks.
+  const footerValueText = (item: GroupFooterItem): string => {
+    const raw = computed.values?.[item.ref];
+    const text =
+      raw === null || raw === undefined || raw === ''
+        ? '—'
+        : typeof raw === 'number'
+          ? item.rounding?.mode &&
+            item.rounding.mode !== 'none' &&
+            typeof item.rounding.digits === 'number'
+            ? raw.toFixed(item.rounding.digits)
+            : String(Number(raw.toPrecision(12)))
+          : String(raw);
+    return item.unit && text !== '—' ? `${text} ${item.unit}` : text;
+  };
+
   //  Render a table group's optional footer summary (e.g. Mean/SD/%RSD) from the
   //  server-computed values, addressed by dotted ref like `stats.rsd_std`.
-  const renderGroupFooter = (group: GroupDef) => {
+  //
+  //  Two shapes, detected purely by footer data (never by template/field name):
+  //   - Flat strip (every item labeled): the original narrow label/value box,
+  //     rendered UNCHANGED.
+  //   - Column-aligned (contains unlabeled items, e.g. A2-0004 injections ×
+  //     compound columns): real footer rows whose values sit under each compound
+  //     column. `visibleFields`/`canAddRows` are passed from the group's render
+  //     so the footer grid mirrors the data table columns 1:1 (leading `#`
+  //     column, label under the first field, one value per subsequent field,
+  //     trailing action column when rows are addable).
+  const renderGroupFooter = (
+    group: GroupDef,
+    visibleFields: FieldDef[],
+    canAddRows: boolean,
+    cellPad: string,
+  ) => {
     if (!group.footer || group.footer.length === 0) return null;
+
+    if (!isColumnAlignedFooter(group.footer)) {
+      return (
+        <div
+          className="mt-2 border-1 border-200 border-round overflow-hidden w-full"
+          style={{ maxWidth: 'min(28rem, 100%)' }}
+        >
+          {group.footer.map((item) => {
+            const shown = footerValueText(item);
+            return (
+              <div
+                key={item.ref}
+                className="flex justify-content-between align-items-center px-3 py-2 border-bottom-1 border-100"
+              >
+                <span className="text-sm font-medium text-700">{item.label}</span>
+                <span
+                  className={`font-mono text-sm ${preview.stale ? 'text-400' : 'text-900 font-semibold'}`}
+                >
+                  {shown}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    //  Column-aligned: one row per labeled group, values under each compound
+    //  column. Column order mirrors the data table: `#`, visibleFields[0] (the
+    //  label), visibleFields[1..] (one value each), trailing action col.
+    const valueColumns = visibleFields.slice(1);
+    const rows = groupFooterRows(group.footer);
     return (
-      <div
-        className="mt-2 border-1 border-200 border-round overflow-hidden w-full"
-        style={{ maxWidth: 'min(28rem, 100%)' }}
+      <table
+        className="w-full text-sm mt-2"
+        style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}
       >
-        {group.footer.map((item) => {
-          const raw = computed.values?.[item.ref];
-          const text =
-            raw === null || raw === undefined || raw === ''
-              ? '—'
-              : typeof raw === 'number'
-                ? item.rounding?.mode && item.rounding.mode !== 'none' && typeof item.rounding.digits === 'number'
-                  ? raw.toFixed(item.rounding.digits)
-                  : String(Number(raw.toPrecision(12)))
-                : String(raw);
-          const shown = item.unit && text !== '—' ? `${text} ${item.unit}` : text;
-          return (
-            <div
-              key={item.ref}
-              className="flex justify-content-between align-items-center px-3 py-2 border-bottom-1 border-100"
-            >
-              <span className="text-sm font-medium text-700">{item.label}</span>
-              <span className={`font-mono text-sm ${preview.stale ? 'text-400' : 'text-900 font-semibold'}`}>
-                {shown}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+        <tbody>
+          {rows.map((row, r) => (
+            <tr key={r} className="border-top-1 border-200 bg-gray-50">
+              {/* `#` column — empty, mirrors the data table's row-number column. */}
+              <td className={`${cellPad} text-500`} />
+              {/* Row label aligned under the first data column (e.g. inj_label). */}
+              <td className={`${cellPad} text-sm font-medium text-700`}>{row.label}</td>
+              {/* One value per compound column, left-to-right. */}
+              {valueColumns.map((field, c) => {
+                const cell = row.cells[c];
+                return (
+                  <td className={`${cellPad} text-right`} key={field.key}>
+                    <span
+                      className={`font-mono text-sm ${
+                        preview.stale ? 'text-400' : 'text-900 font-semibold'
+                      }`}
+                    >
+                      {cell ? footerValueText(cell) : '—'}
+                    </span>
+                  </td>
+                );
+              })}
+              {/* Trailing action column — present only when rows are addable. */}
+              {canAddRows && <td className={cellPad} />}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     );
   };
 
@@ -1082,7 +1152,7 @@ export const WorksheetForm = ({
                 </tbody>
               </table>
             </div>
-            {renderGroupFooter(group)}
+            {renderGroupFooter(group, visibleFields, canAddRows, cellPad)}
           </Card>
         );
       })}

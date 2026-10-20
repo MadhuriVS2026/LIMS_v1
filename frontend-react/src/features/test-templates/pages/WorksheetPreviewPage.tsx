@@ -26,6 +26,7 @@ import { Tag } from 'primereact/tag';
 import { StatusBadge } from '@shared/components/StatusBadge';
 import { useTemplateDetail } from '../hooks/useTestTemplates';
 import { formatLimit } from '../models/describeDefinition';
+import { groupFooterRows, isColumnAlignedFooter } from '../models/groupFooter';
 import type { FieldDef, GroupDef } from '../models/testTemplate.types';
 
 const EMPTY = '—';
@@ -255,29 +256,56 @@ export const WorksheetPreviewPage = () => {
                   </tr>
                 ))}
               </tbody>
-              {/* Computed summary (Mean / SD / % RSD …) directly BENEATH the table. */}
-              {footer.length > 0 && (
-                <tfoot>
-                  <tr>
-                    <td
-                      className="p-1 border-1 border-200 bg-gray-50 text-right font-medium"
-                      colSpan={colSpan}
-                    >
-                      <span className="inline-flex flex-wrap gap-3 justify-content-end">
-                        {footer.map((item) => (
-                          <span key={item.ref} className="inline-flex align-items-center gap-1">
-                            <span className="text-500">
-                              {item.label}
-                              {item.unit ? ` (${item.unit})` : ''}
+              {/* Computed summary (Mean / SD / % RSD …) directly BENEATH the table.
+                  Flat strip for all-labeled footers; column-aligned rows (one
+                  per labeled group, placeholder cells under each compound
+                  column) when the footer carries unlabeled items. Shape only —
+                  no per-template branching. */}
+              {footer.length > 0 &&
+                (isColumnAlignedFooter(footer) ? (
+                  <tfoot>
+                    {groupFooterRows(footer).map((row, r) => (
+                      <tr key={r}>
+                        {/* `#` column — empty, mirrors the data table. */}
+                        <td className="p-1 border-1 border-200 bg-gray-50" />
+                        {/* Row label under the first field column. */}
+                        <td className="p-1 border-1 border-200 bg-gray-50 font-medium">
+                          {row.label}
+                        </td>
+                        {/* One placeholder per compound column (fields[1..]). */}
+                        {fields.slice(1).map((f, c) => {
+                          const cell = row.cells[c];
+                          return (
+                            <td key={f.key} className="p-1 border-1 border-200 text-right">
+                              {cell ? <Placeholder /> : null}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tfoot>
+                ) : (
+                  <tfoot>
+                    <tr>
+                      <td
+                        className="p-1 border-1 border-200 bg-gray-50 text-right font-medium"
+                        colSpan={colSpan}
+                      >
+                        <span className="inline-flex flex-wrap gap-3 justify-content-end">
+                          {footer.map((item) => (
+                            <span key={item.ref} className="inline-flex align-items-center gap-1">
+                              <span className="text-500">
+                                {item.label}
+                                {item.unit ? ` (${item.unit})` : ''}
+                              </span>
+                              <Placeholder />
                             </span>
-                            <Placeholder />
-                          </span>
-                        ))}
-                      </span>
-                    </td>
-                  </tr>
-                </tfoot>
-              )}
+                          ))}
+                        </span>
+                      </td>
+                    </tr>
+                  </tfoot>
+                ))}
             </table>
           </Card>
         );
