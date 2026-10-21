@@ -3,13 +3,14 @@ GxP parity for TPL-A2-0004 (Bupivacaine Lipid Content & Drug-to-Lipid Ratio)
 after the TALL per-SET restructure of the "Sample Details" (`lipid_samples`)
 section.
 
-`lipid_samples` is now a TALL table: each SET is a block of exactly 4 compound
-ROWS (Tricaprylin, DPPG Na, Cholesterol, DEPC — in _COMPOUNDS order), the
-compound chosen per row by the hidden `cidx = (rowno-1) mod 4`. Every row carries
-the SET's shared prep (avg_weight, sample_weight, vol_j, pip_k, vol_l), a single
-`area` (one injection), and a single calculated `pct_assay` bound to that row's
-compound. `drug_lipid` row n (SET n) reads its four compounds from
-`lipid_samples.pct_assay[(n-1)*4 + idx]`.
+`lipid_samples` is a TALL table FIXED at 2 SETs = 8 rows (no in-table SET
+column): each SET is a block of exactly 4 compound ROWS (Tricaprylin, DPPG Na,
+Cholesterol, DEPC — in _COMPOUNDS order), the compound chosen per row by the
+hidden `cidx = (rowno-1) mod 4`. Every row carries the SET's shared prep
+(avg_weight, sample_weight, vol_j, pip_k, vol_l), a single `area` (one
+injection), and a single calculated `pct_assay` bound to that row's compound.
+The frontend renders each 4-row block under a "Set N" heading. `drug_lipid` row
+n (SET n) reads its four compounds from `lipid_samples.pct_mean[(n-1)*4 + idx]`.
 
 The standard replicate / BKT injection blocks are UNCHANGED (injections-as-rows,
 compounds-as-columns; per-compound Mean/SD/%RSD published by the `stats`
@@ -70,7 +71,7 @@ BKT_AREAS = [
 #  H39, sample_weight I39, vol/pip J39/K39/L39) and its own single-injection
 #  area (sheet M39/M40/M41/M42). The per-row `area` replaces the wide layout's
 #  <c>_area1; the 2nd injection is dropped.
-_PREP = {"set_no": "1", "avg_weight": 1.005, "sample_weight": 1.5008,
+_PREP = {"avg_weight": 1.005, "sample_weight": 1.5008,
          "vol_j": 25, "pip_k": 1, "vol_l": 1}
 LIPID_SAMPLES = [
     {**_PREP, "area": 8729574},    # row 0 -> Tricaprylin
@@ -78,7 +79,7 @@ LIPID_SAMPLES = [
     {**_PREP, "area": 32474189},   # row 2 -> Cholesterol
     {**_PREP, "area": 44235393},   # row 3 -> DEPC
 ]
-DRUG_LIPID = [{"set_no": "1", "pct_assay_bupi": 99.9}]
+DRUG_LIPID = [{"pct_assay_bupi": 99.9}]
 CONTEXT = {"lc_tri": 2, "lc_dppg": 0.9, "lc_chol": 4.7, "lc_depc": 8.2, "lc_bupi": 13.3}
 
 

@@ -326,17 +326,20 @@ def _compound_select(per_compound) -> str:
 def _lipid_sample_fields() -> list[dict]:
     """
     TALL per-SET layout — each SET is a block of exactly 4 compound ROWS
-    (Tricaprylin, DPPG Na, Cholesterol, DEPC, in _COMPOUNDS order); default 2
-    SETs = 8 rows; extensible in multiples of 4 up to `rows.max` (16).
+    (Tricaprylin, DPPG Na, Cholesterol, DEPC, in _COMPOUNDS order); FIXED at 2
+    SETs = 8 rows (the group `rows` is pinned {min:8, max:8, default:8}).
 
-    A row's compound is chosen by its position within its SET via the hidden
-    `cidx = (rowno-1) mod 4` (decision D1). Columns, in order: SET, Compound
-    Name, LC, Avg Weight, Sample Weight, Vol (vol_j), Pip (pip_k), Vol (vol_l),
-    Area, % Assay, % Mean.
+    There is NO in-table SET column. The SET is rendered by the frontend as a
+    "Set N" HEADING above each 4-row block (block boundaries detected from the
+    hidden `cidx` resetting to 0); the backend carries no per-row SET value
+    because it feeds no formula. A row's compound is chosen by its position
+    within its SET via the hidden `cidx = (rowno-1) mod 4` (decision D1).
+    Columns, in order: Compound Name, LC, Avg Weight, Sample Weight, Vol (vol_j),
+    Pip (pip_k), Vol (vol_l), Area, % Assay, % Mean.
 
-    * `set_no` — per-row text label for the SET (decision D3). The frontend may
-      visually merge it down a block; it feeds no formula.
-    * `cidx` — hidden calculated compound index 0..3 (decision D1).
+    * `cidx` — hidden calculated compound index 0..3 (decision D1). Doubles as
+      the frontend's block-boundary signal (a new "Set N" block starts when it
+      resets to 0); never rendered as a column.
     * `compound_name` — read-only, selects `standard.name[cidx]` so it tracks the
       Standard Details names (decision D4).
     * `lc` — read-only, mirrors the matching `lc_<c>` context field (decision D5).
@@ -358,19 +361,10 @@ def _lipid_sample_fields() -> list[dict]:
       `drug_lipid` reads this (equals `pct_assay`, so the gold ratio is exact).
     """
     fields: list[dict] = [
-        #  SET identifier — AUTO-LABELLED 1, 2, 3 ... per 4-row block and
-        #  read-only (decision D3). The engine has no `floor`, so the block index
-        #  uses the same `trunc` idiom as `cidx`: set_no = floor((rowno-1)/4) + 1.
-        #  Rows 1-4 -> 1, rows 5-8 -> 2, etc. The frontend visually MERGES this
-        #  column down each block (value shown once, blank beneath); the stored
-        #  per-row value stays unambiguous.
-        {
-            "key": "set_no",
-            "kind": "calculated",
-            "label": "SET",
-            "expression": "trunc((rowno - 1) / 4, 0) + 1",
-        },
-        #  Hidden compound index 0..3 within the SET (decision D1).
+        #  Hidden compound index 0..3 within the SET (decision D1). With the SET
+        #  column removed, this is also the frontend's block-boundary signal: a
+        #  new "Set N" heading starts wherever cidx resets to 0 (rows 1-4 = Set 1,
+        #  5-8 = Set 2). Always hidden; never a rendered column.
         {
             "key": "cidx",
             "kind": "calculated",
@@ -609,24 +603,29 @@ LIPID_RATIO_DEFINITION = {
             "label": "Standard Statistics",
             "fields": _stats_fields(),
         },
-        #  Sample details — TALL, SET blocks of 4 compound rows; default 2 SETs.
-        #  Each SET is Tricaprylin/DPPG Na/Cholesterol/DEPC (in _COMPOUNDS order),
-        #  the compound chosen per row by the hidden cidx = (rowno-1) mod 4.
+        #  Sample details — TALL, FIXED 2 SET blocks of 4 compound rows (8 rows,
+        #  pinned min==max==8). Each SET is Tricaprylin/DPPG Na/Cholesterol/DEPC
+        #  (in _COMPOUNDS order), the compound chosen per row by the hidden
+        #  cidx = (rowno-1) mod 4. There is NO in-table SET column: the frontend
+        #  renders a "Set N" heading above each 4-row block (block boundary = cidx
+        #  resetting to 0). Pinning min==max hides the Add/Remove Row controls.
         {
             "key": "lipid_samples",
             "kind": "table",
             "label": "Sample Details",
-            "rows": {"min": 4, "max": 16, "default": 8},
+            "rows": {"min": 8, "max": 8, "default": 8},
             "fields": _lipid_sample_fields(),
         },
         #  Drug-to-Lipid section — one ROW per SET (same SET order as the tall
-        #  lipid_samples). Each mg/mL column reads the per-SET, per-compound
-        #  % Assay from lipid_samples by indexing (rowno-1)*4 + compound idx.
+        #  lipid_samples), FIXED at 2 rows (pinned min==max==2) to match the 2
+        #  fixed SETs. Each mg/mL column reads the per-SET, per-compound % Mean
+        #  from lipid_samples by indexing (rowno-1)*4 + compound idx (rows 1-4 =
+        #  SET 1, 5-8 = SET 2).
         {
             "key": "drug_lipid",
             "kind": "table",
             "label": "Drug to Lipid Ratio",
-            "rows": {"min": 1, "max": 8, "default": 2},
+            "rows": {"min": 2, "max": 2, "default": 2},
             "fields": _drug_lipid_fields(),
         },
     ],
