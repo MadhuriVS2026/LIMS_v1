@@ -358,9 +358,18 @@ def _lipid_sample_fields() -> list[dict]:
       `drug_lipid` reads this (equals `pct_assay`, so the gold ratio is exact).
     """
     fields: list[dict] = [
-        #  SET identifier — shown once per block (frontend merges it down); the
-        #  stored value is per-row so the data is unambiguous (decision D3).
-        {"key": "set_no", "kind": "input", "type": "text", "label": "SET"},
+        #  SET identifier — AUTO-LABELLED 1, 2, 3 ... per 4-row block and
+        #  read-only (decision D3). The engine has no `floor`, so the block index
+        #  uses the same `trunc` idiom as `cidx`: set_no = floor((rowno-1)/4) + 1.
+        #  Rows 1-4 -> 1, rows 5-8 -> 2, etc. The frontend visually MERGES this
+        #  column down each block (value shown once, blank beneath); the stored
+        #  per-row value stays unambiguous.
+        {
+            "key": "set_no",
+            "kind": "calculated",
+            "label": "SET",
+            "expression": "trunc((rowno - 1) / 4, 0) + 1",
+        },
         #  Hidden compound index 0..3 within the SET (decision D1).
         {
             "key": "cidx",
