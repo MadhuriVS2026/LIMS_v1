@@ -101,6 +101,7 @@ Re-verification after the %Mean addition:
 - Full suite `pytest tests/calculation -q` -> `5 failed, 762 passed` — SAME 5 known
   pre-existing failures (3 A6B + 2 worksheet_service), no new failures.
 
-## Commit
-- Commit hash: (recorded below)
+## Commits (local only — NOT pushed)
+- `9b92897` refactor: TPL-A2-0004 tall per-SET Sample Details layout
+- `32e3448` feat: add trailing % Mean column to TPL-A2-0004 tall Sample Details (HEAD)
 
