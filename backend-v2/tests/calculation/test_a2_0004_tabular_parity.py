@@ -1,14 +1,19 @@
 """
 GxP parity for TPL-A2-0004 (Bupivacaine Lipid Content & Drug-to-Lipid Ratio)
-after the tabular transpose of the standard replicate / BKT injection blocks.
+after the TALL per-SET restructure of the "Sample Details" (`lipid_samples`)
+section.
 
-The two injection blocks are laid out as INJECTIONS-AS-ROWS / COMPOUNDS-AS-COLUMNS
-(one row per injection; four area columns tri/dppg/chol/depc; no per-row
-Mean/SD/%RSD). Per-compound Mean/SD/%RSD aggregate DOWN each compound column and
-are published by the `stats` singleton — `mean(std_areas.<c>_area)` for the
-replicate block and `mean(pool(std_areas.<c>_area, bkt_areas.<c>_area))` for the
-pooled BKT block. Every `stats.*` KEY is unchanged, so the %Assay chain and the 8
-SST criteria are untouched.
+`lipid_samples` is now a TALL table: each SET is a block of exactly 4 compound
+ROWS (Tricaprylin, DPPG Na, Cholesterol, DEPC — in _COMPOUNDS order), the
+compound chosen per row by the hidden `cidx = (rowno-1) mod 4`. Every row carries
+the SET's shared prep (avg_weight, sample_weight, vol_j, pip_k, vol_l), a single
+`area` (one injection), and a single calculated `pct_assay` bound to that row's
+compound. `drug_lipid` row n (SET n) reads its four compounds from
+`lipid_samples.pct_assay[(n-1)*4 + idx]`.
+
+The standard replicate / BKT injection blocks are UNCHANGED (injections-as-rows,
+compounds-as-columns; per-compound Mean/SD/%RSD published by the `stats`
+singleton), as are the `standard` group, the `stats` keys and the 8 SST criteria.
 
 Every expected value below is derived by hand from the workbook
 `_dumps/Bupivacaine Lipid _ Drug to lipid Ratio.txt` (sheet cells named in the
@@ -60,15 +65,20 @@ BKT_AREAS = [
     {"inj_label": "Injection 4", "tri_area": 8729929, "dppg_area": 4472750, "chol_area": 32460029, "depc_area": 44269558},
 ]
 
-#  Batch EP20_117-299-B (sheet rows 39/43): inj-1 areas only (inj-2 blank → %Mean
-#  == inj-1), avg_weight H39, sample_weight I39, vol/pip J39/K39/L39.
+#  Batch EP20_117-299-B as SET 1 of the TALL layout: ONE block of four compound
+#  rows (tri/dppg/chol/depc), each carrying the SET's shared prep (avg_weight
+#  H39, sample_weight I39, vol/pip J39/K39/L39) and its own single-injection
+#  area (sheet M39/M40/M41/M42). The per-row `area` replaces the wide layout's
+#  <c>_area1; the 2nd injection is dropped.
+_PREP = {"set_no": "1", "avg_weight": 1.005, "sample_weight": 1.5008,
+         "vol_j": 25, "pip_k": 1, "vol_l": 1}
 LIPID_SAMPLES = [
-    {"batch_no": "EP20_117-299-B", "avg_weight": 1.005, "sample_weight": 1.5008,
-     "vol_j": 25, "pip_k": 1, "vol_l": 1,
-     "tri_area1": 8729574, "dppg_area1": 3826195,
-     "chol_area1": 32474189, "depc_area1": 44235393},
+    {**_PREP, "area": 8729574},    # row 0 -> Tricaprylin
+    {**_PREP, "area": 3826195},    # row 1 -> DPPG Na
+    {**_PREP, "area": 32474189},   # row 2 -> Cholesterol
+    {**_PREP, "area": 44235393},   # row 3 -> DEPC
 ]
-DRUG_LIPID = [{"batch_no": "EP20_117-299-B", "pct_assay_bupi": 99.9}]
+DRUG_LIPID = [{"set_no": "1", "pct_assay_bupi": 99.9}]
 CONTEXT = {"lc_tri": 2, "lc_dppg": 0.9, "lc_chol": 4.7, "lc_depc": 8.2, "lc_bupi": 13.3}
 
 
@@ -87,7 +97,7 @@ class TestA2_0004TabularParity:
         )
 
     def test_standard_concentrations(self, result):
-        #  K18..K21 = B/C*D/E*F/G*H/100*I/J*1000, rounded 2dp.
+        #  K18..K21 = B/C*D/E*F/G*H/100*I/J*1000, rounded 2dp. UNCHANGED group.
         assert result.row_value("standard", 0, "conc_ppm") == pytest.approx(118.92, abs=1e-2)
         assert result.row_value("standard", 1, "conc_ppm") == pytest.approx(54.03, abs=1e-2)
         assert result.row_value("standard", 2, "conc_ppm") == pytest.approx(285.1, abs=1e-2)
@@ -95,7 +105,7 @@ class TestA2_0004TabularParity:
 
     def test_std_area_column_means(self, result):
         #  Per-compound mean DOWN each column of six replicate injections
-        #  (sheet B31/C31/D31/E31), published by the stats singleton.
+        #  (sheet B31/C31/D31/E31), published by the stats singleton. UNCHANGED.
         assert result.values["stats.mean_std_tri"] == pytest.approx(8691453.5, abs=1e-2)
         assert result.values["stats.mean_std_dppg"] == pytest.approx(4461370.5, abs=1e-2)
         assert result.values["stats.mean_std_chol"] == pytest.approx(32403414.83, abs=1e-2)
@@ -113,15 +123,34 @@ class TestA2_0004TabularParity:
         assert result.values["stats.mean_std_tri"] == pytest.approx(8691453.5, abs=1e-2)
         assert result.values["stats.rsd_pool_tri"] == pytest.approx(0.2383, abs=1e-4)
 
-    def test_batch_b_percent_assay_inj1(self, result):
-        #  N39..N42 for batch B (inj-1), via the stats indirection.
-        assert result.row_value("lipid_samples", 0, "tri_assay1") == pytest.approx(99.979, abs=1e-2)
-        assert result.row_value("lipid_samples", 0, "dppg_assay1") == pytest.approx(86.200, abs=1e-2)
-        assert result.row_value("lipid_samples", 0, "chol_assay1") == pytest.approx(101.772, abs=1e-2)
-        assert result.row_value("lipid_samples", 0, "depc_assay1") == pytest.approx(100.390, abs=1e-2)
+    def test_set1_row_compound_selection(self, result):
+        #  Each SET row selects its compound by cidx = (rowno-1) mod 4, and the
+        #  read-only compound_name / lc track Standard Details and the lc_<c>
+        #  context fields respectively (decisions D1/D4/D5).
+        expected = [
+            (0.0, "Tricaprylin", 2),
+            (1.0, "DPPG Na", 0.9),
+            (2.0, "Cholesterol", 4.7),
+            (3.0, "DEPC", 8.2),
+        ]
+        for i, (cidx, name, lc) in enumerate(expected):
+            assert result.row_value("lipid_samples", i, "cidx") == pytest.approx(cidx)
+            assert result.row_value("lipid_samples", i, "compound_name") == name
+            assert result.row_value("lipid_samples", i, "lc") == pytest.approx(lc)
+
+    def test_set1_percent_assay(self, result):
+        #  N39..N42 for SET 1, one per compound row, via the cidx selection and
+        #  the stats indirection. The 2-dp sheet gold is 99.98/86.20/101.77/100.39;
+        #  pct_assay is unrounded so abs=1e-2 confirms it rounds to the gold.
+        assert result.row_value("lipid_samples", 0, "pct_assay") == pytest.approx(99.979, abs=1e-2)
+        assert result.row_value("lipid_samples", 1, "pct_assay") == pytest.approx(86.200, abs=1e-2)
+        assert result.row_value("lipid_samples", 2, "pct_assay") == pytest.approx(101.772, abs=1e-2)
+        assert result.row_value("lipid_samples", 3, "pct_assay") == pytest.approx(100.390, abs=1e-2)
 
     def test_drug_lipid_ratio_chain(self, result):
         #  Sheet 2 I18 (tri mg/mL), J18 (sum), M18 (bupi mg/mL), N18 (ratio).
+        #  These now flow from the repointed index into the unrounded per-SET,
+        #  per-compound pct_assay (decision D6/D8) — gold values UNCHANGED.
         assert result.row_value("drug_lipid", 0, "tri_mgml") == pytest.approx(1.99958, abs=1e-4)
         assert result.row_value("drug_lipid", 0, "sum_lipid") == pytest.approx(15.790645, abs=1e-4)
         assert result.row_value("drug_lipid", 0, "mgml_bupi") == pytest.approx(13.2867, abs=1e-4)

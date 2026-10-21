@@ -71,11 +71,12 @@ If the lab needs per-batch LC override, promote them to per-row inputs — the
 arithmetic is unchanged.
 
 mg/mL(Lipid) reference: the Drug-to-Lipid `I` column (`H18*G18/100`) reads the
-matching batch's Lipid `%Mean`. Because `lipid_samples` and `drug_lipid` carry
-the batches in the SAME order, each `drug_lipid` row reads its partner via
-`lipid_samples.<cmp>_mean[rowno-1]` (whole-column series indexed by the current
-row number). Chosen over recomputing mg/mL inside `lipid_samples` because it
-keeps the reference legible and mirrors the sheet's cross-sheet `='Lipid '!O43`.
+matching SET's Lipid `% Assay`. The `lipid_samples` group is now TALL (SET blocks
+of 4 compound rows), so each `drug_lipid` row n (SET n) reads its four compounds
+via `lipid_samples.pct_assay[(rowno-1)*4 + idx]` (tri 0, dppg 1, chol 2, depc 3) —
+a whole-column series indexed by the row's SET position. Chosen over recomputing
+mg/mL inside `lipid_samples` because it keeps the reference legible and mirrors
+the sheet's cross-sheet `='Lipid '!O43`.
 
 Injection-block orientation (decisions D1–D8): the Standard Replicate Injections
 (`std_areas`) and BKT Standard Injections (`bkt_areas`) are laid out as
@@ -299,61 +300,108 @@ def _assay_expression(prefix: str, area_key: str) -> str:
     )
 
 
+#  Hidden per-row compound index: cidx = (rowno-1) mod 4, so 0=tri, 1=dppg,
+#  2=chol, 3=depc down every SET block of four rows. The engine has no `mod` but
+#  exposes `trunc`, so modulo-4 is spelled out with trunc (decision D1). Proved
+#  to yield 0/1/2/3 across rows 1..8 before this was written.
+_CIDX_EXPRESSION = "rowno - 1 - trunc((rowno - 1) / 4, 0) * 4"
+
+
+def _compound_select(per_compound) -> str:
+    """
+    Build a `coalesce(if(cidx == k, <expr for compound k>, blank()), ...)` over
+    the four compounds (k = 0..3). `if()` is lazy in this engine, so the three
+    non-selected branches never evaluate and cannot poison the result; `coalesce`
+    returns the single non-blank branch. `per_compound(k, prefix)` returns the
+    sub-expression for compound k. This one builder drives the Compound Name, LC
+    and %Assay selections so they stay in lock-step with `cidx`.
+    """
+    branches = []
+    for k, (prefix, _name) in enumerate(_COMPOUNDS):
+        branches.append(f"if(cidx == {k}, {per_compound(k, prefix)}, blank())")
+    return "coalesce(" + ", ".join(branches) + ")"
+
+
 def _lipid_sample_fields() -> list[dict]:
     """
-    One batch per row: the text/prep inputs, then per compound two injection area
-    columns and the %Assay-1 / %Assay-2 / %Mean calculated columns.
+    TALL per-SET layout — each SET is a block of exactly 4 compound ROWS
+    (Tricaprylin, DPPG Na, Cholesterol, DEPC, in _COMPOUNDS order); default 2
+    SETs = 8 rows; extensible in multiples of 4 up to `rows.max` (16).
+
+    A row's compound is chosen by its position within its SET via the hidden
+    `cidx = (rowno-1) mod 4` (decision D1). Columns, in order: SET, Compound
+    Name, LC, Avg Weight, Sample Weight, Vol (vol_j), Pip (pip_k), Vol (vol_l),
+    Area, % Assay.
+
+    * `set_no` — per-row text label for the SET (decision D3). The frontend may
+      visually merge it down a block; it feeds no formula.
+    * `cidx` — hidden calculated compound index 0..3 (decision D1).
+    * `compound_name` — read-only, selects `standard.name[cidx]` so it tracks the
+      Standard Details names (decision D4).
+    * `lc` — read-only, mirrors the matching `lc_<c>` context field (decision D5).
+    * `avg_weight / sample_weight / vol_j / pip_k / vol_l` — per-row inputs
+      (decision D2). The %Assay formula reads these UNQUALIFIED from the current
+      row, and this engine's `mirrorFrom` is a frontend-only display hint that
+      never copies a value, so each of a SET's 4 rows must physically carry the
+      shared prep values. Defaults match the old wide layout (avg_weight 1.005,
+      vol_j 25, pip_k 1, vol_l 1); sample_weight is entered per SET.
+    * `area` — ONE area column per row (single injection; the wide layout's 2nd
+      injection is dropped).
+    * `pct_assay` — ONE calculated %Assay per row, the SAME algebra as
+      `_assay_expression(prefix, "area")` but bound to THIS row's compound via
+      `_compound_select`. NO mid-chain rounding (decision D6): `drug_lipid` reads
+      the unrounded value; the 2-dp sheet gold figures are display rounding.
     """
     fields: list[dict] = [
-        {"key": "batch_no", "kind": "input", "type": "text", "label": "Batch No."},
-        {"key": "storage", "kind": "input", "type": "text", "label": "Storage Condition"},
-        {"key": "packing", "kind": "input", "type": "text", "label": "Packing Detail"},
-        {"key": "trf_no", "kind": "input", "type": "text", "label": "TRF No."},
-        {"key": "ar_no", "kind": "input", "type": "text", "label": "AR No."},
+        #  SET identifier — shown once per block (frontend merges it down); the
+        #  stored value is per-row so the data is unambiguous (decision D3).
+        {"key": "set_no", "kind": "input", "type": "text", "label": "SET"},
+        #  Hidden compound index 0..3 within the SET (decision D1).
+        {
+            "key": "cidx",
+            "kind": "calculated",
+            "label": "Compound Index",
+            "hidden": True,
+            "expression": _CIDX_EXPRESSION,
+        },
+        #  Compound Name — read-only, fetched from Standard Details by cidx so it
+        #  renames when a standard is renamed (decision D4). `labelFrom` is a
+        #  frontend header hint; the per-row value itself comes from the selector.
+        {
+            "key": "compound_name",
+            "kind": "calculated",
+            "type": "text",
+            "label": "Compound Name",
+            "labelFrom": "standard.name[0]",
+            "expression": _compound_select(lambda k, _p: f"standard.name[{k}]"),
+        },
+        #  LC — read-only mirror of the matching lc_<c> context field (decision
+        #  D5). Display-only; the %Assay denominator reads lc_<c> directly.
+        {
+            "key": "lc",
+            "kind": "calculated",
+            "label": "LC",
+            "expression": _compound_select(lambda _k, p: f"lc_{p}"),
+        },
+        #  Shared SET prep — per-row inputs (decision D2); mirrorFrom is a UI hint.
         {"key": "avg_weight", "kind": "input", "label": "Avg Weight", "default": 1.005},   # H
         {"key": "sample_weight", "kind": "input", "label": "Sample Weight", "unit": "mg"},  # I
         {"key": "vol_j", "kind": "input", "label": "Vol", "unit": "mL", "default": 25},      # J
         {"key": "pip_k", "kind": "input", "label": "Pip", "unit": "mL", "default": 1},       # K
         {"key": "vol_l", "kind": "input", "label": "Vol", "unit": "mL", "default": 1},        # L
+        #  ONE Area column per row — single injection (decision D6). The header
+        #  tracks the row's compound via the frontend (labelFrom first name).
+        {"key": "area", "kind": "area", "label": "Area", "labelFrom": "standard.name[0]"},
+        #  ONE % Assay per row, bound to this row's compound via cidx (decision
+        #  D1/D6). Same algebra as the old _assay_expression; NO rounding.
+        {
+            "key": "pct_assay",
+            "kind": "calculated",
+            "label": "% Assay",
+            "unit": "%",
+            "expression": _compound_select(lambda _k, p: _assay_expression(p, "area")),
+        },
     ]
-    #  Per-compound injection-1 and injection-2 area columns (sheet M39 / M43 ...).
-    #  `labelFrom` makes the column HEADER read the compound name from Standard
-    #  Details (row idx) in the UI, so renaming a standard renames these columns.
-    for idx, (prefix, name) in enumerate(_COMPOUNDS):
-        label_from = f"standard.name[{idx}]"
-        fields.append({"key": f"{prefix}_area1", "kind": "area", "label": f"{name} Area (Inj 1)", "labelFrom": label_from})
-        fields.append({"key": f"{prefix}_area2", "kind": "area", "label": f"{name} Area (Inj 2)", "labelFrom": label_from})
-    #  Per-compound %Assay (inj 1 / inj 2) and %Mean (sheet N/O columns).
-    for idx, (prefix, name) in enumerate(_COMPOUNDS):
-        label_from = f"standard.name[{idx}]"
-        fields += [
-            {
-                "key": f"{prefix}_assay1",
-                "kind": "calculated",
-                "label": f"{name} % Assay (Inj 1)",
-                "unit": "%",
-                "labelFrom": label_from,
-                "expression": _assay_expression(prefix, f"{prefix}_area1"),
-            },
-            {
-                "key": f"{prefix}_assay2",
-                "kind": "calculated",
-                "label": f"{name} % Assay (Inj 2)",
-                "unit": "%",
-                "labelFrom": label_from,
-                "expression": _assay_expression(prefix, f"{prefix}_area2"),
-            },
-            {
-                "key": f"{prefix}_mean",
-                "kind": "calculated",
-                "label": f"{name} % Mean",
-                "unit": "%",
-                "labelFrom": label_from,
-                #  Sheet O43 = AVERAGE(N39, N43); a blank 2nd injection leaves the
-                #  inj-1 value (mean skips blanks), matching the sheet.
-                "expression": f"mean([{prefix}_assay1, {prefix}_assay2])",
-            },
-        ]
     return fields
 
 
@@ -365,8 +413,12 @@ def _drug_lipid_fields() -> list[dict]:
     fields: list[dict] = [
         {"key": "batch_no", "kind": "input", "type": "text", "label": "Batch No."},
     ]
-    #  I18 = H18 * G18 / 100 = (Lipid %Mean for this batch) * compound LC / 100.
-    #  `lipid_samples.<c>_mean[rowno-1]` reads the matching batch row.
+    #  I18 = H18 * G18 / 100 = (Lipid % Assay for this SET) * compound LC / 100.
+    #  The tall lipid_samples no longer has a per-compound `<c>_mean` column; the
+    #  single per-row `pct_assay` holds each compound's % Assay. drug_lipid row n
+    #  (SET n) reads its four compounds at lipid_samples rows (n-1)*4 + idx, where
+    #  idx is tri 0 / dppg 1 / chol 2 / depc 3 (the _COMPOUNDS position). Only the
+    #  source ref changed; the `* lc_<c> / 100` algebra is identical.
     for idx, (prefix, name) in enumerate(_COMPOUNDS):
         fields.append(
             {
@@ -375,7 +427,10 @@ def _drug_lipid_fields() -> list[dict]:
                 "label": f"{name} mg/mL (Lipid)",
                 "unit": "mg/mL",
                 "labelFrom": f"standard.name[{idx}]",
-                "expression": f"lipid_samples.{prefix}_mean[rowno - 1] * lc_{prefix} / 100",
+                "expression": (
+                    f"lipid_samples.pct_assay[(rowno - 1) * 4 + {idx}] "
+                    f"* lc_{prefix} / 100"
+                ),
             }
         )
     fields += [
@@ -521,20 +576,24 @@ LIPID_RATIO_DEFINITION = {
             "label": "Standard Statistics",
             "fields": _stats_fields(),
         },
-        #  Sample details — one batch per row (sheet rows 39–46, 48–55, 57–64).
+        #  Sample details — TALL, SET blocks of 4 compound rows; default 2 SETs.
+        #  Each SET is Tricaprylin/DPPG Na/Cholesterol/DEPC (in _COMPOUNDS order),
+        #  the compound chosen per row by the hidden cidx = (rowno-1) mod 4.
         {
             "key": "lipid_samples",
             "kind": "table",
             "label": "Sample Details",
-            "rows": {"min": 1, "max": 8, "default": 3},
+            "rows": {"min": 4, "max": 16, "default": 8},
             "fields": _lipid_sample_fields(),
         },
-        #  Drug-to-Lipid section — one batch per row (sheet 2 rows 18–21, ...).
+        #  Drug-to-Lipid section — one ROW per SET (same SET order as the tall
+        #  lipid_samples). Each mg/mL column reads the per-SET, per-compound
+        #  % Assay from lipid_samples by indexing (rowno-1)*4 + compound idx.
         {
             "key": "drug_lipid",
             "kind": "table",
             "label": "Drug to Lipid Ratio",
-            "rows": {"min": 1, "max": 8, "default": 3},
+            "rows": {"min": 1, "max": 8, "default": 2},
             "fields": _drug_lipid_fields(),
         },
     ],
