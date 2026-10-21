@@ -26,11 +26,7 @@ import { Tag } from 'primereact/tag';
 import { StatusBadge } from '@shared/components/StatusBadge';
 import { useTemplateDetail } from '../hooks/useTestTemplates';
 import { formatLimit } from '../models/describeDefinition';
-import {
-  isMergedContinuation,
-  normalizeMergeValue,
-  shouldMergeColumn,
-} from '../models/columnMerge';
+import { isSetBlockGroup, setBlockSize, setBlocksFor } from '../models/setBlocks';
 import { groupFooterRows, isColumnAlignedFooter } from '../models/groupFooter';
 import type { FieldDef, GroupDef } from '../models/testTemplate.types';
 
@@ -196,36 +192,27 @@ export const WorksheetPreviewPage = () => {
         const footer = group.footer ?? [];
         const colSpan = fields.length + 1; // + the `#` column
 
-        return (
-          <Card key={group.key} title={group.label ?? group.key}>
-            {/* Read-only context summary ABOVE the table (e.g. Batch / AR / TRF). */}
-            {headerContext.length > 0 && (
-              <table
-                className="w-full text-sm mb-2"
-                style={{ borderCollapse: 'collapse' }}
-              >
-                <tbody>
-                  {chunk(headerContext, 3).map((trio, i) => (
-                    <tr key={i}>
-                      {trio.map((item) => (
-                        <Fragment key={item.ref}>
-                          <th
-                            scope="row"
-                            className="text-left p-1 border-1 border-200 bg-gray-50 font-medium"
-                          >
-                            {item.label}
-                          </th>
-                          <td className="p-1 border-1 border-200 text-right">
-                            <Placeholder />
-                          </td>
-                        </Fragment>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
+        //  Opt-in "Set N" labeled blocks (shape heuristic — models/setBlocks.ts):
+        //  a group with a hidden `cidx` field and no `set_no` column (e.g.
+        //  TPL-A2-0004's Sample Details) previews as consecutive fixed-size blocks,
+        //  each under a "Set N" sub-heading with its own repeated column header.
+        //  The preview has NO computed values, so `setBlockSize` cannot read a
+        //  `cidx` cycle and falls back to the documented 4 — giving 2 blocks of 4
+        //  blank rows for the fixed 8-row table. Plain tables render as a single
+        //  block spanning all rows, exactly as before. `#` restarts per block.
+        const asSetBlocks = isSetBlockGroup(group);
+        const blocks = asSetBlocks
+          ? setBlocksFor(rows, setBlockSize(group))
+          : [{ title: '', startRow: 0, endRow: rows }];
+        const renderPreviewTable = (
+          title: string,
+          startRow: number,
+          endRow: number,
+          withFooter: boolean,
+          key: number,
+        ) => (
+          <Fragment key={key}>
+            {title && <h4 className="m-0 mt-2 mb-1 text-sm font-medium text-700">{title}</h4>}
             <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
@@ -250,32 +237,16 @@ export const WorksheetPreviewPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {Array.from({ length: rows }, (_, r) => (
-                  <tr key={r}>
-                    <td className="p-1 border-1 border-200 text-500 font-mono">{r + 1}</td>
-                    {fields.map((f) => {
-                      //  Visual-merge parity: the preview has no computed values
-                      //  (every cell is a blank placeholder), so every value
-                      //  normalises to empty and `isMergedContinuation` is always
-                      //  false — blanks never merge. Wiring it here keeps all
-                      //  three render sites on one code path; it is a no-op today.
-                      if (
-                        shouldMergeColumn(group, f) &&
-                        isMergedContinuation(
-                          Array.from({ length: rows }, () => normalizeMergeValue(EMPTY)),
-                          r,
-                        )
-                      ) {
-                        return (
-                          <td key={f.key} className="p-1 border-1 border-200 text-right" />
-                        );
-                      }
-                      return (
-                        <td key={f.key} className="p-1 border-1 border-200 text-right">
-                          <Placeholder />
-                        </td>
-                      );
-                    })}
+                {Array.from({ length: endRow - startRow }, (_, localIndex) => (
+                  <tr key={startRow + localIndex}>
+                    <td className="p-1 border-1 border-200 text-500 font-mono">
+                      {localIndex + 1}
+                    </td>
+                    {fields.map((f) => (
+                      <td key={f.key} className="p-1 border-1 border-200 text-right">
+                        <Placeholder />
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -283,8 +254,9 @@ export const WorksheetPreviewPage = () => {
                   Flat strip for all-labeled footers; column-aligned rows (one
                   per labeled group, placeholder cells under each compound
                   column) when the footer carries unlabeled items. Shape only —
-                  no per-template branching. */}
-              {footer.length > 0 &&
+                  no per-template branching. Rendered once, after the last block. */}
+              {withFooter &&
+                footer.length > 0 &&
                 (isColumnAlignedFooter(footer) ? (
                   <tfoot>
                     {groupFooterRows(footer).map((row, r) => (
@@ -330,6 +302,48 @@ export const WorksheetPreviewPage = () => {
                   </tfoot>
                 ))}
             </table>
+          </Fragment>
+        );
+
+        return (
+          <Card key={group.key} title={group.label ?? group.key}>
+            {/* Read-only context summary ABOVE the table (e.g. Batch / AR / TRF). */}
+            {headerContext.length > 0 && (
+              <table
+                className="w-full text-sm mb-2"
+                style={{ borderCollapse: 'collapse' }}
+              >
+                <tbody>
+                  {chunk(headerContext, 3).map((trio, i) => (
+                    <tr key={i}>
+                      {trio.map((item) => (
+                        <Fragment key={item.ref}>
+                          <th
+                            scope="row"
+                            className="text-left p-1 border-1 border-200 bg-gray-50 font-medium"
+                          >
+                            {item.label}
+                          </th>
+                          <td className="p-1 border-1 border-200 text-right">
+                            <Placeholder />
+                          </td>
+                        </Fragment>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {blocks.map((block, blockIndex) =>
+              renderPreviewTable(
+                block.title,
+                block.startRow,
+                block.endRow,
+                blockIndex === blocks.length - 1,
+                blockIndex,
+              ),
+            )}
           </Card>
         );
       })}

@@ -13,11 +13,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from 'primereact/button';
 import { useWorksheet } from '../hooks/useWorksheet';
 import { WorksheetChartPrintImage } from '../components/WorksheetChartPrintImage';
-import {
-  isMergedContinuation,
-  normalizeMergeValue,
-  shouldMergeColumn,
-} from '../models/columnMerge';
+import { isSetBlockGroup, setBlockSize, setBlocksFor } from '../models/setBlocks';
 import type { FieldDef, GroupDef, WorksheetComputed } from '../models/testTemplate.types';
 
 const fmtDateTime = (value?: string | null) => (value ? new Date(value).toLocaleString() : '-');
@@ -224,20 +220,26 @@ export const PrintWorksheetPage = () => {
         }
 
         //  Multi-row (table / sequence): render columns in definition order.
-        //  Opt-in visual merge: precompute each mergeable column's rendered
-        //  strings in row order so continuation rows of a run of equal values
-        //  print blank (reads as one merged SET block). Non-mergeable columns
-        //  stay out of the map and render exactly as before.
-        const mergeColumnValues: Record<string, string[]> = {};
-        for (const f of fields) {
-          if (!shouldMergeColumn(group, f)) continue;
-          mergeColumnValues[f.key] = rows.map((row) =>
-            normalizeMergeValue(displayValue(row[f.key], f)),
-          );
-        }
-        return (
-          <div className="ws-section" key={group.key}>
-            <h4>{group.label ?? group.key}</h4>
+        //  Opt-in "Set N" labeled blocks (shape heuristic — models/setBlocks.ts):
+        //  a group with a hidden `cidx` field and no `set_no` column (e.g.
+        //  TPL-A2-0004's Sample Details) prints as consecutive fixed-size blocks,
+        //  each in its own `.ws-section` (so it stays together across a page
+        //  break) under a "Set N" sub-heading with its own repeated column header.
+        //  Block size = the `cidx` 0-reset cycle length from the computed rows
+        //  (falls back to 4). Plain tables render as a single block spanning all
+        //  rows, exactly as before. `#` restarts per block.
+        const asSetBlocks = isSetBlockGroup(group);
+        const blocks = asSetBlocks
+          ? setBlocksFor(rows.length, setBlockSize(group, rows))
+          : [{ title: '', startRow: 0, endRow: rows.length }];
+        const renderTable = (
+          title: string,
+          startRow: number,
+          endRow: number,
+          key: number,
+        ) => (
+          <div className="ws-section" key={key}>
+            <h4>{title || (group.label ?? group.key)}</h4>
             <table className="ws-table">
               <thead>
                 <tr>
@@ -248,22 +250,14 @@ export const PrintWorksheetPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, i) => (
-                  <tr key={i}>
-                    <td>{i + 1}</td>
-                    {fields.map((f) => {
-                      if (
-                        mergeColumnValues[f.key] &&
-                        isMergedContinuation(mergeColumnValues[f.key], i)
-                      ) {
-                        return <td key={f.key} className="num" />;
-                      }
-                      return (
-                        <td key={f.key} className="num">
-                          {displayValue(row[f.key], f)}
-                        </td>
-                      );
-                    })}
+                {rows.slice(startRow, endRow).map((row, localIndex) => (
+                  <tr key={startRow + localIndex}>
+                    <td>{localIndex + 1}</td>
+                    {fields.map((f) => (
+                      <td key={f.key} className="num">
+                        {displayValue(row[f.key], f)}
+                      </td>
+                    ))}
                   </tr>
                 ))}
                 {rows.length === 0 && (
@@ -274,6 +268,21 @@ export const PrintWorksheetPage = () => {
               </tbody>
             </table>
           </div>
+        );
+        if (!asSetBlocks) {
+          return renderTable('', 0, rows.length, 0);
+        }
+        //  Set-block group: a wrapper fragment carrying the group label once,
+        //  then one titled `.ws-section` table per "Set N" block.
+        return (
+          <Fragment key={group.key}>
+            <div className="ws-section">
+              <h4>{group.label ?? group.key}</h4>
+            </div>
+            {blocks.map((block, blockIndex) =>
+              renderTable(block.title, block.startRow, block.endRow, blockIndex),
+            )}
+          </Fragment>
         );
       })}
 

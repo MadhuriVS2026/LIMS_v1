@@ -24,11 +24,7 @@ import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
 import { Tag } from 'primereact/tag';
 import { formatLimit } from '../models/describeDefinition';
-import {
-  isMergedContinuation,
-  normalizeMergeValue,
-  shouldMergeColumn,
-} from '../models/columnMerge';
+import { isSetBlockGroup, setBlockSize, setBlocksFor } from '../models/setBlocks';
 import { groupFooterRows, isColumnAlignedFooter } from '../models/groupFooter';
 import { usePreview } from '../hooks/useWorksheet';
 import { WorksheetChart } from './WorksheetChart';
@@ -1025,21 +1021,116 @@ export const WorksheetForm = ({
             !hiddenColumns.has(`${group.key}.${f.key}`) &&
             (isEditableField(f) || f.kind === 'calculated'),
         );
-        //  Opt-in visual merge: for each mergeable column (e.g. this group's
-        //  auto-labelled SET column) precompute its rendered strings in row
-        //  order once, so the cell loop can blank continuation rows of a run of
-        //  equal values. Non-mergeable columns never enter this map. The value
-        //  mirrors exactly what `computedCell` would show (via `displayValue`),
-        //  so the merge keys on the same string the user sees.
-        const mergeColumnValues: Record<string, string[]> = {};
-        for (const field of visibleFields) {
-          if (!shouldMergeColumn(group, field)) continue;
-          mergeColumnValues[field.key] = rows.map((_r, rowIndex) =>
-            normalizeMergeValue(
-              displayValue(computed.rows?.[group.key]?.[rowIndex]?.[field.key], field),
-            ),
-          );
-        }
+        //  Opt-in "Set N" labeled blocks (shape heuristic — see models/setBlocks.ts):
+        //  a group with a hidden `cidx` field and no `set_no` column (e.g.
+        //  TPL-A2-0004's Sample Details after the SET column was removed) renders
+        //  as consecutive fixed-size blocks, each captioned "Set N" with its own
+        //  column header. Block size is the detected `cidx` 0-reset cycle length
+        //  from the computed rows (falls back to 4). Plain tables never opt in and
+        //  render as a single table (one block spanning all rows). `#` numbering
+        //  restarts at 1 within each block.
+        const asSetBlocks = isSetBlockGroup(group);
+        const blockSize = asSetBlocks
+          ? setBlockSize(group, computed.rows?.[group.key])
+          : rows.length;
+        const blocks = asSetBlocks
+          ? setBlocksFor(rows.length, blockSize)
+          : [{ title: '', startRow: 0, endRow: rows.length }];
+        //  Shared column header, repeated once per block. Identical to the
+        //  single-table header; factored out so each "Set N" block carries it.
+        const tableHead = (
+          <thead>
+            <tr className="bg-gray-50">
+              <th
+                className={`text-left ${cellPad} text-500 font-medium`}
+                style={{ width: veryWideTable ? '1.6rem' : '3rem' }}
+              >
+                #
+              </th>
+              {visibleFields.map((field) => {
+                const calc = field.kind === 'calculated';
+                return (
+                  <th
+                    key={field.key}
+                    className={`${cellPad} text-500 font-medium ${calc ? 'text-right' : 'text-left'}`}
+                    style={{ wordBreak: 'break-word' }}
+                    title={calc ? field.expression : undefined}
+                  >
+                    {headerText(field)}
+                    {field.unit ? ` (${field.unit})` : ''}
+                    {field.kind === 'area' && (
+                      <i
+                        className="pi pi-chart-line ml-1 text-blue-500"
+                        title="Chromatographic area — manual entry pending the Waters integration"
+                      />
+                    )}
+                    {calc && <i className="pi pi-calculator ml-1" />}
+                    {/* Per-column delete (scoped to this template; input columns; edit mode). */}
+                    {allowClearColumn && !calc && isEditableField(field) && editingThisGroup && (
+                      <i
+                        className="pi pi-trash ml-1 text-red-400 cursor-pointer"
+                        title={`Delete column "${field.label ?? field.key}"`}
+                        role="button"
+                        aria-label={`Delete column ${field.label ?? field.key}`}
+                        onClick={() => deleteColumn(group, field.key)}
+                      />
+                    )}
+                  </th>
+                );
+              })}
+              {canAddRows && <th style={{ width: veryWideTable ? '1.8rem' : '3rem' }} />}
+            </tr>
+          </thead>
+        );
+        //  Body rows for the half-open range [startRow, endRow). The visible `#`
+        //  restarts at 1 within each block, while cell lookups keep the absolute
+        //  row index so values/editability are unchanged.
+        const renderRows = (startRow: number, endRow: number) =>
+          rows.slice(startRow, endRow).map((_row, localIndex) => {
+            const rowIndex = startRow + localIndex;
+            return (
+              <tr key={rowIndex} className="border-top-1 border-200">
+                <td className={`${cellPad} text-500 font-mono`}>{localIndex + 1}</td>
+                {visibleFields.map((field) =>
+                  field.kind === 'calculated' ? (
+                    <td className={cellPad} key={field.key}>
+                      {computedCell(group, rowIndex, field)}
+                    </td>
+                  ) : (
+                    <td className={inputCellPad} key={field.key}>
+                      {renderInput(group, rowIndex, field)}
+                    </td>
+                  ),
+                )}
+                {canAddRows && (
+                  <td className={inputCellPad}>
+                    {editingThisGroup && (
+                      <Button
+                        icon="pi pi-trash"
+                        size="small"
+                        text
+                        severity="danger"
+                        disabled={rows.length <= min}
+                        onClick={() => removeRow(group, rowIndex)}
+                        aria-label={`Remove row ${rowIndex + 1}`}
+                      />
+                    )}
+                  </td>
+                )}
+              </tr>
+            );
+          });
+        const tableStyle = veryWideTable
+          ? //  Fit all columns to the card width: fixed layout spreads the
+            //  compact columns evenly, no horizontal scroll.
+            ({ borderCollapse: 'collapse', tableLayout: 'fixed', width: '100%' } as const)
+          : wideTable
+            ? ({
+                borderCollapse: 'collapse',
+                tableLayout: 'auto',
+                minWidth: `${tableColCount * colMinRem}rem`,
+              } as const)
+            : ({ borderCollapse: 'collapse', tableLayout: 'fixed' } as const);
         return (
           <Card key={group.key}>
             <div className="flex justify-content-between align-items-center mb-2">
@@ -1082,106 +1173,22 @@ export const WorksheetForm = ({
 
             {renderGroupHeaderContext(group)}
 
-            <div style={wideTable && !veryWideTable ? { overflowX: 'auto' } : undefined}>
-              <table
-                className={`w-full ${veryWideTable ? 'text-xs' : 'text-sm'}`}
-                style={
-                  veryWideTable
-                    ? //  Fit all columns to the card width: fixed layout spreads
-                      //  the compact columns evenly, no horizontal scroll.
-                      { borderCollapse: 'collapse', tableLayout: 'fixed', width: '100%' }
-                    : wideTable
-                      ? { borderCollapse: 'collapse', tableLayout: 'auto', minWidth: `${tableColCount * colMinRem}rem` }
-                      : { borderCollapse: 'collapse', tableLayout: 'fixed' }
-                }
-              >
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th
-                      className={`text-left ${cellPad} text-500 font-medium`}
-                      style={{ width: veryWideTable ? '1.6rem' : '3rem' }}
-                    >
-                      #
-                    </th>
-                    {visibleFields.map((field) => {
-                      const calc = field.kind === 'calculated';
-                      return (
-                        <th
-                          key={field.key}
-                          className={`${cellPad} text-500 font-medium ${calc ? 'text-right' : 'text-left'}`}
-                          style={{ wordBreak: 'break-word' }}
-                          title={calc ? field.expression : undefined}
-                        >
-                          {headerText(field)}
-                          {field.unit ? ` (${field.unit})` : ''}
-                          {field.kind === 'area' && (
-                            <i
-                              className="pi pi-chart-line ml-1 text-blue-500"
-                              title="Chromatographic area — manual entry pending the Waters integration"
-                            />
-                          )}
-                          {calc && <i className="pi pi-calculator ml-1" />}
-                          {/* Per-column delete (scoped to this template; input columns; edit mode). */}
-                          {allowClearColumn && !calc && isEditableField(field) && editingThisGroup && (
-                            <i
-                              className="pi pi-trash ml-1 text-red-400 cursor-pointer"
-                              title={`Delete column "${field.label ?? field.key}"`}
-                              role="button"
-                              aria-label={`Delete column ${field.label ?? field.key}`}
-                              onClick={() => deleteColumn(group, field.key)}
-                            />
-                          )}
-                        </th>
-                      );
-                    })}
-                    {canAddRows && <th style={{ width: veryWideTable ? '1.8rem' : '3rem' }} />}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((_row, rowIndex) => (
-                    <tr key={rowIndex} className="border-top-1 border-200">
-                      <td className={`${cellPad} text-500 font-mono`}>{rowIndex + 1}</td>
-                      {visibleFields.map((field) => {
-                        //  Visual-merge continuation: a mergeable column whose
-                        //  value equals the row above renders an empty cell so
-                        //  the run reads as one merged block. Run-start rows and
-                        //  all non-merge columns render exactly as before.
-                        if (
-                          mergeColumnValues[field.key] &&
-                          isMergedContinuation(mergeColumnValues[field.key], rowIndex)
-                        ) {
-                          return <td className={cellPad} key={field.key} />;
-                        }
-                        return field.kind === 'calculated' ? (
-                          <td className={cellPad} key={field.key}>
-                            {computedCell(group, rowIndex, field)}
-                          </td>
-                        ) : (
-                          <td className={inputCellPad} key={field.key}>
-                            {renderInput(group, rowIndex, field)}
-                          </td>
-                        );
-                      })}
-                      {canAddRows && (
-                        <td className={inputCellPad}>
-                          {editingThisGroup && (
-                            <Button
-                              icon="pi pi-trash"
-                              size="small"
-                              text
-                              severity="danger"
-                              disabled={rows.length <= min}
-                              onClick={() => removeRow(group, rowIndex)}
-                              aria-label={`Remove row ${rowIndex + 1}`}
-                            />
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {blocks.map((block, blockIndex) => (
+              <div key={blockIndex}>
+                {block.title && (
+                  <h4 className="m-0 mt-2 mb-1 text-sm font-medium text-700">{block.title}</h4>
+                )}
+                <div style={wideTable && !veryWideTable ? { overflowX: 'auto' } : undefined}>
+                  <table
+                    className={`w-full ${veryWideTable ? 'text-xs' : 'text-sm'}`}
+                    style={tableStyle}
+                  >
+                    {tableHead}
+                    <tbody>{renderRows(block.startRow, block.endRow)}</tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
             {renderGroupFooter(group, visibleFields, canAddRows, cellPad)}
           </Card>
         );
