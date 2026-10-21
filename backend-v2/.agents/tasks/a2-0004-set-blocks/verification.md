@@ -70,4 +70,4 @@ See `frontend-react/.agents/tasks/a2-0004-set-blocks/verification.md`.
 ## Commits (local, not pushed)
 
 - Backend:  `a3e34c2` refactor: TPL-A2-0004 Sample Details as fixed 2-set blocks (backend)
-- Frontend: `11342d0` feat: render TPL-A2-0004 Sample Details as fixed Set 1/Set 2 blocks (frontend)
+- Frontend: `906b76f` feat: render TPL-A2-0004 Sample Details as fixed Set 1/Set 2 blocks (frontend)
