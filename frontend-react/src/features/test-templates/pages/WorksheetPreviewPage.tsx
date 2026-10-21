@@ -26,6 +26,11 @@ import { Tag } from 'primereact/tag';
 import { StatusBadge } from '@shared/components/StatusBadge';
 import { useTemplateDetail } from '../hooks/useTestTemplates';
 import { formatLimit } from '../models/describeDefinition';
+import {
+  isMergedContinuation,
+  normalizeMergeValue,
+  shouldMergeColumn,
+} from '../models/columnMerge';
 import { groupFooterRows, isColumnAlignedFooter } from '../models/groupFooter';
 import type { FieldDef, GroupDef } from '../models/testTemplate.types';
 
@@ -248,11 +253,29 @@ export const WorksheetPreviewPage = () => {
                 {Array.from({ length: rows }, (_, r) => (
                   <tr key={r}>
                     <td className="p-1 border-1 border-200 text-500 font-mono">{r + 1}</td>
-                    {fields.map((f) => (
-                      <td key={f.key} className="p-1 border-1 border-200 text-right">
-                        <Placeholder />
-                      </td>
-                    ))}
+                    {fields.map((f) => {
+                      //  Visual-merge parity: the preview has no computed values
+                      //  (every cell is a blank placeholder), so every value
+                      //  normalises to empty and `isMergedContinuation` is always
+                      //  false — blanks never merge. Wiring it here keeps all
+                      //  three render sites on one code path; it is a no-op today.
+                      if (
+                        shouldMergeColumn(group, f) &&
+                        isMergedContinuation(
+                          Array.from({ length: rows }, () => normalizeMergeValue(EMPTY)),
+                          r,
+                        )
+                      ) {
+                        return (
+                          <td key={f.key} className="p-1 border-1 border-200 text-right" />
+                        );
+                      }
+                      return (
+                        <td key={f.key} className="p-1 border-1 border-200 text-right">
+                          <Placeholder />
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>

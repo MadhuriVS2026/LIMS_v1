@@ -13,6 +13,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from 'primereact/button';
 import { useWorksheet } from '../hooks/useWorksheet';
 import { WorksheetChartPrintImage } from '../components/WorksheetChartPrintImage';
+import {
+  isMergedContinuation,
+  normalizeMergeValue,
+  shouldMergeColumn,
+} from '../models/columnMerge';
 import type { FieldDef, GroupDef, WorksheetComputed } from '../models/testTemplate.types';
 
 const fmtDateTime = (value?: string | null) => (value ? new Date(value).toLocaleString() : '-');
@@ -219,6 +224,17 @@ export const PrintWorksheetPage = () => {
         }
 
         //  Multi-row (table / sequence): render columns in definition order.
+        //  Opt-in visual merge: precompute each mergeable column's rendered
+        //  strings in row order so continuation rows of a run of equal values
+        //  print blank (reads as one merged SET block). Non-mergeable columns
+        //  stay out of the map and render exactly as before.
+        const mergeColumnValues: Record<string, string[]> = {};
+        for (const f of fields) {
+          if (!shouldMergeColumn(group, f)) continue;
+          mergeColumnValues[f.key] = rows.map((row) =>
+            normalizeMergeValue(displayValue(row[f.key], f)),
+          );
+        }
         return (
           <div className="ws-section" key={group.key}>
             <h4>{group.label ?? group.key}</h4>
@@ -235,11 +251,19 @@ export const PrintWorksheetPage = () => {
                 {rows.map((row, i) => (
                   <tr key={i}>
                     <td>{i + 1}</td>
-                    {fields.map((f) => (
-                      <td key={f.key} className="num">
-                        {displayValue(row[f.key], f)}
-                      </td>
-                    ))}
+                    {fields.map((f) => {
+                      if (
+                        mergeColumnValues[f.key] &&
+                        isMergedContinuation(mergeColumnValues[f.key], i)
+                      ) {
+                        return <td key={f.key} className="num" />;
+                      }
+                      return (
+                        <td key={f.key} className="num">
+                          {displayValue(row[f.key], f)}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
                 {rows.length === 0 && (

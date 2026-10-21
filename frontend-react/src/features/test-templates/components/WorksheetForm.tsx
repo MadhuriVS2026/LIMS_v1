@@ -24,6 +24,11 @@ import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
 import { Tag } from 'primereact/tag';
 import { formatLimit } from '../models/describeDefinition';
+import {
+  isMergedContinuation,
+  normalizeMergeValue,
+  shouldMergeColumn,
+} from '../models/columnMerge';
 import { groupFooterRows, isColumnAlignedFooter } from '../models/groupFooter';
 import { usePreview } from '../hooks/useWorksheet';
 import { WorksheetChart } from './WorksheetChart';
@@ -1020,6 +1025,21 @@ export const WorksheetForm = ({
             !hiddenColumns.has(`${group.key}.${f.key}`) &&
             (isEditableField(f) || f.kind === 'calculated'),
         );
+        //  Opt-in visual merge: for each mergeable column (e.g. this group's
+        //  auto-labelled SET column) precompute its rendered strings in row
+        //  order once, so the cell loop can blank continuation rows of a run of
+        //  equal values. Non-mergeable columns never enter this map. The value
+        //  mirrors exactly what `computedCell` would show (via `displayValue`),
+        //  so the merge keys on the same string the user sees.
+        const mergeColumnValues: Record<string, string[]> = {};
+        for (const field of visibleFields) {
+          if (!shouldMergeColumn(group, field)) continue;
+          mergeColumnValues[field.key] = rows.map((_r, rowIndex) =>
+            normalizeMergeValue(
+              displayValue(computed.rows?.[group.key]?.[rowIndex]?.[field.key], field),
+            ),
+          );
+        }
         return (
           <Card key={group.key}>
             <div className="flex justify-content-between align-items-center mb-2">
@@ -1121,8 +1141,18 @@ export const WorksheetForm = ({
                   {rows.map((_row, rowIndex) => (
                     <tr key={rowIndex} className="border-top-1 border-200">
                       <td className={`${cellPad} text-500 font-mono`}>{rowIndex + 1}</td>
-                      {visibleFields.map((field) =>
-                        field.kind === 'calculated' ? (
+                      {visibleFields.map((field) => {
+                        //  Visual-merge continuation: a mergeable column whose
+                        //  value equals the row above renders an empty cell so
+                        //  the run reads as one merged block. Run-start rows and
+                        //  all non-merge columns render exactly as before.
+                        if (
+                          mergeColumnValues[field.key] &&
+                          isMergedContinuation(mergeColumnValues[field.key], rowIndex)
+                        ) {
+                          return <td className={cellPad} key={field.key} />;
+                        }
+                        return field.kind === 'calculated' ? (
                           <td className={cellPad} key={field.key}>
                             {computedCell(group, rowIndex, field)}
                           </td>
@@ -1130,8 +1160,8 @@ export const WorksheetForm = ({
                           <td className={inputCellPad} key={field.key}>
                             {renderInput(group, rowIndex, field)}
                           </td>
-                        ),
-                      )}
+                        );
+                      })}
                       {canAddRows && (
                         <td className={inputCellPad}>
                           {editingThisGroup && (
