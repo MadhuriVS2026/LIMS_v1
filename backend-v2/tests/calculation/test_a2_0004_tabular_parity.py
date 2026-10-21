@@ -147,6 +147,19 @@ class TestA2_0004TabularParity:
         assert result.row_value("lipid_samples", 2, "pct_assay") == pytest.approx(101.772, abs=1e-2)
         assert result.row_value("lipid_samples", 3, "pct_assay") == pytest.approx(100.390, abs=1e-2)
 
+    def test_set1_percent_mean_equals_percent_assay(self, result):
+        #  Single injection per compound row -> % Mean = mean([% Assay]) = % Assay.
+        #  The column exists and computes per row; each row's % Mean equals its
+        #  own % Assay (same unrounded value), rendering 99.98/86.20/101.77/100.39.
+        for i in range(4):
+            assert result.row_value("lipid_samples", i, "pct_mean") == pytest.approx(
+                result.row_value("lipid_samples", i, "pct_assay")
+            )
+        assert result.row_value("lipid_samples", 0, "pct_mean") == pytest.approx(99.979, abs=1e-2)
+        assert result.row_value("lipid_samples", 1, "pct_mean") == pytest.approx(86.200, abs=1e-2)
+        assert result.row_value("lipid_samples", 2, "pct_mean") == pytest.approx(101.772, abs=1e-2)
+        assert result.row_value("lipid_samples", 3, "pct_mean") == pytest.approx(100.390, abs=1e-2)
+
     def test_drug_lipid_ratio_chain(self, result):
         #  Sheet 2 I18 (tri mg/mL), J18 (sum), M18 (bupi mg/mL), N18 (ratio).
         #  These now flow from the repointed index into the unrounded per-SET,

@@ -71,12 +71,13 @@ If the lab needs per-batch LC override, promote them to per-row inputs — the
 arithmetic is unchanged.
 
 mg/mL(Lipid) reference: the Drug-to-Lipid `I` column (`H18*G18/100`) reads the
-matching SET's Lipid `% Assay`. The `lipid_samples` group is now TALL (SET blocks
-of 4 compound rows), so each `drug_lipid` row n (SET n) reads its four compounds
-via `lipid_samples.pct_assay[(rowno-1)*4 + idx]` (tri 0, dppg 1, chol 2, depc 3) —
-a whole-column series indexed by the row's SET position. Chosen over recomputing
-mg/mL inside `lipid_samples` because it keeps the reference legible and mirrors
-the sheet's cross-sheet `='Lipid '!O43`.
+matching SET's Lipid `% Mean`. The `lipid_samples` group is now TALL (SET blocks
+of 4 compound rows), each carrying a per-row `pct_mean` (= that compound's %Mean;
+single injection so it equals `pct_assay`, both unrounded). Each `drug_lipid` row
+n (SET n) reads its four compounds via `lipid_samples.pct_mean[(rowno-1)*4 + idx]`
+(tri 0, dppg 1, chol 2, depc 3) — a whole-column series indexed by the row's SET
+position. Chosen over recomputing mg/mL inside `lipid_samples` because it keeps
+the reference legible and mirrors the sheet's cross-sheet `='Lipid '!O43`.
 
 Injection-block orientation (decisions D1–D8): the Standard Replicate Injections
 (`std_areas`) and BKT Standard Injections (`bkt_areas`) are laid out as
@@ -331,7 +332,7 @@ def _lipid_sample_fields() -> list[dict]:
     A row's compound is chosen by its position within its SET via the hidden
     `cidx = (rowno-1) mod 4` (decision D1). Columns, in order: SET, Compound
     Name, LC, Avg Weight, Sample Weight, Vol (vol_j), Pip (pip_k), Vol (vol_l),
-    Area, % Assay.
+    Area, % Assay, % Mean.
 
     * `set_no` — per-row text label for the SET (decision D3). The frontend may
       visually merge it down a block; it feeds no formula.
@@ -351,6 +352,10 @@ def _lipid_sample_fields() -> list[dict]:
       `_assay_expression(prefix, "area")` but bound to THIS row's compound via
       `_compound_select`. NO mid-chain rounding (decision D6): `drug_lipid` reads
       the unrounded value; the 2-dp sheet gold figures are display rounding.
+    * `pct_mean` — ONE calculated %Mean per row (sheet O column). Single injection,
+      so %Mean = `mean([pct_assay])` = that row's %Assay; kept as a blank-skipping
+      mean so a future 2nd-injection %Assay would average correctly. NO rounding;
+      `drug_lipid` reads this (equals `pct_assay`, so the gold ratio is exact).
     """
     fields: list[dict] = [
         #  SET identifier — shown once per block (frontend merges it down); the
@@ -401,6 +406,19 @@ def _lipid_sample_fields() -> list[dict]:
             "unit": "%",
             "expression": _compound_select(lambda _k, p: _assay_expression(p, "area")),
         },
+        #  % Mean per compound row (sheet O column). This tall layout has a SINGLE
+        #  injection per row, so the mean of the one % Assay value is that value
+        #  itself. Expressed as `mean([pct_assay])` to keep blank-skipping mean
+        #  semantics — if a 2nd injection %Assay is ever added to the list later,
+        #  the average still works. NO rounding (decision D6): drug_lipid reads
+        #  the unrounded value.
+        {
+            "key": "pct_mean",
+            "kind": "calculated",
+            "label": "% Mean",
+            "unit": "%",
+            "expression": "mean([pct_assay])",
+        },
     ]
     return fields
 
@@ -413,12 +431,14 @@ def _drug_lipid_fields() -> list[dict]:
     fields: list[dict] = [
         {"key": "batch_no", "kind": "input", "type": "text", "label": "Batch No."},
     ]
-    #  I18 = H18 * G18 / 100 = (Lipid % Assay for this SET) * compound LC / 100.
-    #  The tall lipid_samples no longer has a per-compound `<c>_mean` column; the
-    #  single per-row `pct_assay` holds each compound's % Assay. drug_lipid row n
-    #  (SET n) reads its four compounds at lipid_samples rows (n-1)*4 + idx, where
-    #  idx is tri 0 / dppg 1 / chol 2 / depc 3 (the _COMPOUNDS position). Only the
-    #  source ref changed; the `* lc_<c> / 100` algebra is identical.
+    #  I18 = H18 * G18 / 100 = (Lipid % Mean for this SET) * compound LC / 100.
+    #  The tall lipid_samples carries a per-row `pct_mean` (= that compound's
+    #  % Mean; single injection so it equals `pct_assay`, both unrounded). This
+    #  mirrors the sheet's cross-sheet `='Lipid '!O43` (the %Mean column). drug_lipid
+    #  row n (SET n) reads its four compounds at lipid_samples rows (n-1)*4 + idx,
+    #  where idx is tri 0 / dppg 1 / chol 2 / depc 3 (the _COMPOUNDS position).
+    #  Because `pct_mean == pct_assay` (both unrounded), the gold ratio 0.841429 is
+    #  reproduced exactly; reading the semantically-correct %Mean matches the sheet.
     for idx, (prefix, name) in enumerate(_COMPOUNDS):
         fields.append(
             {
@@ -428,7 +448,7 @@ def _drug_lipid_fields() -> list[dict]:
                 "unit": "mg/mL",
                 "labelFrom": f"standard.name[{idx}]",
                 "expression": (
-                    f"lipid_samples.pct_assay[(rowno - 1) * 4 + {idx}] "
+                    f"lipid_samples.pct_mean[(rowno - 1) * 4 + {idx}] "
                     f"* lc_{prefix} / 100"
                 ),
             }

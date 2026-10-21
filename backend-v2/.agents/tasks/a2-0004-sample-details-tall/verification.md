@@ -83,6 +83,24 @@ Byte-equality (exact `stored == json.dumps(module_def)`): **byte-equal: True**
 - `scripts/update_a2_0004_definition.py` — new DB sync script (modelled on A6B).
 - `lims.db` row 35 definition (gitignored; local only).
 
+## Additional requirement — trailing "% Mean" column (user clarification)
+Added `pct_mean` as the final column after `% Assay`: `mean([pct_assay])`. Single
+injection per compound row, so %Mean = that row's %Assay; kept as a blank-skipping
+mean so a future 2nd-injection %Assay would still average. NO rounding. The
+`drug_lipid` mg/mL repointing now reads `lipid_samples.pct_mean[(rowno-1)*4+idx]`
+(the semantically-correct %Mean, matching the sheet's `='Lipid '!O43`); because
+`pct_mean == pct_assay` (both unrounded) the gold ratio 0.841429 is unchanged.
+
+Re-verification after the %Mean addition:
+- `pytest tests/calculation/test_a2_0004_tabular_parity.py -q` -> `9 passed`
+  (added `test_set1_percent_mean_equals_percent_assay`).
+- `--validate-only` -> exit 0; `ok TPL-A2-0004 [A2] 6 groups, 20 inputs, 9 area fields, 37 calculated, 8 criteria`.
+- DB re-sync: `1 row updated` / `identity preserved` / `byte-equal: True`.
+- Live-DB gold re-check: pct_assay [99.98, 86.2, 101.77, 100.39];
+  pct_mean == pct_assay; ratio 0.841429; blocking False -> `LIVE DB GOLD RE-CHECK PASS`.
+- Full suite `pytest tests/calculation -q` -> `5 failed, 762 passed` — SAME 5 known
+  pre-existing failures (3 A6B + 2 worksheet_service), no new failures.
+
 ## Commit
 - Commit hash: (recorded below)
 
