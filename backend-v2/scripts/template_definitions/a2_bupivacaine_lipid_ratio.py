@@ -386,7 +386,10 @@ def _lipid_sample_fields() -> list[dict]:
             "kind": "calculated",
             "type": "text",
             "label": "Compound Name",
-            "labelFrom": "standard.name[0]",
+            #  Header is the static "Compound Name": this column holds a DIFFERENT
+            #  compound on every row (tri/dppg/chol/depc down the SET block), so a
+            #  per-compound `labelFrom` header would be wrong. The per-row VALUE
+            #  still comes from the selector below.
             "expression": _compound_select(lambda k, _p: f"standard.name[{k}]"),
         },
         #  LC — read-only mirror of the matching lc_<c> context field (decision
@@ -403,9 +406,10 @@ def _lipid_sample_fields() -> list[dict]:
         {"key": "vol_j", "kind": "input", "label": "Vol", "unit": "mL", "default": 25},      # J
         {"key": "pip_k", "kind": "input", "label": "Pip", "unit": "mL", "default": 1},       # K
         {"key": "vol_l", "kind": "input", "label": "Vol", "unit": "mL", "default": 1},        # L
-        #  ONE Area column per row — single injection (decision D6). The header
-        #  tracks the row's compound via the frontend (labelFrom first name).
-        {"key": "area", "kind": "area", "label": "Area", "labelFrom": "standard.name[0]"},
+        #  ONE Area column per row — single injection (decision D6). Static "Area"
+        #  header (the column spans all four compounds down the SET block, so no
+        #  per-compound labelFrom).
+        {"key": "area", "kind": "area", "label": "Area"},
         #  ONE % Assay per row, bound to this row's compound via cidx (decision
         #  D1/D6). Same algebra as the old _assay_expression; NO rounding.
         {
