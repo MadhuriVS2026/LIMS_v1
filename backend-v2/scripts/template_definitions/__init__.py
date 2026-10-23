@@ -37,6 +37,7 @@ from scripts.template_definitions.a8_content_uniformity import TEMPLATES as _A8
 from scripts.template_definitions.a9_a10_a13_classical import TEMPLATES as _A9_A10_A13
 from scripts.template_definitions.a11_microbial_bioassay import TEMPLATES as _A11
 from scripts.template_definitions.a12_derived_rollups import TEMPLATES as _A12
+from scripts.template_definitions.a12_ampho_drug_lipid import TEMPLATES as _A12_AMPHO
 from scripts.template_definitions.a14_linearity import TEMPLATES as _A14
 
 #  Ordered by archetype so the seed log reads predictably.
@@ -54,6 +55,7 @@ SEED_TEMPLATES: list[SeedTemplate] = [
     *_A9_A10_A13,
     *_A11,
     *_A12,
+    *_A12_AMPHO,
     *_A14,
 ]
 

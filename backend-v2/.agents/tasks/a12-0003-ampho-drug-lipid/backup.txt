@@ -1,0 +1,5 @@
+Backup filename: lims.db.bak-ampho-20261023-234640
+Source file: lims.db
+Original size: 1331200 bytes
+Backup size: 1331200 bytes
+Size match verified: True
