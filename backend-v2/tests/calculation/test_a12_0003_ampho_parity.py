@@ -26,7 +26,12 @@ from scripts.template_definitions.a12_ampho_drug_lipid import (
     A12_AMPHO_RATIO_DEFINITION,
 )
 from src.domain.services.calculation.evaluator import WorksheetEvaluator
-from src.domain.services.calculation.template_schema import TemplateDefinition
+from src.domain.services.calculation.template_schema import (
+    FieldKind,
+    GroupKind,
+    TemplateDefinition,
+    ValueType,
+)
 
 
 def _evaluator() -> WorksheetEvaluator:
@@ -118,6 +123,60 @@ class TestA12_0003AmphoParity:
             assert crit.operator.value == "between"
             assert crit.severity.value == "blocking"
             assert crit.limit == pytest.approx((low, high))
+
+    def test_acceptance_ranges_fields_exist_with_defaults(self):
+        #  Additive, editable, display-only "Acceptance Ranges" strip: a
+        #  singleton of five free-text inputs rendered immediately before the
+        #  batch table. Informational only — must not affect gold or criteria.
+        parsed = TemplateDefinition.parse(A12_AMPHO_RATIO_DEFINITION)
+
+        #  Group order: the ranges strip precedes `batches`.
+        assert [g.key for g in parsed.groups] == ["acceptance_ranges", "batches"]
+
+        ranges = parsed.group("acceptance_ranges")
+        assert ranges is not None
+        assert ranges.kind is GroupKind.SINGLETON
+        assert ranges.label == "Acceptance Ranges"
+
+        #  Five editable free-text fields with the exact default strings.
+        expected_defaults = {
+            "range_chol": ("Assay of Cholesterol", "90.0% to 120.0%"),
+            "range_hspc": ("Assay of HSPC", "90.0% to 120.0%"),
+            "range_dspg": ("Assay of DSPG", "80.0% to 120.0%"),
+            "range_ampho": ("Microbial assay of Amphotericin B", "90.0% to 120.0%"),
+            "range_ratio": ("Calculated Drug to Lipid ratio", "Between 0.11 to 0.17"),
+        }
+        assert [f.key for f in ranges.fields] == list(expected_defaults)
+        for field in ranges.fields:
+            label, default = expected_defaults[field.key]
+            assert field.kind is FieldKind.INPUT
+            assert field.type is ValueType.TEXT
+            assert field.is_editable is True
+            assert field.label == label
+            assert field.default == default
+
+        #  An empty evaluate seeds and surfaces the defaults as flat scalars.
+        result = _evaluator().evaluate({}, {})
+        for key, (_label, default) in expected_defaults.items():
+            assert result.values[f"acceptance_ranges.{key}"] == default
+
+    def test_acceptance_ranges_do_not_affect_gold_or_criteria(self):
+        #  The strip is purely additive: with it present, every gold content,
+        #  lipid total and ratio and the five blocking criteria are unchanged,
+        #  and the ranges fields are never referenced by any criterion target.
+        result = _evaluator().evaluate({}, {"batches": BATCHES})
+        for i, gold in GOLD.items():
+            assert result.row_value("batches", i, "lipid_content") == pytest.approx(gold["lipid"], abs=1e-4)
+            assert result.row_value("batches", i, "drug_lipid_ratio") == pytest.approx(gold["ratio"], abs=1e-4)
+        assert result.has_blocking_failure is False
+
+        parsed = TemplateDefinition.parse(A12_AMPHO_RATIO_DEFINITION)
+        assert {c.key for c in parsed.criteria} == {
+            "chol_assay_range", "hspc_assay_range", "dspg_assay_range",
+            "ampho_assay_range", "drug_lipid_ratio_range",
+        }
+        for crit in parsed.criteria:
+            assert "acceptance_ranges" not in crit.target
 
     def test_ratio_criterion_fails_when_out_of_range(self):
         #  A batch whose ratio falls below 0.11 must raise a blocking failure on

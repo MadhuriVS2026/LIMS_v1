@@ -55,6 +55,17 @@ ratio spec here is a release limit). The engine needs a scalar target for a
 per-row table, so each criterion targets the MEAN across the batch rows
 (`mean(batches.<field>)`), the same aggregate `TPL-A12-0001` uses to target its
 carried per-row assay (`mean(preps.pct_assay_total)`).
+
+## Acceptance Ranges strip (additive, editable, display-only)
+
+An `acceptance_ranges` singleton of five EDITABLE free-text fields is placed
+immediately before the `batches` group so it renders as a ranges header after the
+section title. The fields are purely INFORMATIONAL — they are inputs in their own
+group, pre-filled with the stated acceptance ranges and editable/persisted, but
+they are NEVER referenced by any expression, criterion target, or `resultRef`.
+They do NOT drive pass/fail; enforcement stays entirely in the five blocking
+`criteria` below, which are unchanged. This addition is purely additive: no gold
+value, batch formula, context field, or criterion is altered.
 """
 from scripts.template_definitions._common import (
     SeedTemplate,
@@ -148,6 +159,28 @@ def _batch_fields() -> list[dict]:
     return fields
 
 
+def _acceptance_ranges_group() -> dict:
+    """
+    Editable, display-only "Acceptance Ranges" strip rendered immediately before
+    the batch table. Five free-text inputs pre-filled with the stated acceptance
+    ranges. INFORMATIONAL only — never referenced by any expression, criterion
+    target, or resultRef, so they cannot change batch math, the ratio, or the
+    five blocking criteria. Enforcement stays in `criteria`.
+    """
+    return {
+        "key": "acceptance_ranges",
+        "kind": "singleton",
+        "label": "Acceptance Ranges",
+        "fields": [
+            {"key": "range_chol", "kind": "input", "type": "text", "label": "Assay of Cholesterol", "default": "90.0% to 120.0%"},
+            {"key": "range_hspc", "kind": "input", "type": "text", "label": "Assay of HSPC", "default": "90.0% to 120.0%"},
+            {"key": "range_dspg", "kind": "input", "type": "text", "label": "Assay of DSPG", "default": "80.0% to 120.0%"},
+            {"key": "range_ampho", "kind": "input", "type": "text", "label": "Microbial assay of Amphotericin B", "default": "90.0% to 120.0%"},
+            {"key": "range_ratio", "kind": "input", "type": "text", "label": "Calculated Drug to Lipid ratio", "default": "Between 0.11 to 0.17"},
+        ],
+    }
+
+
 def _assay_criterion(key: str, prefix: str, label: str, low: float, high: float) -> dict:
     """Blocking %-range criterion on a component assay, targeted at the batch mean."""
     return {
@@ -179,6 +212,9 @@ A12_AMPHO_RATIO_DEFINITION = {
         ],
     ),
     "groups": [
+        #  Editable, display-only acceptance-ranges strip, rendered above the
+        #  batch table. Additive and informational — does NOT drive pass/fail.
+        _acceptance_ranges_group(),
         {
             "key": "batches",
             "kind": "table",
