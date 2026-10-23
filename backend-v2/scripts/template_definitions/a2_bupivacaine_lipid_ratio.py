@@ -430,6 +430,73 @@ def _lipid_sample_fields() -> list[dict]:
     return fields
 
 
+def _mean_each_compound_fields() -> list[dict]:
+    """
+    "% Mean each compound" — a read-only cross-set summary (ADDITIVE; added for
+    the user's "% Mean of each compound = Average of set1 and set2" request).
+
+    Shape: a TABLE FIXED at exactly 4 rows (pinned min==max==default==4), ONE row
+    per compound in _COMPOUNDS order (row 0 Tricaprylin, 1 DPPG Na, 2 Cholesterol,
+    3 DEPC). The row's compound index is simply `rowno - 1` (0..3) — there are
+    exactly four rows, one per compound, so no `cidx`-style modulo is needed.
+    Columns, in order: Compound Name, a static "Average of set1 and set2" label,
+    and the cross-set "% Mean".
+
+    * `compound_name` — read-only, auto-fetched from Standard Details by the row's
+      compound index: `standard.name[(rowno - 1)]`. Same mechanism the TALL
+      `lipid_samples.compound_name` uses (there via the hidden `cidx`; here the
+      index is the row position), so renaming a standard renames this too.
+    * `set_source` — a static descriptive TEXT column reading the constant string
+      "Average of set1 and set2" on every row. The engine evaluates a bare string
+      literal to that string (expression.py `_Literal`/STRING token), so a
+      calculated text field whose expression is the quoted constant is the
+      engine-faithful way to render fixed descriptive text in a column — no input,
+      no default needed, identical on all four rows.
+    * `pct_mean` — the classic "mean across replicate sets": for compound at index
+      idx = rowno-1, the mean of that compound's % Assay in Set 1 (lipid_samples
+      row idx) and Set 2 (lipid_samples row idx+4), blank-skipping:
+      `mean([ lipid_samples.pct_assay[(rowno-1)], lipid_samples.pct_assay[(rowno-1)+4] ])`.
+      This references a DIFFERENT group (`lipid_samples`) by absolute column
+      index — the SAME cross-group absolute-index pattern `drug_lipid` already
+      uses (`lipid_samples.pct_mean[(rowno-1)*4 + idx]`), and the dependency graph
+      resolves it to the single path ('lipid_samples','pct_assay') (indexing is
+      truncated in `referenced_paths`), so the new field depends only on
+      `lipid_samples.pct_assay` with NO circular dependency. `mean([...])` skips
+      blanks, so when Set 2 is empty the mean of the one Set-1 value equals that
+      compound's Set-1 % Assay. NO rounding — this is a read-only display summary
+      that feeds no downstream formula (drug_lipid still reads lipid_samples
+      directly), so the drug/lipid ratio and per-set pct_mean are untouched.
+    """
+    return [
+        {
+            "key": "compound_name",
+            "kind": "calculated",
+            "type": "text",
+            "label": "Compound Name",
+            "expression": "standard.name[(rowno - 1)]",
+        },
+        {
+            "key": "set_source",
+            "kind": "calculated",
+            "type": "text",
+            "label": "Set Source",
+            #  Constant descriptive text on every row (see docstring): a string
+            #  literal evaluates to itself in this engine.
+            "expression": "'Average of set1 and set2'",
+        },
+        {
+            "key": "pct_mean",
+            "kind": "calculated",
+            "label": "% Mean",
+            "unit": "%",
+            "expression": (
+                "mean([ lipid_samples.pct_assay[(rowno - 1)], "
+                "lipid_samples.pct_assay[(rowno - 1) + 4] ])"
+            ),
+        },
+    ]
+
+
 def _drug_lipid_fields() -> list[dict]:
     """
     One batch per row (same order as `lipid_samples`): the four mg/mL(Lipid)
@@ -615,6 +682,21 @@ LIPID_RATIO_DEFINITION = {
             "label": "Sample Details",
             "rows": {"min": 8, "max": 8, "default": 8},
             "fields": _lipid_sample_fields(),
+        },
+        #  "% Mean each compound" — ADDITIVE read-only cross-set summary rendered
+        #  DIRECTLY BELOW the Sample Details (Set 2) block (placed immediately
+        #  after lipid_samples so the generic frontend renders it as a labeled
+        #  4-row table beneath Set 2). One row per compound; each row shows the
+        #  compound name (from Standard Details), a static "Average of set1 and
+        #  set2" label, and the cross-set % Mean = mean(Set1 %Assay, Set2 %Assay).
+        #  Read-only: it feeds NO downstream formula, so the per-set lipid_samples
+        #  pct_mean and the drug/lipid ratio are unchanged.
+        {
+            "key": "mean_each_compound",
+            "kind": "table",
+            "label": "% Mean each compound",
+            "rows": {"min": 4, "max": 4, "default": 4},
+            "fields": _mean_each_compound_fields(),
         },
         #  Drug-to-Lipid section — one ROW per SET (same SET order as the tall
         #  lipid_samples), FIXED at 2 rows (pinned min==max==2) to match the 2

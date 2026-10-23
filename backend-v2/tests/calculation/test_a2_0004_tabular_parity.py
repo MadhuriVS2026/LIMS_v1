@@ -78,9 +78,29 @@ LIPID_SAMPLES = [
     {**_PREP, "area": 3826195},    # row 1 -> DPPG Na
     {**_PREP, "area": 32474189},   # row 2 -> Cholesterol
     {**_PREP, "area": 44235393},   # row 3 -> DEPC
+    {**_PREP, "area": None},       # row 4 -> Set 2 Tricaprylin (blank)
+    {**_PREP, "area": None},       # row 5 -> Set 2 DPPG Na (blank)
+    {**_PREP, "area": None},       # row 6 -> Set 2 Cholesterol (blank)
+    {**_PREP, "area": None},       # row 7 -> Set 2 DEPC (blank)
 ]
-DRUG_LIPID = [{"pct_assay_bupi": 99.9}]
+DRUG_LIPID = [{"pct_assay_bupi": 99.9}, {"pct_assay_bupi": 99.9}]
 CONTEXT = {"lc_tri": 2, "lc_dppg": 0.9, "lc_chol": 4.7, "lc_depc": 8.2, "lc_bupi": 13.3}
+
+#  Both-sets fixture: SET 2 (rows 4-7) carries DIFFERENT single-injection areas
+#  per compound. Used to exercise the additive "% Mean each compound" block's
+#  cross-set mean = mean(Set1 % Assay, Set2 % Assay). The Set-1 rows and all the
+#  prep/context are identical to LIPID_SAMPLES, so the per-set `pct_mean` and the
+#  drug/lipid ratio (which read the Set-1 data path) are expected UNCHANGED.
+LIPID_SAMPLES_BOTH_SETS = [
+    {**_PREP, "area": 8729574},    # Set 1 Tricaprylin
+    {**_PREP, "area": 3826195},    # Set 1 DPPG Na
+    {**_PREP, "area": 32474189},   # Set 1 Cholesterol
+    {**_PREP, "area": 44235393},   # Set 1 DEPC
+    {**_PREP, "area": 8650000},    # Set 2 Tricaprylin
+    {**_PREP, "area": 3900000},    # Set 2 DPPG Na
+    {**_PREP, "area": 32000000},   # Set 2 Cholesterol
+    {**_PREP, "area": 44500000},   # Set 2 DEPC
+]
 
 
 class TestA2_0004TabularParity:
@@ -173,3 +193,93 @@ class TestA2_0004TabularParity:
 
     def test_suitability_does_not_block_on_this_data(self, result):
         assert result.has_blocking_failure is False
+
+    #  ── ADDITIVE "% Mean each compound" block (Set-2 blank) ──────────────────
+    def test_mean_each_compound_block_set1_only(self, result):
+        #  New read-only cross-set summary group, one row per compound, rendered
+        #  below Set 2. Compound Name auto-fetched from Standard Details; the
+        #  static descriptive column shows the constant "Average of set1 and
+        #  set2" on every row; % Mean = mean(Set1 %Assay, Set2 %Assay) and with
+        #  Set 2 blank the blank-skipping mean of the one Set-1 value equals that
+        #  compound's Set-1 % Assay (so 99.98 / 86.20 / 101.77 / 100.39).
+        names = ["Tricaprylin", "DPPG Na", "Cholesterol", "DEPC"]
+        for i, name in enumerate(names):
+            assert result.row_value("mean_each_compound", i, "compound_name") == name
+            assert (
+                result.row_value("mean_each_compound", i, "set_source")
+                == "Average of set1 and set2"
+            )
+        assert result.row_value("mean_each_compound", 0, "pct_mean") == pytest.approx(99.979, abs=1e-2)
+        assert result.row_value("mean_each_compound", 1, "pct_mean") == pytest.approx(86.200, abs=1e-2)
+        assert result.row_value("mean_each_compound", 2, "pct_mean") == pytest.approx(101.772, abs=1e-2)
+        assert result.row_value("mean_each_compound", 3, "pct_mean") == pytest.approx(100.390, abs=1e-2)
+        #  With Set 2 blank, each cross-set mean equals that compound's own Set-1
+        #  % Assay (the single non-blank value).
+        for i in range(4):
+            assert result.row_value("mean_each_compound", i, "pct_mean") == pytest.approx(
+                result.row_value("lipid_samples", i, "pct_assay")
+            )
+
+
+class TestA2_0004MeanEachCompoundBothSets:
+    """
+    Both-sets fixture for the additive "% Mean each compound" block: SET 2 holds
+    DIFFERENT areas, so each compound's cross-set % Mean is the genuine mean of
+    two distinct % Assays. Every expected number below is a hand-derived oracle
+    (mean of the two per-set % Assays), and the per-set `pct_mean` + drug/lipid
+    ratio are asserted UNCHANGED (the new block feeds nothing downstream).
+    """
+
+    @pytest.fixture()
+    def result(self):
+        return _evaluator().evaluate(
+            CONTEXT,
+            {
+                "standard": STANDARD,
+                "std_areas": STD_AREAS,
+                "bkt_areas": BKT_AREAS,
+                "lipid_samples": LIPID_SAMPLES_BOTH_SETS,
+                "drug_lipid": DRUG_LIPID,
+            },
+        )
+
+    def test_cross_set_mean_is_mean_of_both_set_assays(self, result):
+        #  Oracle: % Mean[i] == mean(lipid_samples.pct_assay[i], pct_assay[i+4]).
+        for i in range(4):
+            set1 = result.row_value("lipid_samples", i, "pct_assay")
+            set2 = result.row_value("lipid_samples", i + 4, "pct_assay")
+            expected = (set1 + set2) / 2
+            assert result.row_value("mean_each_compound", i, "pct_mean") == pytest.approx(expected)
+
+    def test_cross_set_mean_absolute_values(self, result):
+        #  Hand-derived from the two per-set % Assays:
+        #  Tri (99.979001+99.067648)/2, DPPG (86.200388+87.863142)/2,
+        #  Chol (101.772429+100.286346)/2, DEPC (100.389722+100.990233)/2.
+        assert result.row_value("mean_each_compound", 0, "pct_mean") == pytest.approx(99.523324, abs=1e-4)
+        assert result.row_value("mean_each_compound", 1, "pct_mean") == pytest.approx(87.031765, abs=1e-4)
+        assert result.row_value("mean_each_compound", 2, "pct_mean") == pytest.approx(101.029388, abs=1e-4)
+        assert result.row_value("mean_each_compound", 3, "pct_mean") == pytest.approx(100.689977, abs=1e-4)
+
+    def test_compound_name_and_static_label(self, result):
+        names = ["Tricaprylin", "DPPG Na", "Cholesterol", "DEPC"]
+        for i, name in enumerate(names):
+            assert result.row_value("mean_each_compound", i, "compound_name") == name
+            assert (
+                result.row_value("mean_each_compound", i, "set_source")
+                == "Average of set1 and set2"
+            )
+
+    def test_existing_gold_unchanged_by_new_block(self, result):
+        #  The new block is additive and reads from lipid_samples; it must not
+        #  perturb the per-set pct_mean or the drug/lipid ratio, which read the
+        #  Set-1 data path. Set-1 % Assay and per-set pct_mean stay at the gold.
+        assert result.row_value("lipid_samples", 0, "pct_assay") == pytest.approx(99.979, abs=1e-2)
+        assert result.row_value("lipid_samples", 1, "pct_assay") == pytest.approx(86.200, abs=1e-2)
+        assert result.row_value("lipid_samples", 2, "pct_assay") == pytest.approx(101.772, abs=1e-2)
+        assert result.row_value("lipid_samples", 3, "pct_assay") == pytest.approx(100.390, abs=1e-2)
+        for i in range(4):
+            assert result.row_value("lipid_samples", i, "pct_mean") == pytest.approx(
+                result.row_value("lipid_samples", i, "pct_assay")
+            )
+        assert result.row_value("drug_lipid", 0, "ratio") == pytest.approx(0.841429, abs=1e-4)
+        assert result.reportable_result == pytest.approx(0.841429, abs=1e-4)
