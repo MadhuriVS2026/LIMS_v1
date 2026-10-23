@@ -205,10 +205,6 @@ class TestA2_0004TabularParity:
         names = ["Tricaprylin", "DPPG Na", "Cholesterol", "DEPC"]
         for i, name in enumerate(names):
             assert result.row_value("mean_each_compound", i, "compound_name") == name
-            assert (
-                result.row_value("mean_each_compound", i, "set_source")
-                == "Average of set1 and set2"
-            )
         assert result.row_value("mean_each_compound", 0, "pct_mean") == pytest.approx(99.979, abs=1e-2)
         assert result.row_value("mean_each_compound", 1, "pct_mean") == pytest.approx(86.200, abs=1e-2)
         assert result.row_value("mean_each_compound", 2, "pct_mean") == pytest.approx(101.772, abs=1e-2)
@@ -264,10 +260,6 @@ class TestA2_0004MeanEachCompoundBothSets:
         names = ["Tricaprylin", "DPPG Na", "Cholesterol", "DEPC"]
         for i, name in enumerate(names):
             assert result.row_value("mean_each_compound", i, "compound_name") == name
-            assert (
-                result.row_value("mean_each_compound", i, "set_source")
-                == "Average of set1 and set2"
-            )
 
     def test_existing_gold_unchanged_by_new_block(self, result):
         #  The new block is additive and reads from lipid_samples; it must not

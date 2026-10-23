@@ -439,19 +439,12 @@ def _mean_each_compound_fields() -> list[dict]:
     per compound in _COMPOUNDS order (row 0 Tricaprylin, 1 DPPG Na, 2 Cholesterol,
     3 DEPC). The row's compound index is simply `rowno - 1` (0..3) — there are
     exactly four rows, one per compound, so no `cidx`-style modulo is needed.
-    Columns, in order: Compound Name, a static "Average of set1 and set2" label,
-    and the cross-set "% Mean".
+    Columns, in order: Compound Name and the cross-set "% Mean".
 
     * `compound_name` — read-only, auto-fetched from Standard Details by the row's
       compound index: `standard.name[(rowno - 1)]`. Same mechanism the TALL
       `lipid_samples.compound_name` uses (there via the hidden `cidx`; here the
       index is the row position), so renaming a standard renames this too.
-    * `set_source` — a static descriptive TEXT column reading the constant string
-      "Average of set1 and set2" on every row. The engine evaluates a bare string
-      literal to that string (expression.py `_Literal`/STRING token), so a
-      calculated text field whose expression is the quoted constant is the
-      engine-faithful way to render fixed descriptive text in a column — no input,
-      no default needed, identical on all four rows.
     * `pct_mean` — the classic "mean across replicate sets": for compound at index
       idx = rowno-1, the mean of that compound's % Assay in Set 1 (lipid_samples
       row idx) and Set 2 (lipid_samples row idx+4), blank-skipping:
@@ -474,15 +467,6 @@ def _mean_each_compound_fields() -> list[dict]:
             "type": "text",
             "label": "Compound Name",
             "expression": "standard.name[(rowno - 1)]",
-        },
-        {
-            "key": "set_source",
-            "kind": "calculated",
-            "type": "text",
-            "label": "Set Source",
-            #  Constant descriptive text on every row (see docstring): a string
-            #  literal evaluates to itself in this engine.
-            "expression": "'Average of set1 and set2'",
         },
         {
             "key": "pct_mean",
