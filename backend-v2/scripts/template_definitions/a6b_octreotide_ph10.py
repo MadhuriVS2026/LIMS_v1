@@ -190,31 +190,33 @@ def _params_group() -> dict:
 
 # ── Sample weights + per-column stats (sheet rows 22-30, E/F/G/H) ────
 def _weights_group() -> dict:
-    #  F22:F27 (1 hr), G22:G27 (4 hr), H22:H27 (24 hr) per-unit weights in mg.
+    #  F22:F27 (1 hr), G22:G27 (4 hr), H22:H27 (24 hr) per-unit weights in mg,
+    #  one row per Dissolution Unit (Unit-1..Unit-6). The leading text column
+    #  carries the Unit label so the column-aligned footer below can render
+    #  Mean / STDev / % RSD as rows beneath the three weight columns.
     return {
         "key": "weights", "kind": "table", "label": "Dissolution Unit weights",
-        "rows": {"min": 1, "max": _UNITS, "default": _UNITS},
+        "rows": {"min": 1, "max": _UNITS, "default": _UNITS, "labelFrom": "unit_label"},
         "fields": [
-            {"key": "w_1hr", "kind": "input", "label": "Weight in mg for 1 hr",
-             "unit": "mg"},
-            {"key": "w_4hr", "kind": "input", "label": "Weight in mg for 4 hr",
-             "unit": "mg"},
-            {"key": "w_24hr", "kind": "input", "label": "Weight in mg for 24 hr",
-             "unit": "mg"},
+            {"key": "unit_label", "kind": "input", "type": "text",
+             "label": "Dissolution Unit"},
+            {"key": "w_1hr", "kind": "input", "label": "Weight in mg for 1 hr"},
+            {"key": "w_4hr", "kind": "input", "label": "Weight in mg for 4 hr"},
+            {"key": "w_24hr", "kind": "input", "label": "Weight in mg for 24 hr"},
         ],
+        #  Column-aligned footer (sheet F/G/H rows 28-30): each labeled row starts
+        #  with the stat name (under the Dissolution Unit column) then one value
+        #  per weight column. Renders as Mean / STDev / % RSD rows beneath.
         "footer": [
-            #  Per-column Mean / STDev / % RSD for all three weight columns
-            #  (sheet F/G/H rows 28-30). Flat strip, each value explicitly
-            #  labelled by timepoint so all three columns' stats are shown.
-            {"label": "Mean (1 hr)", "ref": "weight_stats.mean_1hr", "unit": "mg"},
-            {"label": "Mean (4 hr)", "ref": "weight_stats.mean_4hr", "unit": "mg"},
-            {"label": "Mean (24 hr)", "ref": "weight_stats.mean_24hr", "unit": "mg"},
-            {"label": "STDev (1 hr)", "ref": "weight_stats.sd_1hr", "unit": "mg"},
-            {"label": "STDev (4 hr)", "ref": "weight_stats.sd_4hr", "unit": "mg"},
-            {"label": "STDev (24 hr)", "ref": "weight_stats.sd_24hr", "unit": "mg"},
-            {"label": "% RSD (1 hr)", "ref": "weight_stats.rsd_1hr", "unit": "%"},
-            {"label": "% RSD (4 hr)", "ref": "weight_stats.rsd_4hr", "unit": "%"},
-            {"label": "% RSD (24 hr)", "ref": "weight_stats.rsd_24hr", "unit": "%"},
+            {"label": "Mean", "ref": "weight_stats.mean_1hr", "unit": "mg"},
+            {"ref": "weight_stats.mean_4hr", "unit": "mg"},
+            {"ref": "weight_stats.mean_24hr", "unit": "mg"},
+            {"label": "STDev", "ref": "weight_stats.sd_1hr", "unit": "mg"},
+            {"ref": "weight_stats.sd_4hr", "unit": "mg"},
+            {"ref": "weight_stats.sd_24hr", "unit": "mg"},
+            {"label": "% RSD", "ref": "weight_stats.rsd_1hr", "unit": "%"},
+            {"ref": "weight_stats.rsd_4hr", "unit": "%"},
+            {"ref": "weight_stats.rsd_24hr", "unit": "%"},
         ],
     }
 
@@ -292,7 +294,11 @@ def _residue_expression(weight_field: str) -> str:
 
 def _residue_group(key: str, label: str, weight_field: str) -> dict:
     #  C40 == K40, so the K-column holds the real formula; computed directly here.
-    #  Aggregates: D=AVERAGE(C40:C45), E=MIN, F=MAX, G=STDEV(C40:C45)*100/D.
+    #  The data table shows ONLY Sample Area + %Residue; the block's
+    #  Mean/Min/Max/RSD (D/E/F/G) are published by the companion stats singleton
+    #  `<key>_stats` and rendered as a footer row beneath the table (see
+    #  `_residue_stats_group` / the footer below), matching the sheet layout
+    #  (timepoint title, two columns, then a Mean|Min|Max|RSD summary row).
     return {
         "key": key, "kind": "table", "label": label,
         "rows": {"min": 1, "max": _UNITS, "default": _UNITS},
@@ -301,14 +307,32 @@ def _residue_group(key: str, label: str, weight_field: str) -> dict:
             {"key": "residue", "kind": "calculated",
              "label": "%Residue of Octreotide Base", "unit": "%",
              "expression": _residue_expression(weight_field)},             # K40 (=C40)
+        ],
+        "footer": [
+            {"label": "Mean", "ref": f"{key}_stats.mean", "unit": "%"},
+            {"label": "Min", "ref": f"{key}_stats.min_v", "unit": "%"},
+            {"label": "Max", "ref": f"{key}_stats.max_v", "unit": "%"},
+            {"label": "RSD", "ref": f"{key}_stats.rsd", "unit": "%"},
+        ],
+    }
+
+
+def _residue_stats_group(key: str) -> dict:
+    #  Per-block %Residue statistics (sheet D/E/F/G rows 40/46/52), referenced by
+    #  the residue table footer. Kept as a singleton so the data table carries
+    #  only the two entry/result columns.
+    return {
+        "key": f"{key}_stats", "kind": "singleton",
+        "label": f"{key} statistics",
+        "fields": [
             {"key": "mean", "kind": "calculated", "label": "Mean", "unit": "%",
-             "expression": f"mean({key}.residue)"},                         # D40
+             "expression": f"mean({key}.residue)"},                         # D
             {"key": "min_v", "kind": "calculated", "label": "Min", "unit": "%",
-             "expression": f"min({key}.residue)"},                          # E40
+             "expression": f"min({key}.residue)"},                          # E
             {"key": "max_v", "kind": "calculated", "label": "Max", "unit": "%",
-             "expression": f"max({key}.residue)"},                          # F40
+             "expression": f"max({key}.residue)"},                          # F
             {"key": "rsd", "kind": "calculated", "label": "RSD", "unit": "%",
-             "expression": f"sd({key}.residue) * 100 / mean"},              # G40
+             "expression": f"sd({key}.residue) * 100 / {key}_stats.mean"},   # G
         ],
     }
 
@@ -340,10 +364,10 @@ def _release_group(key: str, label: str) -> dict:
 
 
 A6B_OCT_DEFINITION = {
-    #  The final live %Residue timepoint mean. `mean` is a column aggregate equal
-    #  on every row of the block, so first == last; the parity test pins every
-    #  block regardless.
-    "resultRef": "residue_24hr.mean",
+    #  The final live %Residue timepoint mean, now published by the 24 hr block's
+    #  companion statistics singleton (the block's Mean/Min/Max/RSD moved out of
+    #  the per-row table into `<key>_stats` + a footer).
+    "resultRef": "residue_24hr_stats.mean",
     "context": _context(),
     "groups": [
         _standard_group(),
@@ -355,8 +379,11 @@ A6B_OCT_DEFINITION = {
         _weight_stats_group(),
         _prep_group(),
         _residue_group("residue_1hr", "%Residue — 1 hr at 37°C", "w_1hr"),
+        _residue_stats_group("residue_1hr"),
         _residue_group("residue_4hr", "%Residue — 4 hr at 55°C", "w_4hr"),
+        _residue_stats_group("residue_4hr"),
         _residue_group("residue_24hr", "%Residue — 24 hr at 55°C", "w_24hr"),
+        _residue_stats_group("residue_24hr"),
         _release_group("release_1hr", "%Release — 1 hr at 37°C"),
         _release_group("release_4hr", "%Release — 4 hr at 55°C"),
         _release_group("release_24hr", "%Release — 24 hr at 55°C"),

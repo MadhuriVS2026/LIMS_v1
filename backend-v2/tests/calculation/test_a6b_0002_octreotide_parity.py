@@ -121,16 +121,16 @@ class TestA6B0002OctreotidePh10Parity:
         # K41 (unit-2, weight 23.9)
         assert result.row_value("residue_1hr", 1, "residue") == pytest.approx(
             4.136333922855612, abs=1e-4)
-        # D40 = AVERAGE(C40:C45)
-        assert result.row_value("residue_1hr", 0, "mean") == pytest.approx(
+        # D40 = AVERAGE(C40:C45) — now published by the block stats singleton.
+        assert result.values["residue_1hr_stats.mean"] == pytest.approx(
             4.0874983775509364, abs=1e-4)
         # E40 = MIN; F40 = MAX
-        assert result.row_value("residue_1hr", 0, "min_v") == pytest.approx(
+        assert result.values["residue_1hr_stats.min_v"] == pytest.approx(
             4.0386628322462599, abs=1e-4)
-        assert result.row_value("residue_1hr", 0, "max_v") == pytest.approx(
+        assert result.values["residue_1hr_stats.max_v"] == pytest.approx(
             4.136333922855612, abs=1e-4)
         # G40 = STDEV(C40:C45)*100/D40
-        assert result.row_value("residue_1hr", 0, "rsd") == pytest.approx(
+        assert result.values["residue_1hr_stats.rsd"] == pytest.approx(
             1.6896371353947515, abs=1e-4)
 
     # ── %Residue — 4 hr at 55°C (K46, D46/G46) ──────────────────────
@@ -139,10 +139,10 @@ class TestA6B0002OctreotidePh10Parity:
         assert result.row_value("residue_4hr", 0, "residue") == pytest.approx(
             2.8280543211589846, abs=1e-4)
         # D46 = AVERAGE(C46:C51)
-        assert result.row_value("residue_4hr", 0, "mean") == pytest.approx(
+        assert result.values["residue_4hr_stats.mean"] == pytest.approx(
             2.8295742711996321, abs=1e-4)
         # G46 = STDEV(C46:C51)*100/D46
-        assert result.row_value("residue_4hr", 0, "rsd") == pytest.approx(
+        assert result.values["residue_4hr_stats.rsd"] == pytest.approx(
             0.07596669165011731, abs=1e-4)
 
     # ── %Residue — 24 hr at 55°C (K52, D52/G52) ─────────────────────
@@ -151,10 +151,10 @@ class TestA6B0002OctreotidePh10Parity:
         assert result.row_value("residue_24hr", 0, "residue") == pytest.approx(
             1.9355919975161624, abs=1e-4)
         # D52 = AVERAGE(C52:C57)
-        assert result.row_value("residue_24hr", 0, "mean") == pytest.approx(
+        assert result.values["residue_24hr_stats.mean"] == pytest.approx(
             1.8876063496116782, abs=1e-4)
         # G52 = STDEV(C52:C57)*100/D52
-        assert result.row_value("residue_24hr", 0, "rsd") == pytest.approx(
+        assert result.values["residue_24hr_stats.rsd"] == pytest.approx(
             3.5951327499900718, abs=1e-4)
 
     # ── %Release — 1 hr at 37°C (C70/C71, D70/E70/F70/G70) ──────────
