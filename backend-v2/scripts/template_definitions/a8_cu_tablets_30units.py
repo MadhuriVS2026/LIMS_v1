@@ -77,17 +77,31 @@ def _stats_group_30() -> dict:
     per-unit `pct_lc` expression divides by `stats.mean_std`.
     """
     group = standard_statistics_group()
-    group["fields"].append(
+    #  Pooled bracketing statistics (replicates + both bracket blocks), as in
+    #  A12-0001: a bracket averaged on its own would let a drifting system pass
+    #  suitability. Mean/SD/%RSD are rendered beneath the bracketing tables.
+    _pool = "pool(std_areas.area, bkt_1.area, bkt_2.area)"
+    group["fields"] += [
+        {
+            "key": "mean_bkt",
+            "kind": "calculated",
+            "label": "Mean (pooled with bracketing standards)",
+            "expression": f"mean({_pool})",
+        },
+        {
+            "key": "sd_bkt",
+            "kind": "calculated",
+            "label": "SD (pooled with bracketing standards)",
+            "expression": f"sd({_pool})",
+        },
         {
             "key": "rsd_bkt",
             "kind": "calculated",
             "label": "%RSD (pooled with bracketing standards)",
             "unit": "%",
-            #  Cumulative pooling, as in A12-0001: a bracket averaged on its own
-            #  would let a drifting system pass suitability.
-            "expression": "rsd(pool(std_areas.area, bkt_1.area, bkt_2.area))",
-        }
-    )
+            "expression": f"rsd({_pool})",
+        },
+    ]
     return group
 
 
@@ -140,6 +154,12 @@ A8_CU_30U_DEFINITION = {
             "label": "Bracketing Standard — Block 1",
             "rows": _BKT_ROWS,
             "fields": [{"key": "area", "kind": "area", "label": "BKT STD Area"}],
+            #  Pooled bracketing Mean/SD/%RSD (replicates + both bracket blocks).
+            "footer": [
+                {"label": "Mean", "ref": "stats.mean_bkt"},
+                {"label": "SD", "ref": "stats.sd_bkt"},
+                {"label": "% RSD", "ref": "stats.rsd_bkt", "unit": "%"},
+            ],
         },
         {
             "key": "bkt_2",
@@ -147,6 +167,12 @@ A8_CU_30U_DEFINITION = {
             "label": "Bracketing Standard — Block 2",
             "rows": _BKT_ROWS,
             "fields": [{"key": "area", "kind": "area", "label": "BKT STD Area"}],
+            #  Same pooled bracketing Mean/SD/%RSD beneath block 2.
+            "footer": [
+                {"label": "Mean", "ref": "stats.mean_bkt"},
+                {"label": "SD", "ref": "stats.sd_bkt"},
+                {"label": "% RSD", "ref": "stats.rsd_bkt", "unit": "%"},
+            ],
         },
         _stats_group_30(),
         {
