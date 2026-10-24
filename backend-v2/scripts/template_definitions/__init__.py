@@ -25,6 +25,7 @@ existing.
 """
 from scripts.template_definitions._common import SeedTemplate
 from scripts.template_definitions.a1_assay import TEMPLATES as _A1
+from scripts.template_definitions.a1_assay_fp_mgml import TEMPLATES as _A1_FP_MGML
 from scripts.template_definitions.a2_a3_content import TEMPLATES as _A2_A3
 from scripts.template_definitions.a2_bupivacaine_lipid_ratio import TEMPLATES as _A2_BUPI
 from scripts.template_definitions.a2_lyso_content import TEMPLATES as _A2_LYSO
@@ -45,6 +46,7 @@ from scripts.template_definitions.a14_linearity import TEMPLATES as _A14
 #  Ordered by archetype so the seed log reads predictably.
 SEED_TEMPLATES: list[SeedTemplate] = [
     *_A1,
+    *_A1_FP_MGML,
     *_A2_A3,
     *_A2_LYSO,
     *_A2_LYSO_MGVIAL,
