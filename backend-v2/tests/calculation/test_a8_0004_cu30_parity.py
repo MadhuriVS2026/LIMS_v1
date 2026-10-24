@@ -41,8 +41,12 @@ _STD = {
 }
 #  Five replicates all 100 -> stats.mean_std == 100.
 _STD_AREAS = [{"area": 100.0} for _ in range(5)]
-#  Context: k = 2.0 for n=30; avg_weight and label_claim neutral.
-_CTX = {"k_value": 2.0, "avg_weight": 1, "label_claim": 1}
+#  Context: avg_weight and label_claim neutral. K is NO LONGER context — it is an
+#  editable input in the Additional Info group (see _ADD_INFO below).
+_CTX = {"avg_weight": 1, "label_claim": 1}
+
+#  Additional Info carries the editable K that drives the AV. Tests use k = 2.0.
+_ADD_INFO = {"lc_description": "1000 mg", "cu_of": "X", "n_units": 10, "k_value": 2.0}
 
 
 #  Shared sample-dilution block: neutral chain (every term 1) so pct_lc ==
@@ -62,6 +66,7 @@ def _evaluate(areas: list[float]):
     return _evaluator().evaluate(
         _CTX,
         {
+            "additional_info": [_ADD_INFO],
             "standard": [_STD],
             "sample_dilution": [_SAMPLE_DILUTION],
             "std_areas": _STD_AREAS,
@@ -78,19 +83,33 @@ class TestA8_0004CU30Structure:
         assert units.rows.default == 30
         assert units.rows.max == 30
 
-    def test_k_value_default(self):
-        #  k_value drives the AV and defaults to 2.4 per the worksheet's stated
-        #  n=10 / K=2.4; the Additional Info K mirrors it.
+    def test_k_is_editable_input_in_additional_info_default_2_4(self):
+        #  K is an EDITABLE input in Additional Info (single source of truth the
+        #  AV reads), default 2.4; there is no context k_value field.
         parsed = TemplateDefinition.parse(A8_CU_30U_DEFINITION)
-        k = next(cf for cf in parsed.context if cf.key == "k_value")
+        assert not any(cf.key == "k_value" for cf in parsed.context)
+        ai = parsed.group("additional_info")
+        k = ai.field("k_value")
+        assert k is not None
+        assert k.kind.value == "input"
         assert k.default == 2.4
 
-    def test_additional_info_k_mirrors_k_value(self):
-        #  Additional Info K is a read-only mirror of k_value (single source of
-        #  truth, so the displayed K can't diverge from what the AV uses).
-        ev = _evaluator()
-        res = ev.evaluate({"k_value": 2.4, "avg_weight": 1, "label_claim": 1}, {})
-        assert res.values["additional_info.k_display"] == pytest.approx(2.4)
+    def test_editing_k_changes_the_av(self):
+        #  Editing additional_info.k_value drives the AV: centred mean -> AV==k*s,
+        #  so k=2.0 and k=2.4 give different AVs over the same data.
+        areas = [99.0, 100.0, 101.0] * 10  # mean 100.0 (centred)
+        import statistics as _st
+        s = round(_st.stdev(areas), 4)
+        for k in (2.0, 2.4):
+            res = _evaluator().evaluate(
+                _CTX,
+                {
+                    "additional_info": [{**_ADD_INFO, "k_value": k}],
+                    "standard": [_STD], "sample_dilution": [_SAMPLE_DILUTION],
+                    "std_areas": _STD_AREAS, "units": [_unit(a) for a in areas],
+                },
+            )
+            assert res.values["summary.acceptance_value"] == pytest.approx(round(k * s, 1))
 
     def test_identity(self):
         assert A8_CU_30U.code == "TPL-A8-0004"
@@ -138,12 +157,19 @@ class TestA8_0004CU30AcceptanceValue:
         assert result.values["summary.acceptance_value"] == pytest.approx(expected_av)
         assert expected_av == pytest.approx(3.2)
 
-    def test_av_expression_is_the_a8_hplc_object(self):
-        #  Reused verbatim: the summary group's AV expression is literally the
-        #  same string imported from a8_content_uniformity.
+    def test_av_expression_is_the_a8_hplc_nesting_with_editable_k(self):
+        #  The AV nesting is reused verbatim from a8_content_uniformity; the ONLY
+        #  change is the K reference, repointed from the bare `k_value` token to
+        #  the editable `additional_info.k_value` input. So the expression equals
+        #  _ACCEPTANCE_VALUE with that single substitution applied.
         summary = A8_CU_30U_DEFINITION["groups"][-1]
         av_field = next(f for f in summary["fields"] if f["key"] == "acceptance_value")
-        assert av_field["expression"] is _ACCEPTANCE_VALUE
+        assert av_field["expression"] == _ACCEPTANCE_VALUE.replace(
+            "k_value", "additional_info.k_value"
+        )
+        #  And the nesting (upper bound outermost, lower bound inside) is intact.
+        assert av_field["expression"].startswith("if(mean_pct < 101.5,")
+        assert "if(mean_pct < 98.5," in av_field["expression"]
 
 
 class TestA8_0004CU30BracketingRSD:

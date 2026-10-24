@@ -51,23 +51,12 @@ _BKT_ROWS = {"min": 0, "max": 6, "default": 0}
 
 def _cu_context_30() -> list[dict]:
     """
-    Same shape and label as `a8_content_uniformity._cu_context`, but the
-    acceptability constant defaults to 2.0 for the 30-unit stage. `_cu_context`
-    hard-codes 2.4 (the n=10 default); only that default changes here.
+    Context header WITHOUT a k_value field: the acceptability constant K is now
+    an EDITABLE input in the Additional Info group (`additional_info.k_value`),
+    the single source of truth the Acceptance Value reads. This avoids two
+    contradicting K's (a context one and an Additional Info one).
     """
-    return context_header(
-        extra=[
-            {
-                "key": "k_value",
-                "kind": "context",
-                "label": "Acceptability Constant k (2.4 for n=10, 2.0 for n=30)",
-                #  Drives the AV (k·s). Set to 2.4 per the worksheet's stated
-                #  n=10 / K=2.4; the Additional Info K mirrors this value.
-                "default": 2.4,
-                "overridable": True,
-            }
-        ]
-    )
+    return context_header()
 
 
 def _stats_group_30() -> dict:
@@ -146,10 +135,12 @@ def _additional_info_group() -> dict:
             #  (Number of Units) n — display value for the stated sample size.
             {"key": "n_units", "kind": "input", "label": "(Number of Units) n",
              "default": 10},
-            #  K — read-only mirror of the context `k_value` that drives the AV,
-            #  so the displayed K and the value the AV uses can never diverge.
-            {"key": "k_display", "kind": "calculated", "label": "K",
-             "expression": "k_value"},
+            #  K — EDITABLE here and the single source of truth: the Acceptance
+            #  Value reads `additional_info.k_value` directly, so editing K on the
+            #  worksheet changes the AV. Default 2.4 (n=10). (The separate context
+            #  k_value field was removed to avoid two contradicting K's.)
+            {"key": "k_value", "kind": "input", "label": "K", "default": 2.4,
+             "required": True},
         ],
     }
 
@@ -198,6 +189,20 @@ def _sample_dilution_group() -> dict:
              "unit": "mL", "default": 1},
         ],
     }
+
+
+def _summary_group_local(source: str) -> dict:
+    #  Reuse `_summary_group` verbatim, then repoint ONLY the acceptance_value
+    #  field's K reference to the editable `additional_info.k_value` (the shared
+    #  `_ACCEPTANCE_VALUE` string references a bare `k_value`, which no longer
+    #  exists as context here). The AV nesting itself is unchanged — just the
+    #  single `k_value` token becomes `additional_info.k_value`.
+    group = _summary_group(source)
+    av = next(f for f in group["fields"] if f["key"] == "acceptance_value")
+    av["expression"] = _ACCEPTANCE_VALUE.replace(
+        "k_value", "additional_info.k_value"
+    )
+    return group
 
 
 A8_CU_30U_DEFINITION = {
@@ -277,7 +282,7 @@ A8_CU_30U_DEFINITION = {
                 },
             ],
         },
-        _summary_group("units"),
+        _summary_group_local("units"),
     ],
     "criteria": [
         sst_rsd_criterion(),
