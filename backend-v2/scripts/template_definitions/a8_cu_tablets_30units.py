@@ -76,10 +76,11 @@ def _stats_group_30() -> dict:
     per-unit `pct_lc` expression divides by `stats.mean_std`.
     """
     group = standard_statistics_group()
-    #  Pooled bracketing statistics (replicates + both bracket blocks), as in
+    #  Pooled bracketing statistics (replicates + the bracketing block), as in
     #  A12-0001: a bracket averaged on its own would let a drifting system pass
-    #  suitability. Mean/SD/%RSD are rendered beneath the bracketing tables.
-    _pool = "pool(std_areas.area, bkt_1.area, bkt_2.area)"
+    #  suitability. Mean/SD/%RSD are rendered beneath the bracketing table and in
+    #  the STD-vs-BKT suitability summary.
+    _pool = "pool(std_areas.area, bkt_1.area)"
     group["fields"] += [
         {
             "key": "mean_bkt",
@@ -102,6 +103,27 @@ def _stats_group_30() -> dict:
         },
     ]
     return group
+
+
+def _suitability_summary_group() -> dict:
+    #  STD-vs-BKT suitability summary (shown where the second bracketing block
+    #  used to be): the standard-replicate Mean/%RSD and the pooled bracketing
+    #  Mean/%RSD side by side, read from the `stats` singleton.
+    return {
+        "key": "suitability_summary",
+        "kind": "singleton",
+        "label": "Standard Suitability Summary (STD vs BKT)",
+        "fields": [
+            {"key": "mean_std_disp", "kind": "calculated", "label": "Mean (STD)",
+             "expression": "stats.mean_std"},
+            {"key": "rsd_std_disp", "kind": "calculated", "label": "% RSD (STD)",
+             "unit": "%", "expression": "stats.rsd_std"},
+            {"key": "mean_bkt_disp", "kind": "calculated", "label": "Mean (BKT, pooled)",
+             "expression": "stats.mean_bkt"},
+            {"key": "rsd_bkt_disp", "kind": "calculated", "label": "% RSD (BKT, pooled)",
+             "unit": "%", "expression": "stats.rsd_bkt"},
+        ],
+    }
 
 
 #  ── Additional Info (user-requested, display-only) ──────────────────
@@ -191,20 +213,10 @@ A8_CU_30U_DEFINITION = {
                 {"label": "% RSD", "ref": "stats.rsd_bkt", "unit": "%"},
             ],
         },
-        {
-            "key": "bkt_2",
-            "kind": "table",
-            "label": "Bracketing Standard — Block 2",
-            "rows": _BKT_ROWS,
-            "fields": [{"key": "area", "kind": "area", "label": "BKT STD Area"}],
-            #  Same pooled bracketing Mean/SD/%RSD beneath block 2.
-            "footer": [
-                {"label": "Mean", "ref": "stats.mean_bkt"},
-                {"label": "SD", "ref": "stats.sd_bkt"},
-                {"label": "% RSD", "ref": "stats.rsd_bkt", "unit": "%"},
-            ],
-        },
         _stats_group_30(),
+        #  Where the second bracketing block used to be: the STD-vs-BKT
+        #  Mean/%RSD suitability summary.
+        _suitability_summary_group(),
         {
             "key": "units",
             "kind": "table",
@@ -222,11 +234,14 @@ A8_CU_30U_DEFINITION = {
                 },
                 #  No per-unit dilution columns: the shared `sample_dilution`
                 #  block supplies the one dilution chain for every unit.
-                {"key": "area", "kind": "area", "label": "Area", "unit": "µV·s"},
+                {"key": "area", "kind": "area", "label": "Area"},
                 {
                     "key": "pct_lc",
                     "kind": "calculated",
-                    "label": "% of Label Claim",
+                    #  % C.U. = each unit's content as a % of label claim (USP
+                    #  <905>); this per-unit value IS the content-uniformity
+                    #  percentage the summary/AV aggregate over.
+                    "label": "% C.U.",
                     "unit": "%",
                     #  A8_HPLC_DEFINITION's per-unit pct_lc, but the sample
                     #  dilution terms now read the SHARED `sample_dilution` block

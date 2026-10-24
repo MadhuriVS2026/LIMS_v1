@@ -139,11 +139,11 @@ class TestA8_0004CU30AcceptanceValue:
 
 class TestA8_0004CU30BracketingRSD:
     def test_pooled_bracketing_rsd(self):
-        #  stats.rsd_bkt == rsd(pool(std_areas.area, bkt_1.area, bkt_2.area)).
+        #  stats.rsd_bkt == rsd(pool(std_areas.area, bkt_1.area)) — the second
+        #  bracketing block was replaced by the STD-vs-BKT suitability summary.
         std_areas = [100.0, 101.0, 99.0, 100.5, 99.5]
         bkt_1 = [100.2, 99.8]
-        bkt_2 = [101.0]
-        pool = std_areas + bkt_1 + bkt_2
+        pool = std_areas + bkt_1
         expected = statistics.stdev(pool) / statistics.mean(pool) * 100
 
         result = _evaluator().evaluate(
@@ -153,7 +153,6 @@ class TestA8_0004CU30BracketingRSD:
                 "sample_dilution": [_SAMPLE_DILUTION],
                 "std_areas": [{"area": a} for a in std_areas],
                 "bkt_1": [{"area": a} for a in bkt_1],
-                "bkt_2": [{"area": a} for a in bkt_2],
                 "units": [_unit(100.0)],
             },
         )
