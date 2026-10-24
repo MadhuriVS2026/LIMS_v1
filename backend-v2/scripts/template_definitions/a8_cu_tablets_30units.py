@@ -61,7 +61,9 @@ def _cu_context_30() -> list[dict]:
                 "key": "k_value",
                 "kind": "context",
                 "label": "Acceptability Constant k (2.4 for n=10, 2.0 for n=30)",
-                "default": 2.0,
+                #  Drives the AV (k·s). Set to 2.4 per the worksheet's stated
+                #  n=10 / K=2.4; the Additional Info K mirrors this value.
+                "default": 2.4,
                 "overridable": True,
             }
         ]
@@ -141,6 +143,13 @@ def _additional_info_group() -> dict:
              "label": "Label Claim (description)", "default": "1000 mg"},
             {"key": "cu_of", "kind": "input", "type": "text",
              "label": "C.U. of", "default": "Metformin HCl"},
+            #  (Number of Units) n — display value for the stated sample size.
+            {"key": "n_units", "kind": "input", "label": "(Number of Units) n",
+             "default": 10},
+            #  K — read-only mirror of the context `k_value` that drives the AV,
+            #  so the displayed K and the value the AV uses can never diverge.
+            {"key": "k_display", "kind": "calculated", "label": "K",
+             "expression": "k_value"},
         ],
     }
 
@@ -242,7 +251,9 @@ A8_CU_30U_DEFINITION = {
                     #  <905>); this per-unit value IS the content-uniformity
                     #  percentage the summary/AV aggregate over.
                     "label": "% C.U.",
-                    "unit": "%",
+                    #  No `unit` here: the % C.U. cells show the bare value
+                    #  (102.8, 99.5, ...) — the "% C.U." header already conveys
+                    #  the unit, so a per-row "%" suffix would be redundant.
                     #  % C.U. per unit (tablet CU by HPLC): the whole unit is
                     #  dissolved, so there is NO division by the individual unit
                     #  weight. The sample dilution is the scale-UP (dilution)

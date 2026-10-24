@@ -78,10 +78,19 @@ class TestA8_0004CU30Structure:
         assert units.rows.default == 30
         assert units.rows.max == 30
 
-    def test_k_value_defaults_to_two(self):
+    def test_k_value_default(self):
+        #  k_value drives the AV and defaults to 2.4 per the worksheet's stated
+        #  n=10 / K=2.4; the Additional Info K mirrors it.
         parsed = TemplateDefinition.parse(A8_CU_30U_DEFINITION)
         k = next(cf for cf in parsed.context if cf.key == "k_value")
-        assert k.default == 2.0
+        assert k.default == 2.4
+
+    def test_additional_info_k_mirrors_k_value(self):
+        #  Additional Info K is a read-only mirror of k_value (single source of
+        #  truth, so the displayed K can't diverge from what the AV uses).
+        ev = _evaluator()
+        res = ev.evaluate({"k_value": 2.4, "avg_weight": 1, "label_claim": 1}, {})
+        assert res.values["additional_info.k_display"] == pytest.approx(2.4)
 
     def test_identity(self):
         assert A8_CU_30U.code == "TPL-A8-0004"
