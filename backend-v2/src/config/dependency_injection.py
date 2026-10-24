@@ -40,6 +40,7 @@ from src.infrastructure.database.repositories.resource_repositories_impl import 
     ChemicalRepositoryImpl,
     ColumnRepositoryImpl,
     InstrumentRepositoryImpl,
+    ProjectRepositoryImpl,
     ReferenceStandardRepositoryImpl,
     VolumetricSolutionRepositoryImpl,
 )
@@ -135,6 +136,7 @@ class Container:
             ReferenceStandardRepositoryImpl(session),
             ChemicalRepositoryImpl(session),
             VolumetricSolutionRepositoryImpl(session),
+            ProjectRepositoryImpl(session),
             AuditLogRepositoryImpl(session),
         )
 

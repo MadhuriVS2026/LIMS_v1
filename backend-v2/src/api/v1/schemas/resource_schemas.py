@@ -154,4 +154,45 @@ class VolumetricSolutionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CreateProjectRequest(BaseModel):
+    project_id: str
+    product_name: str
+    product_code: str | None = None
+    project_code: str | None = None
+    project_code_academic: str | None = None
+    bd_code_sap: str | None = None
+    group_lead: str | None = None
+    location: str | None = None
+    market: str | None = None
+    start_date: datetime | None = None
+    end_date: datetime | None = None
+    license: str | None = None
+    comments: str | None = None
+    status: str | None = None
+    requested_person: str | None = None
+    remarks: str | None = None
+
+
+class ProjectResponse(BaseModel):
+    id: int
+    project_id: str
+    product_name: str
+    product_code: str | None = None
+    project_code: str | None = None
+    project_code_academic: str | None = None
+    bd_code_sap: str | None = None
+    group_lead: str | None = None
+    location: str | None = None
+    market: str | None = None
+    start_date: datetime | None = None
+    end_date: datetime | None = None
+    license: str | None = None
+    comments: str | None = None
+    status: str
+    requested_person: str | None = None
+    remarks: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 

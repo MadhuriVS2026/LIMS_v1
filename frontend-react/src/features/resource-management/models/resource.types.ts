@@ -75,4 +75,24 @@ export interface VolumetricSolution {
   status: string;
 }
 
+export interface ProjectMaster {
+  id: number;
+  project_id: string;
+  product_name: string;
+  product_code?: string | null;
+  project_code?: string | null;
+  project_code_academic?: string | null;
+  bd_code_sap?: string | null;
+  group_lead?: string | null;
+  location?: string | null;
+  market?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  license?: string | null;
+  comments?: string | null;
+  status: string;
+  requested_person?: string | null;
+  remarks?: string | null;
+}
+
 // Stability now has its own dedicated feature — see @features/stability/models/stability.types.ts

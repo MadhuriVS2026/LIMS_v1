@@ -26,6 +26,7 @@ from src.infrastructure.database.models.instrument_model import InstrumentModel
 from src.infrastructure.database.models.resource_models import (
     ChemicalReagentModel,
     ColumnMasterModel,
+    ProjectMasterModel,
     ReferenceStandardModel,
     VolumetricSolutionModel,
 )
@@ -181,6 +182,36 @@ async def seed() -> None:
                     condition="25°C/60%RH", duration_months=24, study_type="Long Term",
                     testing_frequency="0,3,6,9,12,18,24", status="Active",
                     created_by="System", approved_by="System", approved_at=now))
+        await session.commit()
+
+        print("Seeding project master...")
+        session.add(ProjectMasterModel(
+            project_id="PID-2026-001", product_name="Doxorubicin Liposome",
+            product_code="PRD-DOXO-01", project_code="PRJ-ONCO-01",
+            project_code_academic="AR-ONCO-01", bd_code_sap="BD-100231",
+            group_lead="Suresh Iyer", location="Ahmedabad", market="US",
+            start_date=datetime(2026, 1, 15, tzinfo=timezone.utc),
+            end_date=datetime(2026, 12, 31, tzinfo=timezone.utc), license="ANDA",
+            comments="Liposomal oncology development program.", status="Active",
+            requested_person="BD Team", remarks="Priority project.", created_by="System"))
+        session.add(ProjectMasterModel(
+            project_id="PID-2026-002", product_name="Propofol 1% Emulsion",
+            product_code="PRD-PROP-01", project_code="PRJ-ANES-02",
+            project_code_academic="AR-ANES-02", bd_code_sap="BD-100232",
+            group_lead="Meera Nair", location="Hyderabad", market="EU",
+            start_date=datetime(2026, 2, 1, tzinfo=timezone.utc),
+            end_date=datetime(2026, 11, 30, tzinfo=timezone.utc), license="MAA",
+            comments="Lipid emulsion anaesthetic.", status="Active",
+            requested_person="BD Team", remarks="", created_by="System"))
+        session.add(ProjectMasterModel(
+            project_id="PID-2026-003", product_name="Bupivacaine Lipid Injection",
+            product_code="PRD-BUPI-01", project_code="PRJ-ANES-03",
+            project_code_academic="AR-ANES-03", bd_code_sap="BD-100233",
+            group_lead="Arjun Rao", location="Bengaluru", market="IN",
+            start_date=datetime(2025, 9, 1, tzinfo=timezone.utc),
+            end_date=datetime(2026, 8, 31, tzinfo=timezone.utc), license="NDA",
+            comments="Long-acting local anaesthetic.", status="Inactive",
+            requested_person="BD Team", remarks="On hold pending review.", created_by="System"))
         await session.commit()
 
         session.add(AuditLogModel(user_id=0, username="System", action="SEED",

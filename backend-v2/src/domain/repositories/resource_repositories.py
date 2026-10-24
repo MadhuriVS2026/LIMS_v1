@@ -5,6 +5,7 @@ from src.domain.entities.instrument import Instrument
 from src.domain.entities.resource_items import (
     ChemicalReagent,
     ColumnMaster,
+    ProjectMaster,
     ReferenceStandard,
     VolumetricSolution,
 )
@@ -57,3 +58,11 @@ class IVolumetricSolutionRepository(ABC):
 
     @abstractmethod
     async def create(self, solution: VolumetricSolution) -> VolumetricSolution: ...
+
+
+class IProjectRepository(ABC):
+    @abstractmethod
+    async def list_all(self) -> list[ProjectMaster]: ...
+
+    @abstractmethod
+    async def create(self, project: ProjectMaster) -> ProjectMaster: ...

@@ -8,6 +8,7 @@ from src.domain.entities.instrument import Instrument
 from src.domain.entities.resource_items import (
     ChemicalReagent,
     ColumnMaster,
+    ProjectMaster,
     ReferenceStandard,
     VolumetricSolution,
 )
@@ -15,6 +16,7 @@ from src.domain.repositories.resource_repositories import (
     IChemicalRepository,
     IColumnRepository,
     IInstrumentRepository,
+    IProjectRepository,
     IReferenceStandardRepository,
     IVolumetricSolutionRepository,
 )
@@ -22,6 +24,7 @@ from src.infrastructure.database.models.instrument_model import InstrumentModel
 from src.infrastructure.database.models.resource_models import (
     ChemicalReagentModel,
     ColumnMasterModel,
+    ProjectMasterModel,
     ReferenceStandardModel,
     VolumetricSolutionModel,
 )
@@ -219,6 +222,44 @@ class VolumetricSolutionRepositoryImpl(IVolumetricSolutionRepository):
             expiry_date=model.expiry_date, standardization_factor=model.standardization_factor,
             standardized_by=model.standardized_by, standardized_date=model.standardized_date,
             status=model.status, created_by=model.created_by, created_date=model.created_date,
+            modified_by=model.modified_by, modified_date=model.modified_date,
+        )
+
+
+class ProjectRepositoryImpl(IProjectRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list_all(self) -> list[ProjectMaster]:
+        result = await self._session.execute(select(ProjectMasterModel))
+        return [self._to_entity(m) for m in result.scalars().all()]
+
+    async def create(self, project: ProjectMaster) -> ProjectMaster:
+        model = ProjectMasterModel(
+            project_id=project.project_id, product_name=project.product_name,
+            product_code=project.product_code, project_code=project.project_code,
+            project_code_academic=project.project_code_academic, bd_code_sap=project.bd_code_sap,
+            group_lead=project.group_lead, location=project.location, market=project.market,
+            start_date=project.start_date, end_date=project.end_date, license=project.license,
+            comments=project.comments, status=project.status,
+            requested_person=project.requested_person, remarks=project.remarks,
+            created_by=project.created_by, modified_by=project.modified_by,
+        )
+        self._session.add(model)
+        await self._session.flush()
+        return self._to_entity(model)
+
+    @staticmethod
+    def _to_entity(model: ProjectMasterModel) -> ProjectMaster:
+        return ProjectMaster(
+            id=model.id, project_id=model.project_id, product_name=model.product_name,
+            product_code=model.product_code, project_code=model.project_code,
+            project_code_academic=model.project_code_academic, bd_code_sap=model.bd_code_sap,
+            group_lead=model.group_lead, location=model.location, market=model.market,
+            start_date=model.start_date, end_date=model.end_date, license=model.license,
+            comments=model.comments, status=model.status,
+            requested_person=model.requested_person, remarks=model.remarks,
+            created_by=model.created_by, created_date=model.created_date,
             modified_by=model.modified_by, modified_date=model.modified_date,
         )
 

@@ -6,6 +6,7 @@ import type {
   ChemicalReagent,
   ColumnMaster,
   Instrument,
+  ProjectMaster,
   ReferenceStandard,
   VolumetricSolution,
 } from '../models/resource.types';
@@ -55,6 +56,15 @@ export const volumetricApi = {
   },
   async create(payload: Partial<VolumetricSolution>): Promise<VolumetricSolution> {
     return (await apiClient.post<VolumetricSolution>('/volumetric-solutions', payload)).data;
+  },
+};
+
+export const projectApi = {
+  async list(): Promise<ProjectMaster[]> {
+    return (await apiClient.get<ProjectMaster[]>('/projects')).data;
+  },
+  async create(payload: Partial<ProjectMaster>): Promise<ProjectMaster> {
+    return (await apiClient.post<ProjectMaster>('/projects', payload)).data;
   },
 };
 

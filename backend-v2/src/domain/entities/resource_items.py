@@ -63,6 +63,28 @@ class ChemicalReagent(BaseEntity):
 
 
 @dataclass
+class ProjectMaster(BaseEntity):
+    """Project master for R&D / DLIMS with 17-field project tracking."""
+
+    project_id: str = field(default="")
+    product_name: str = field(default="")
+    product_code: str | None = field(default=None)
+    project_code: str | None = field(default=None)
+    project_code_academic: str | None = field(default=None)
+    bd_code_sap: str | None = field(default=None)
+    group_lead: str | None = field(default=None)
+    location: str | None = field(default=None)
+    market: str | None = field(default=None)
+    start_date: datetime | None = field(default=None)
+    end_date: datetime | None = field(default=None)
+    license: str | None = field(default=None)
+    comments: str | None = field(default=None)
+    status: str = field(default="Active")
+    requested_person: str | None = field(default=None)
+    remarks: str | None = field(default=None)
+
+
+@dataclass
 class VolumetricSolution(BaseEntity):
     """Volumetric solution preparation & standardization master."""
 

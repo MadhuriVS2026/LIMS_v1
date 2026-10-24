@@ -41,6 +41,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Reference Standards', icon: 'pi pi-verified', path: '/standards', section: 'Resource Manager', menuKey: 'standards' },
   { label: 'Columns', icon: 'pi pi-bars', path: '/columns', section: 'Resource Manager', menuKey: 'columns' },
   { label: 'Volumetric Solutions', icon: 'pi pi-tint', path: '/volumetric', section: 'Resource Manager', menuKey: 'volumetric' },
+  { label: 'Project Master', icon: 'pi pi-briefcase', path: '/projects', section: 'Resource Manager', menuKey: 'projects' },
   { label: 'SAP Integration', icon: 'pi pi-sitemap', path: '/sap', section: 'Integration', menuKey: 'sap' },
   { label: 'User Management', icon: 'pi pi-users', path: '/users', section: 'Administration', menuKey: 'users' },
   { label: 'Audit Trail', icon: 'pi pi-history', path: '/audit', section: 'Administration', menuKey: 'audit' },

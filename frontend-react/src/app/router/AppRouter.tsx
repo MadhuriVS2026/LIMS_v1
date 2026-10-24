@@ -18,6 +18,7 @@ import {
   ChemicalsPage,
   ColumnsPage,
   InstrumentsPage,
+  ProjectMasterPage,
   StandardsPage,
   VolumetricPage,
 } from '@features/resource-management';
@@ -65,6 +66,7 @@ export const AppRouter = () => (
         <Route path="/standards" element={<StandardsPage />} />
         <Route path="/columns" element={<ColumnsPage />} />
         <Route path="/volumetric" element={<VolumetricPage />} />
+        <Route path="/projects" element={<ProjectMasterPage />} />
 
         <Route path="/mrn/queue" element={<MaterialQueuePage />} />
         <Route path="/mrn" element={<MyMRNsPage />} />

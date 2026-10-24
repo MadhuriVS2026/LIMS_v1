@@ -6,6 +6,7 @@ import {
   chemicalApi,
   columnApi,
   instrumentApi,
+  projectApi,
   referenceStandardApi,
   volumetricApi,
 } from '../api/resourceApi';
@@ -48,6 +49,14 @@ export function useVolumetricSolutions() {
 export function useCreateVolumetricSolution() {
   const qc = useQueryClient();
   return useMutation({ mutationFn: volumetricApi.create, onSuccess: () => qc.invalidateQueries({ queryKey: ['volumetric-solutions'] }) });
+}
+
+export function useProjects() {
+  return useQuery({ queryKey: ['projects'], queryFn: projectApi.list });
+}
+export function useCreateProject() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: projectApi.create, onSuccess: () => qc.invalidateQueries({ queryKey: ['projects'] }) });
 }
 
 // Stability now has its own dedicated feature — see @features/stability/hooks/useStability.ts

@@ -25,6 +25,7 @@ from src.infrastructure.database.models.product_model import ProductModel  # noq
 from src.infrastructure.database.models.resource_models import (  # noqa: F401
     ChemicalReagentModel,
     ColumnMasterModel,
+    ProjectMasterModel,
     ReferenceStandardModel,
     VolumetricSolutionModel,
 )

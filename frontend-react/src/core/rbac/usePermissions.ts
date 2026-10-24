@@ -51,6 +51,7 @@ const MENU_ACCESS: Record<string, Role[]> = {
   standards: ['Admin', 'Analyst', 'Supervisor', 'QA'],
   columns: ['Admin', 'Analyst', 'Supervisor', 'QA'],
   volumetric: ['Admin', 'Analyst', 'Supervisor', 'QA'],
+  projects: ['Admin', 'Analyst', 'Supervisor', 'QA'],
   sap: ['Admin', 'QA', 'Analyst'],
   users: ['Admin'],
   audit: ['Admin', 'Analyst', 'Supervisor', 'QA'],

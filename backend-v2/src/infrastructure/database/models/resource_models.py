@@ -61,6 +61,27 @@ class ChemicalReagentModel(BaseModel):
     status: Mapped[str] = mapped_column(String(50), default="Active")
 
 
+class ProjectMasterModel(BaseModel):
+    __tablename__ = "project_master"
+
+    project_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    product_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    product_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    project_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    project_code_academic: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    bd_code_sap: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    group_lead: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    location: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    market: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    start_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    end_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    license: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    comments: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="Active")
+    requested_person: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    remarks: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+
+
 class VolumetricSolutionModel(BaseModel):
     __tablename__ = "volumetric_solutions"
 

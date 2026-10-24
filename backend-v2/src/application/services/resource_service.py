@@ -11,6 +11,7 @@ from src.domain.entities.instrument import Instrument
 from src.domain.entities.resource_items import (
     ChemicalReagent,
     ColumnMaster,
+    ProjectMaster,
     ReferenceStandard,
     VolumetricSolution,
 )
@@ -20,6 +21,7 @@ from src.domain.repositories.resource_repositories import (
     IChemicalRepository,
     IColumnRepository,
     IInstrumentRepository,
+    IProjectRepository,
     IReferenceStandardRepository,
     IVolumetricSolutionRepository,
 )
@@ -35,6 +37,7 @@ class ResourceService:
         standard_repo: IReferenceStandardRepository,
         chemical_repo: IChemicalRepository,
         volumetric_repo: IVolumetricSolutionRepository,
+        project_repo: IProjectRepository,
         audit_repo: IAuditLogRepository,
     ) -> None:
         self._instrument_repo = instrument_repo
@@ -42,6 +45,7 @@ class ResourceService:
         self._standard_repo = standard_repo
         self._chemical_repo = chemical_repo
         self._volumetric_repo = volumetric_repo
+        self._project_repo = project_repo
         self._audit_repo = audit_repo
 
     # ─── Instruments ───
@@ -172,5 +176,32 @@ class ResourceService:
         await self._audit_repo.write(
             AuditLog(user_id=actor.id, username=actor.username, action="CREATE",
                       table_name="volumetric_solutions", record_id=created.id)
+        )
+        return created
+
+    # ─── Project Master ───
+    async def list_projects(self) -> list[ProjectMaster]:
+        return await self._project_repo.list_all()
+
+    async def create_project(
+        self, project_id: str, product_name: str, product_code: str | None,
+        project_code: str | None, project_code_academic: str | None, bd_code_sap: str | None,
+        group_lead: str | None, location: str | None, market: str | None,
+        start_date: datetime | None, end_date: datetime | None, license: str | None,
+        comments: str | None, status: str | None, requested_person: str | None,
+        remarks: str | None, actor: User,
+    ) -> ProjectMaster:
+        project = ProjectMaster(
+            project_id=project_id, product_name=product_name, product_code=product_code,
+            project_code=project_code, project_code_academic=project_code_academic,
+            bd_code_sap=bd_code_sap, group_lead=group_lead, location=location, market=market,
+            start_date=start_date, end_date=end_date, license=license, comments=comments,
+            status=status or "Active", requested_person=requested_person, remarks=remarks,
+            created_by=actor.username, modified_by=actor.username,
+        )
+        created = await self._project_repo.create(project)
+        await self._audit_repo.write(
+            AuditLog(user_id=actor.id, username=actor.username, action="CREATE",
+                      table_name="project_master", record_id=created.id)
         )
         return created

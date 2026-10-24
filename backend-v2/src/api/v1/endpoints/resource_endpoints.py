@@ -11,9 +11,11 @@ from src.api.v1.schemas.resource_schemas import (
     CreateChemicalRequest,
     CreateColumnRequest,
     CreateInstrumentRequest,
+    CreateProjectRequest,
     CreateReferenceStandardRequest,
     CreateVolumetricSolutionRequest,
     InstrumentResponse,
+    ProjectResponse,
     RecordCalibrationRequest,
     ReferenceStandardResponse,
     VolumetricSolutionResponse,
@@ -143,4 +145,27 @@ async def create_volumetric_solution(
     return await service.create_volumetric_solution(
         request.code, request.name, request.concentration, request.prepared_date,
         request.expiry_date, request.standardization_factor, current_user,
+    )
+
+
+# ─── Project Master ───
+@router.get("/projects", response_model=list[ProjectResponse])
+async def list_projects(
+    current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)
+):
+    return await Container.get_resource_service(session).list_projects()
+
+
+@router.post("/projects", response_model=ProjectResponse)
+async def create_project(
+    request: CreateProjectRequest,
+    current_user: User = Depends(require_role("Admin")),
+    session: AsyncSession = Depends(get_session),
+):
+    service = Container.get_resource_service(session)
+    return await service.create_project(
+        request.project_id, request.product_name, request.product_code, request.project_code,
+        request.project_code_academic, request.bd_code_sap, request.group_lead, request.location,
+        request.market, request.start_date, request.end_date, request.license, request.comments,
+        request.status, request.requested_person, request.remarks, current_user,
     )
