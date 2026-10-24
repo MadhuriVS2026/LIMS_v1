@@ -243,16 +243,23 @@ A8_CU_30U_DEFINITION = {
                     #  percentage the summary/AV aggregate over.
                     "label": "% C.U.",
                     "unit": "%",
-                    #  A8_HPLC_DEFINITION's per-unit pct_lc, but the sample
-                    #  dilution terms now read the SHARED `sample_dilution` block
-                    #  (one row, index 0) instead of per-unit columns.
+                    #  % C.U. per unit (tablet CU by HPLC): the whole unit is
+                    #  dissolved, so there is NO division by the individual unit
+                    #  weight. The sample dilution is the scale-UP (dilution)
+                    #  direction of the shared Sample Details chain:
+                    #      s_vol_1/s_pip_1 * s_vol_2/s_pip_2 * s_vol_3
+                    #  (100/4.0 * 50/1.0 * 1 = 1250), paired Dilution-with-Pipette
+                    #  per stage. Derived + verified against gold: STD conc chain
+                    #  0.020584, sample factor 1250, avg_weight/label_claim 1/25,
+                    #  ×100 -> factor 102.92; with std mean ~316293 this reproduces
+                    #  units 1/2/3 = 102.8 / 99.5 / 104.8.
                     "expression": (
                         f"area / stats.mean_std * {standard_chain_terms()} "
                         "* standard.potency / 100 "
                         "* standard.mw_base / standard.mw_salt "
-                        "* sample_dilution.s_vol_2 / sample_dilution.s_pip_1 "
-                        "* sample_dilution.s_vol_3 / sample_dilution.s_pip_2 "
-                        "* sample_dilution.s_vol_1 / unit_weight "
+                        "* sample_dilution.s_vol_1 / sample_dilution.s_pip_1 "
+                        "* sample_dilution.s_vol_2 / sample_dilution.s_pip_2 "
+                        "* sample_dilution.s_vol_3 "
                         "* avg_weight / label_claim * 100"
                     ),
                     "rounding": {"mode": "round", "digits": 1},
