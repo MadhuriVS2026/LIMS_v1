@@ -1,0 +1,178 @@
+"""
+A8 — Content Uniformity (by HPLC), 30-unit stage ("CU-tablets-30units").
+
+This is a FRESH module for the USP <905> stage-2 (30-unit) content-uniformity
+test. It reuses existing suitability and arithmetic LOGIC verbatim rather than
+re-deriving any of it:
+
+  * The Acceptance-Value arithmetic is `a8_content_uniformity._ACCEPTANCE_VALUE`
+    imported UNCHANGED — USP <905> AV = |M - X| + k·s, nested with the upper
+    bound tested OUTERMOST and the lower bound inside. Reversing that nesting
+    gives the wrong AV for any mean below 98.5, so it is reused as the literal
+    same object. `_summary_group` and `_cu_criteria` are imported from the same
+    module for the same reason.
+  * The weighed-standard block, the standard replicate-injection table (with its
+    Mean/SD/%RSD footer) and the standard statistics come from the `_common`
+    helpers (`standard_group`, `replicate_area_group`, `standard_statistics_group`,
+    `sst_rsd_criterion`, `context_header`, `standard_chain_terms`,
+    `dilution_fields`) exactly as `A8_HPLC_DEFINITION` uses them.
+  * The bracketing-standard pattern is reused from A12-0001 (Free & Entrapped
+    Drug): two bracketing blocks `bkt_1`/`bkt_2` (kind: table, rows
+    {min:0,max:6,default:0}, a single area field each) plus a pooled %RSD field
+    `rsd(pool(std_areas.area, bkt_1.area, bkt_2.area))` and a blocking SST
+    criterion on that pooled %RSD (NMT 2.0 %).
+
+The only deliberate difference from `A8_HPLC_DEFINITION`: this is the 30-unit
+stage, so the `units` table defaults to 30 rows and the acceptability constant
+`k_value` defaults to **2.0** (USP <905> k for n=30 is 2.0, not 2.4). Everything
+else — the per-unit `pct_lc` expression, the summary/AV group and the AV/SST
+criteria — is the A8 HPLC logic retargeted to 30 units.
+"""
+from scripts.template_definitions._common import (
+    SeedTemplate,
+    context_header,
+    dilution_fields,
+    replicate_area_group,
+    standard_chain_terms,
+    standard_group,
+    standard_statistics_group,
+    sst_rsd_criterion,
+)
+from scripts.template_definitions.a8_content_uniformity import (
+    _ACCEPTANCE_VALUE,  # noqa: F401 — reused verbatim via _summary_group
+    _cu_criteria,
+    _summary_group,
+)
+
+#  Bracketing blocks start empty and grow as brackets are actually injected —
+#  the A12-0001 shape. Pre-filling blank rows would show injections that never
+#  happened on a worksheet meant to be a record of what was run.
+_BKT_ROWS = {"min": 0, "max": 6, "default": 0}
+
+
+def _cu_context_30() -> list[dict]:
+    """
+    Same shape and label as `a8_content_uniformity._cu_context`, but the
+    acceptability constant defaults to 2.0 for the 30-unit stage. `_cu_context`
+    hard-codes 2.4 (the n=10 default); only that default changes here.
+    """
+    return context_header(
+        extra=[
+            {
+                "key": "k_value",
+                "kind": "context",
+                "label": "Acceptability Constant k (2.4 for n=10, 2.0 for n=30)",
+                "default": 2.0,
+                "overridable": True,
+            }
+        ]
+    )
+
+
+def _stats_group_30() -> dict:
+    """
+    Standard statistics as `standard_statistics_group()` gives (keys `mean_std`,
+    `sd_std`, `rsd_std` over `std_areas.area`) PLUS the pooled bracketing %RSD
+    field from the A12-0001 pattern. `mean_std` is kept unchanged because the
+    per-unit `pct_lc` expression divides by `stats.mean_std`.
+    """
+    group = standard_statistics_group()
+    group["fields"].append(
+        {
+            "key": "rsd_bkt",
+            "kind": "calculated",
+            "label": "%RSD (pooled with bracketing standards)",
+            "unit": "%",
+            #  Cumulative pooling, as in A12-0001: a bracket averaged on its own
+            #  would let a drifting system pass suitability.
+            "expression": "rsd(pool(std_areas.area, bkt_1.area, bkt_2.area))",
+        }
+    )
+    return group
+
+
+A8_CU_30U_DEFINITION = {
+    "resultRef": "summary.acceptance_value",
+    "context": _cu_context_30(),
+    "groups": [
+        standard_group(conc_label="Standard Concentration"),
+        replicate_area_group(default_rows=5),
+        {
+            "key": "bkt_1",
+            "kind": "table",
+            "label": "Bracketing Standard — Block 1",
+            "rows": _BKT_ROWS,
+            "fields": [{"key": "area", "kind": "area", "label": "BKT STD Area"}],
+        },
+        {
+            "key": "bkt_2",
+            "kind": "table",
+            "label": "Bracketing Standard — Block 2",
+            "rows": _BKT_ROWS,
+            "fields": [{"key": "area", "kind": "area", "label": "BKT STD Area"}],
+        },
+        _stats_group_30(),
+        {
+            "key": "units",
+            "kind": "table",
+            "label": "Individual Units",
+            #  Thirty units by default: this is the stage-2 template.
+            "rows": {"min": 1, "max": 30, "default": 30},
+            "fields": [
+                {"key": "unit_ref", "kind": "input", "type": "text", "label": "Unit"},
+                {
+                    "key": "unit_weight",
+                    "kind": "input",
+                    "label": "Unit Wt.",
+                    "unit": "mg",
+                    "required": True,
+                },
+                *dilution_fields("s_"),
+                {"key": "area", "kind": "area", "label": "Area", "unit": "µV·s"},
+                {
+                    "key": "pct_lc",
+                    "kind": "calculated",
+                    "label": "% of Label Claim",
+                    "unit": "%",
+                    #  Verbatim from A8_HPLC_DEFINITION's per-unit pct_lc.
+                    "expression": (
+                        f"area / stats.mean_std * {standard_chain_terms()} "
+                        "* standard.potency / 100 "
+                        "* standard.mw_base / standard.mw_salt "
+                        "* s_vol_2 / s_pip_1 * s_vol_3 / s_pip_2 "
+                        "* s_vol_1 / unit_weight "
+                        "* avg_weight / label_claim * 100"
+                    ),
+                    "rounding": {"mode": "round", "digits": 1},
+                },
+            ],
+        },
+        _summary_group("units"),
+    ],
+    "criteria": [
+        sst_rsd_criterion(),
+        {
+            "key": "sst_bkt_rsd",
+            "label": "%RSD of pooled bracketing standards",
+            "target": "stats.rsd_bkt",
+            "operator": "lte",
+            "limit": 2.0,
+            "severity": "blocking",
+            "limitText": "NMT 2.0 %",
+        },
+        *_cu_criteria("units"),
+    ],
+}
+
+A8_CU_30U = SeedTemplate(
+    code="TPL-A8-0004",
+    name="Content Uniformity by HPLC — 30 Units (Stage 2)",
+    archetype="A8",
+    result_unit="AV",
+    test_code="TST-CU-30U",
+    test_name="CU-tablets-30units",
+    test_type="Quantitative",
+    definition=A8_CU_30U_DEFINITION,
+)
+
+TEMPLATES = [A8_CU_30U]
