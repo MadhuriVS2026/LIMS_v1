@@ -98,11 +98,11 @@ def _standard_group() -> dict:
             {"key": "weight_mg", "kind": "input", "label": "Weight (mg) of Standard",
              "unit": "mg", "required": True, "default": 25.65},             # E19
             {"key": "dilution_1", "kind": "input", "label": "Dilution-1 (mL)",
-             "unit": "mL", "default": 25},                                  # G19
+             "default": 25},                                                # G19
             {"key": "volume_1", "kind": "input", "label": "Volume-1 (mL)",
-             "unit": "mL", "default": 5},                                   # H19
+             "default": 5},                                                 # H19
             {"key": "dilution_2", "kind": "input", "label": "Dilution-2 (mL)",
-             "unit": "mL", "default": 50},                                  # I19
+             "default": 50},                                                # I19
             {"key": "conc_ppm", "kind": "calculated",
              "label": "Concentration (ppm)", "unit": "ppm",
              "expression": "weight_mg / dilution_1 * volume_1 / dilution_2"
@@ -133,6 +133,13 @@ def _bkt_group() -> dict:
         "key": "bkt", "kind": "table", "label": "Bracketing standard area",
         "rows": {"min": 0, "max": 5, "default": 2},
         "fields": [{"key": "area", "kind": "area", "label": "Standard area"}],
+        #  Pooled bracketing statistics (sheet D27/D28/D29 = over B22:B26 + the
+        #  BKT areas), shown beneath the BKT table: Mean / STDev / % RSD.
+        "footer": [
+            {"label": "Mean", "ref": "std_stats.mean_bkt"},
+            {"label": "STDev", "ref": "std_stats.sd_bkt"},
+            {"label": "% RSD", "ref": "std_stats.rsd_bkt", "unit": "%"},
+        ],
     }
 
 
