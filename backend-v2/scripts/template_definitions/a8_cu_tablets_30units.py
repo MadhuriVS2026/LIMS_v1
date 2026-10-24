@@ -91,10 +91,47 @@ def _stats_group_30() -> dict:
     return group
 
 
+#  ── Additional Info (user-requested, display-only) ──────────────────
+#  Two free-text info fields plus a free-text Procedure table. None of these
+#  feed any calculation: the numeric `label_claim` context field remains the AV
+#  divisor, untouched. `lc_description` is a SEPARATE alphanumeric label ("1000
+#  mg") so it must never be confused with the numeric divisor.
+def _additional_info_group() -> dict:
+    return {
+        "key": "additional_info",
+        "kind": "singleton",
+        "label": "Additional Info",
+        "fields": [
+            {"key": "lc_description", "kind": "input", "type": "text",
+             "label": "Label Claim (description)", "default": "1000 mg"},
+            {"key": "cu_of", "kind": "input", "type": "text",
+             "label": "C.U. of", "default": "Metformin HCl"},
+        ],
+    }
+
+
+def _procedure_group() -> dict:
+    #  Free-text procedure table: a Stage label (STD Prep. / Sample Prep.) and a
+    #  multiline description. Expandable (add rows); starts with the two stages.
+    return {
+        "key": "procedure",
+        "kind": "table",
+        "label": "Procedure",
+        "rows": {"min": 1, "max": 10, "default": 2, "labelFrom": "stage"},
+        "fields": [
+            {"key": "stage", "kind": "input", "type": "text", "label": "Stage"},
+            {"key": "description", "kind": "input", "type": "text",
+             "label": "Procedure", "multiline": True},
+        ],
+    }
+
+
 A8_CU_30U_DEFINITION = {
     "resultRef": "summary.acceptance_value",
     "context": _cu_context_30(),
     "groups": [
+        _additional_info_group(),
+        _procedure_group(),
         standard_group(conc_label="Standard Concentration"),
         replicate_area_group(default_rows=5),
         {
