@@ -341,6 +341,9 @@ def _residue_stats_group(key: str) -> dict:
 #  C70 = ($A$32 - B70) / ($A$32) * 100, where B70 is a MANUALLY ENTERED
 #  %Residue value and A32 = prep.pct_assay (number()-guarded as a divisor).
 def _release_group(key: str, label: str) -> dict:
+    #  Data table shows ONLY the entered %Residue + computed %Release; the block's
+    #  Mean/Min/Max/RSD (D/E/F/G) are published by `<key>_stats` and rendered as a
+    #  footer row beneath (same shape as the %Residue blocks).
     return {
         "key": key, "kind": "table", "label": label,
         "rows": {"min": 1, "max": _UNITS, "default": _UNITS},
@@ -351,14 +354,32 @@ def _release_group(key: str, label: str) -> dict:
              "label": "%Release of Octreotide Base", "unit": "%",
              "expression": "(number(prep.pct_assay) - residue_in)"
                            " / number(prep.pct_assay) * 100"},              # C70
+        ],
+        "footer": [
+            {"label": "Mean", "ref": f"{key}_stats.mean", "unit": "%"},
+            {"label": "Min", "ref": f"{key}_stats.min_v", "unit": "%"},
+            {"label": "Max", "ref": f"{key}_stats.max_v", "unit": "%"},
+            {"label": "RSD", "ref": f"{key}_stats.rsd", "unit": "%"},
+        ],
+    }
+
+
+def _release_stats_group(key: str) -> dict:
+    #  Per-block %Release statistics (sheet D/E/F/G rows 70/76/82), referenced by
+    #  the release table footer. Singleton so the data table carries only the two
+    #  entry/result columns.
+    return {
+        "key": f"{key}_stats", "kind": "singleton",
+        "label": f"{key} statistics",
+        "fields": [
             {"key": "mean", "kind": "calculated", "label": "Mean", "unit": "%",
-             "expression": f"mean({key}.rel)"},                             # D70
+             "expression": f"mean({key}.rel)"},                             # D
             {"key": "min_v", "kind": "calculated", "label": "Min", "unit": "%",
-             "expression": f"min({key}.rel)"},                              # E70
+             "expression": f"min({key}.rel)"},                              # E
             {"key": "max_v", "kind": "calculated", "label": "Max", "unit": "%",
-             "expression": f"max({key}.rel)"},                              # F70
+             "expression": f"max({key}.rel)"},                              # F
             {"key": "rsd", "kind": "calculated", "label": "RSD", "unit": "%",
-             "expression": f"sd({key}.rel) * 100 / mean"},                  # G70
+             "expression": f"sd({key}.rel) * 100 / {key}_stats.mean"},       # G
         ],
     }
 
@@ -395,8 +416,11 @@ A6B_OCT_DEFINITION = {
             ],
         },
         _release_group("release_1hr", "%Release — 1 hr at 37°C"),
+        _release_stats_group("release_1hr"),
         _release_group("release_4hr", "%Release — 4 hr at 55°C"),
+        _release_stats_group("release_4hr"),
         _release_group("release_24hr", "%Release — 24 hr at 55°C"),
+        _release_stats_group("release_24hr"),
     ],
     #  Explicit target: this template renames the stats group to std_stats, so a
     #  bare sst_rsd_criterion() (default stats.rsd_std) would never evaluate.

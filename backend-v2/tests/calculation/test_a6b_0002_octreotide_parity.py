@@ -165,16 +165,16 @@ class TestA6B0002OctreotidePh10Parity:
         # C71 = (4.12 - 4.14)/4.12 * 100
         assert result.row_value("release_1hr", 1, "rel") == pytest.approx(
             -0.48543689320387312, abs=1e-4)
-        # D70 = AVERAGE(C70:C75)
-        assert result.row_value("release_1hr", 0, "mean") == pytest.approx(
+        # D70 = AVERAGE(C70:C75) — now published by the block stats singleton.
+        assert result.values["release_1hr_stats.mean"] == pytest.approx(
             0.72815533980583125, abs=1e-4)
         # E70 = MIN; F70 = MAX
-        assert result.row_value("release_1hr", 0, "min_v") == pytest.approx(
+        assert result.values["release_1hr_stats.min_v"] == pytest.approx(
             -0.48543689320387312, abs=1e-4)
-        assert result.row_value("release_1hr", 0, "max_v") == pytest.approx(
+        assert result.values["release_1hr_stats.max_v"] == pytest.approx(
             1.9417475728155356, abs=1e-4)
         # G70 = STDEV(C70:C75)*100/D70
-        assert result.row_value("release_1hr", 0, "rsd") == pytest.approx(
+        assert result.values["release_1hr_stats.rsd"] == pytest.approx(
             235.70226039551304, abs=1e-3)
 
     # ── %Release — 4 hr at 55°C (C76, D76/G76) ──────────────────────
@@ -183,10 +183,10 @@ class TestA6B0002OctreotidePh10Parity:
         assert result.row_value("release_4hr", 0, "rel") == pytest.approx(
             31.310679611650489, abs=1e-4)
         # D76 = AVERAGE(C76:C81); both entered values equal, so mean == value
-        assert result.row_value("release_4hr", 0, "mean") == pytest.approx(
+        assert result.values["release_4hr_stats.mean"] == pytest.approx(
             31.310679611650489, abs=1e-4)
         # G76 = STDEV(C76:C81)*100/D76 = 0 (both values identical)
-        assert result.row_value("release_4hr", 0, "rsd") == pytest.approx(0, abs=1e-6)
+        assert result.values["release_4hr_stats.rsd"] == pytest.approx(0, abs=1e-6)
 
     # ── %Release — 24 hr at 55°C (C82/C83, D82/G82) ─────────────────
     def test_release_24hr(self, result):
@@ -197,10 +197,10 @@ class TestA6B0002OctreotidePh10Parity:
         assert result.row_value("release_24hr", 1, "rel") == pytest.approx(
             55.339805825242728, abs=1e-4)
         # D82 = AVERAGE(C82:C87)
-        assert result.row_value("release_24hr", 0, "mean") == pytest.approx(
+        assert result.values["release_24hr_stats.mean"] == pytest.approx(
             54.126213592233015, abs=1e-4)
         # G82 = STDEV(C82:C87)*100/D82
-        assert result.row_value("release_24hr", 0, "rsd") == pytest.approx(
+        assert result.values["release_24hr_stats.rsd"] == pytest.approx(
             3.1708824268455151, abs=1e-4)
 
     # ── Reportable result resolves (residue_24hr.mean) ──────────────
