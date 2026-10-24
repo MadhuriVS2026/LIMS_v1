@@ -31,7 +31,6 @@ criteria — is the A8 HPLC logic retargeted to 30 units.
 from scripts.template_definitions._common import (
     SeedTemplate,
     context_header,
-    dilution_fields,
     replicate_area_group,
     standard_chain_terms,
     standard_group,
@@ -140,6 +139,36 @@ def _procedure_group() -> dict:
     }
 
 
+def _sample_dilution_group() -> dict:
+    #  SHARED sample-prep dilution below Standard details — ONE chain for all
+    #  units (sheet's single "1 Tablet" prep row). Its dilution fields FEED the
+    #  per-unit % L.C.: `units.pct_lc` reads `sample_dilution.<field>[0]` for the
+    #  volume/pipette terms, so the per-unit `units` table no longer carries its
+    #  own dilution columns. `sample_dilution` here is the overall dilution
+    #  factor column shown on the sheet; the s_vol_*/s_pip_* are the chain stages.
+    return {
+        "key": "sample_dilution",
+        "kind": "singleton",
+        "label": "Sample Details",
+        "fields": [
+            {"key": "sample_unit", "kind": "input", "type": "text",
+             "label": "Sample unit", "default": "1 Tablet"},
+            {"key": "sample_dilution", "kind": "input",
+             "label": "Sample Dilution", "default": 1},
+            {"key": "s_vol_1", "kind": "input", "label": "Dilution1 (mL)",
+             "unit": "mL", "default": 100},
+            {"key": "s_pip_1", "kind": "input", "label": "Pipette1 (mL)",
+             "unit": "mL", "default": 4.0},
+            {"key": "s_vol_2", "kind": "input", "label": "Dilution2 (mL)",
+             "unit": "mL", "default": 50},
+            {"key": "s_pip_2", "kind": "input", "label": "Pipette2 (mL)",
+             "unit": "mL", "default": 1.0},
+            {"key": "s_vol_3", "kind": "input", "label": "Dilution3 (mL)",
+             "unit": "mL", "default": 1},
+        ],
+    }
+
+
 A8_CU_30U_DEFINITION = {
     "resultRef": "summary.acceptance_value",
     "context": _cu_context_30(),
@@ -147,6 +176,7 @@ A8_CU_30U_DEFINITION = {
         _additional_info_group(),
         _procedure_group(),
         standard_group(conc_label="Standard Concentration"),
+        _sample_dilution_group(),
         replicate_area_group(default_rows=5),
         {
             "key": "bkt_1",
@@ -190,20 +220,24 @@ A8_CU_30U_DEFINITION = {
                     "unit": "mg",
                     "required": True,
                 },
-                *dilution_fields("s_"),
+                #  No per-unit dilution columns: the shared `sample_dilution`
+                #  block supplies the one dilution chain for every unit.
                 {"key": "area", "kind": "area", "label": "Area", "unit": "µV·s"},
                 {
                     "key": "pct_lc",
                     "kind": "calculated",
                     "label": "% of Label Claim",
                     "unit": "%",
-                    #  Verbatim from A8_HPLC_DEFINITION's per-unit pct_lc.
+                    #  A8_HPLC_DEFINITION's per-unit pct_lc, but the sample
+                    #  dilution terms now read the SHARED `sample_dilution` block
+                    #  (one row, index 0) instead of per-unit columns.
                     "expression": (
                         f"area / stats.mean_std * {standard_chain_terms()} "
                         "* standard.potency / 100 "
                         "* standard.mw_base / standard.mw_salt "
-                        "* s_vol_2 / s_pip_1 * s_vol_3 / s_pip_2 "
-                        "* s_vol_1 / unit_weight "
+                        "* sample_dilution.s_vol_2 / sample_dilution.s_pip_1 "
+                        "* sample_dilution.s_vol_3 / sample_dilution.s_pip_2 "
+                        "* sample_dilution.s_vol_1 / unit_weight "
                         "* avg_weight / label_claim * 100"
                     ),
                     "rounding": {"mode": "round", "digits": 1},

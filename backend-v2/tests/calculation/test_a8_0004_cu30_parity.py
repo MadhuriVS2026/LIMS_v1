@@ -45,13 +45,17 @@ _STD_AREAS = [{"area": 100.0} for _ in range(5)]
 _CTX = {"k_value": 2.0, "avg_weight": 1, "label_claim": 1}
 
 
+#  Shared sample-dilution block: neutral chain (every term 1) so pct_lc ==
+#  area. The per-unit dilution columns were removed; pct_lc now reads these.
+_SAMPLE_DILUTION = {
+    "sample_unit": "1 Tablet", "sample_dilution": 1,
+    "s_vol_1": 1, "s_pip_1": 1, "s_vol_2": 1, "s_pip_2": 1, "s_vol_3": 1,
+}
+
+
 def _unit(pct: float) -> dict:
-    #  Neutral sample chain + unit_weight 1 so pct_lc == area == `pct`.
-    return {
-        "unit_ref": "u", "unit_weight": 1,
-        "s_vol_1": 1, "s_pip_1": 1, "s_vol_2": 1, "s_pip_2": 1, "s_vol_3": 1,
-        "area": pct,
-    }
+    #  unit_weight 1; the sample chain is now the shared sample_dilution block.
+    return {"unit_ref": "u", "unit_weight": 1, "area": pct}
 
 
 def _evaluate(areas: list[float]):
@@ -59,6 +63,7 @@ def _evaluate(areas: list[float]):
         _CTX,
         {
             "standard": [_STD],
+            "sample_dilution": [_SAMPLE_DILUTION],
             "std_areas": _STD_AREAS,
             "units": [_unit(a) for a in areas],
         },
@@ -145,6 +150,7 @@ class TestA8_0004CU30BracketingRSD:
             _CTX,
             {
                 "standard": [_STD],
+                "sample_dilution": [_SAMPLE_DILUTION],
                 "std_areas": [{"area": a} for a in std_areas],
                 "bkt_1": [{"area": a} for a in bkt_1],
                 "bkt_2": [{"area": a} for a in bkt_2],
