@@ -384,6 +384,16 @@ A6B_OCT_DEFINITION = {
         _residue_stats_group("residue_4hr"),
         _residue_group("residue_24hr", "%Residue — 24 hr at 55°C", "w_24hr"),
         _residue_stats_group("residue_24hr"),
+        #  Section banner (sheet A58 "%Results") shown above the release blocks.
+        #  The schema requires a non-empty `fields` list, so a single hidden
+        #  calculated field carries the group while only its label renders.
+        {
+            "key": "results_banner", "kind": "singleton", "label": "% Results",
+            "fields": [
+                {"key": "_banner", "kind": "calculated", "label": "", "hidden": True,
+                 "expression": "blank()"},
+            ],
+        },
         _release_group("release_1hr", "%Release — 1 hr at 37°C"),
         _release_group("release_4hr", "%Release — 4 hr at 55°C"),
         _release_group("release_24hr", "%Release — 24 hr at 55°C"),
