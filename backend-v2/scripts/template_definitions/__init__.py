@@ -32,6 +32,7 @@ from scripts.template_definitions.a2_lyso_content import TEMPLATES as _A2_LYSO
 from scripts.template_definitions.a2_lyso_content_mgvial import TEMPLATES as _A2_LYSO_MGVIAL
 from scripts.template_definitions.a4_a5_related_substances import TEMPLATES as _A4_A5
 from scripts.template_definitions.a6_dissolution import TEMPLATES as _A6
+from scripts.template_definitions.a6a_leuprolide_microsphere import TEMPLATES as _A6A_LEUP
 from scripts.template_definitions.a6b_octreotide_ph10 import TEMPLATES as _A6B_OCT
 from scripts.template_definitions.a6d_franz_ivrt import TEMPLATES as _A6D
 from scripts.template_definitions.a7_profile_comparison import TEMPLATES as _A7
@@ -53,6 +54,7 @@ SEED_TEMPLATES: list[SeedTemplate] = [
     *_A2_BUPI,
     *_A4_A5,
     *_A6,
+    *_A6A_LEUP,
     *_A6B_OCT,
     *_A6D,
     *_A7,
