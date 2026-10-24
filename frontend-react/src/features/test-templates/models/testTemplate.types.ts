@@ -47,6 +47,12 @@ export interface FieldDef {
   /** When true, the field is still computed/stored but not rendered in the UI. */
   hidden?: boolean;
   /**
+   * TEXT only: render as an auto-growing multi-line textarea instead of a
+   * single-line input, for long free-text such as a media-preparation
+   * paragraph. Ignored for non-text fields.
+   */
+  multiline?: boolean;
+  /**
    * Row-aligned mirror of another table's column, as `"<group>.<field>"`. The
    * worksheet form copies the source table's value at the same row index into
    * this cell and renders it read-only. Used to echo the shared Time Interval

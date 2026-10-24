@@ -181,7 +181,9 @@ def _params_group() -> dict:
             {"key": "temperature", "kind": "input", "type": "text", "label": "Temp °C",
              "default": "37°C and 55°C"},                                   # J25
             {"key": "media", "kind": "input", "type": "text", "label": "Media",
-             "overridable": True},                                          # I26/I27
+             #  Long buffer-prep paragraph (sheet I27): render as an auto-growing
+             #  multi-line textarea so the whole text fits and wraps.
+             "multiline": True, "overridable": True},                       # I26/I27
         ],
     }
 
@@ -201,9 +203,18 @@ def _weights_group() -> dict:
              "unit": "mg"},
         ],
         "footer": [
-            {"label": "Mean", "ref": "weight_stats.mean_1hr"},
-            {"label": "STDev", "ref": "weight_stats.sd_1hr"},
-            {"label": "% RSD", "ref": "weight_stats.rsd_1hr", "unit": "%"},
+            #  Per-column Mean / STDev / % RSD for all three weight columns
+            #  (sheet F/G/H rows 28-30). Flat strip, each value explicitly
+            #  labelled by timepoint so all three columns' stats are shown.
+            {"label": "Mean (1 hr)", "ref": "weight_stats.mean_1hr", "unit": "mg"},
+            {"label": "Mean (4 hr)", "ref": "weight_stats.mean_4hr", "unit": "mg"},
+            {"label": "Mean (24 hr)", "ref": "weight_stats.mean_24hr", "unit": "mg"},
+            {"label": "STDev (1 hr)", "ref": "weight_stats.sd_1hr", "unit": "mg"},
+            {"label": "STDev (4 hr)", "ref": "weight_stats.sd_4hr", "unit": "mg"},
+            {"label": "STDev (24 hr)", "ref": "weight_stats.sd_24hr", "unit": "mg"},
+            {"label": "% RSD (1 hr)", "ref": "weight_stats.rsd_1hr", "unit": "%"},
+            {"label": "% RSD (4 hr)", "ref": "weight_stats.rsd_4hr", "unit": "%"},
+            {"label": "% RSD (24 hr)", "ref": "weight_stats.rsd_24hr", "unit": "%"},
         ],
     }
 

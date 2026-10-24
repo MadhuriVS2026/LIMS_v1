@@ -21,6 +21,7 @@ import { Card } from 'primereact/card';
 import { Dropdown } from 'primereact/dropdown';
 import { InputNumber } from 'primereact/inputnumber';
 import { InputText } from 'primereact/inputtext';
+import { InputTextarea } from 'primereact/inputtextarea';
 import { Message } from 'primereact/message';
 import { Tag } from 'primereact/tag';
 import { formatLimit } from '../models/describeDefinition';
@@ -498,6 +499,21 @@ export const WorksheetForm = ({
           onChange={(e) => setCell(group.key, rowIndex, field.key, e.value)}
           disabled={disabled}
           className="w-full"
+          aria-label={label}
+        />
+      );
+    }
+    if (field.type === 'text' && field.multiline) {
+      //  Long free-text (e.g. a media-preparation paragraph): auto-growing
+      //  textarea so the whole paragraph is visible and wraps to width.
+      return (
+        <InputTextarea
+          value={(value as string) ?? ''}
+          onChange={(e) => setCell(group.key, rowIndex, field.key, e.target.value)}
+          disabled={disabled}
+          className="w-full"
+          autoResize
+          rows={2}
           aria-label={label}
         />
       );
