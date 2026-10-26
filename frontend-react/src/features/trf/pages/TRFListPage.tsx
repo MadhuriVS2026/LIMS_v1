@@ -113,7 +113,26 @@ export const TRFListPage = () => {
           <Column field="trf_number" header="TRF Number" body={(row: TestRequestForm) => <span className="font-mono text-blue-600">{row.trf_number}</span>} />
           <Column field="ar_number" header="AR Number" body={(row: TestRequestForm) => row.ar_number || '-'} />
           <Column header="Status" body={(row: TestRequestForm) => <StatusBadge status={row.status} />} />
-          <Column header="Test Lines" body={(row: TestRequestForm) => row.test_lines.length} />
+          <Column
+            header="Test Lines"
+            style={{ minWidth: '16rem', maxWidth: '22rem' }}
+            body={(row: TestRequestForm) =>
+              row.test_lines.length === 0 ? (
+                <span className="text-500">-</span>
+              ) : (
+                <div className="flex flex-column gap-1">
+                  <span className="text-xs text-500">{row.test_lines.length} test(s)</span>
+                  {row.test_lines.map((line) => (
+                    <span key={line.id} className="text-sm">
+                      {line.test_name
+                        ? `${line.test_name}${line.test_code ? ` (${line.test_code})` : ''}`
+                        : line.test_code || `Test #${line.test_id}`}
+                    </span>
+                  ))}
+                </div>
+              )
+            }
+          />
           <Column field="batch_number" header="Batch" />
           <Column field="created_by" header="Initiated By" />
           <Column header="Created" body={(row: TestRequestForm) => new Date(row.created_date).toLocaleString()} />

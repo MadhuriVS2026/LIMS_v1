@@ -179,6 +179,11 @@ export const WorksheetForm = ({
   const definition = detail.template.definition ?? {};
   //  Per-column clear control is scoped to this template only (TPL-A6A-0004).
   const allowClearColumn = detail.worksheet.template_code === 'TPL-A6A-0004';
+  //  Vertical "Cumulative % Release" rendering is scoped to this template only
+  //  (TPL-A6A-0005) and only its `timepoints_release` sequence group. It is a
+  //  DISPLAY-ONLY transpose of a timepoint-row's six units into a vertical
+  //  "Sample Area → Cumulative %Release" stack; see renderCumulativeVertical.
+  const allowCumulativeVertical = detail.worksheet.template_code === 'TPL-A6A-0005';
   const groups = definition.groups ?? [];
   const contextFields = definition.context ?? [];
 
@@ -849,6 +854,242 @@ export const WorksheetForm = ({
     );
   };
 
+  //  ── Vertical "Cumulative % Release" rendering (TPL-A6A-0005 only) ──
+  //  DISPLAY-ONLY alternative layout for the `timepoints_release` sequence.
+  //  Instead of one timepoint per horizontal row (Unit-1..6 as columns), each
+  //  timepoint renders as its own block: an editable Timepoint header, a
+  //  two-column "Sample Area → Cumulative %Release" table stacking the six
+  //  units vertically, and a per-timepoint Mean/Min/Max/%RSD footer. The data
+  //  model is untouched — timepoints stay rows, the cumulative math is unchanged
+  //  — only the on-screen arrangement of each row's unit columns is transposed.
+  //  All value binding/editing reuses the existing renderInput, and every
+  //  computed value reuses computedCell / the `computed.rows` lookups, so the
+  //  numbers shown are byte-identical to the horizontal layout.
+  //  Format a display-only numeric value to 2dp exactly as `displayValue`
+  //  renders a 2dp-rounded field, reusing its blank (em-dash) handling. Used for
+  //  the merged table's '% Assay'/'C1'/'C2' read-only cells (TPL-A6A-0005). The
+  //  hidden jassay_N/kfrac_N fields carry no rounding of their own, so a
+  //  synthetic 2dp FieldDef gives them the same on-screen precision as the other
+  //  reported values. Non-numeric/blank inputs fall through to displayValue's
+  //  em-dash, matching the computedCell path.
+  const ASSAY_2DP_FIELD: FieldDef = {
+    key: '__assay_display',
+    kind: 'calculated',
+    rounding: { mode: 'round', digits: 2 },
+  };
+  const assay2dp = (value: unknown): string => displayValue(value, ASSAY_2DP_FIELD);
+
+  const renderCumulativeVertical = (group: GroupDef) => {
+    const rows = values[group.key] ?? [];
+    const min = group.rows?.min ?? 1;
+    const max = group.rows?.max ?? 1;
+    const canAddRows = editable && max > min;
+    const editingThisGroup = isGroupEditing(group.key);
+    const fieldByKey = (key: string): FieldDef | undefined =>
+      (group.fields ?? []).find((f) => f.key === key);
+
+    const timeField = fieldByKey('time_hr');
+    const areaFields = Array.from({ length: 6 }, (_, i) => fieldByKey(`area_${i + 1}`));
+    const unitFields = Array.from({ length: 6 }, (_, i) => fieldByKey(`unit_${i + 1}`));
+    //  '% Assay' (jassay_N) and 'C1' (kfrac_N) are hidden computed columns read
+    //  straight from computed.rows inside the row map below and formatted to 2dp
+    //  via assay2dp — no assay math is recomputed in the UI.
+    const statFields = (['mean', 'min_val', 'max_val', 'rsd'] as const).map((k) => ({
+      key: k,
+      label: k === 'min_val' ? 'Min' : k === 'max_val' ? 'Max' : k === 'rsd' ? '%RSD' : 'Mean',
+      field: fieldByKey(k),
+    }));
+
+    return (
+      <Card key={group.key}>
+        <div className="flex justify-content-between align-items-center mb-2">
+          <h3 className="m-0 text-base">{group.label ?? group.key}</h3>
+          <div className="flex align-items-center gap-2">
+            {canAddRows && editingThisGroup && (
+              <>
+                <span className="text-xs text-500">
+                  {rows.length} of {max} timepoint(s)
+                </span>
+                <Button
+                  label="Add Timepoint"
+                  icon="pi pi-plus"
+                  size="small"
+                  text
+                  onClick={() => addRow(group)}
+                  disabled={rows.length >= max}
+                />
+              </>
+            )}
+            {renderGroupToolbar(group)}
+          </div>
+        </div>
+
+        {renderGroupHeaderContext(group)}
+
+        <div className="flex flex-column gap-3">
+          {rows.map((_row, rowIndex) => (
+            <div
+              key={rowIndex}
+              className="border-1 border-200 border-round p-3"
+              style={{ maxWidth: 'min(32rem, 100%)' }}
+            >
+              {/* Editable Timepoint header — same input path/wiring as today. */}
+              <div className="flex align-items-center gap-3 mb-2">
+                <label
+                  className="text-sm font-medium text-700"
+                  htmlFor={`${group.key}-time_hr-${rowIndex}`}
+                >
+                  Timepoint
+                </label>
+                <div style={{ maxWidth: '12rem', flex: '1 1 auto' }}>
+                  {timeField && renderInput(group, rowIndex, timeField)}
+                </div>
+                {canAddRows && editingThisGroup && (
+                  <Button
+                    icon="pi pi-trash"
+                    size="small"
+                    text
+                    severity="danger"
+                    disabled={rows.length <= min}
+                    onClick={() => removeRow(group, rowIndex)}
+                    aria-label={`Remove timepoint ${rowIndex + 1}`}
+                  />
+                )}
+              </div>
+
+              {/* Single per-timepoint table: the approved Sample Area →
+                  Cumulative %Release stack with three appended DISPLAY-ONLY
+                  columns — '% Assay' (jassay_N), 'C1' (kfrac_N), and 'C2', the
+                  cumulative carry-over derived ONLY in the UI as unit_N −
+                  jassay_N. Sample Area stays an editable input; every other
+                  column is read-only and 2dp. C2 is rendered blank (em-dash)
+                  unless BOTH unit_N and jassay_N are present numbers, so the
+                  first timepoint (no prior carry-over) reads blank, mirroring
+                  the computedCell blank handling. No assay math is recomputed. */}
+              <table
+                className="w-full text-sm"
+                style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}
+              >
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th scope="col" className="text-left p-2 text-500 font-medium">
+                      Sample Area
+                    </th>
+                    <th scope="col" className="text-right p-2 text-500 font-medium">
+                      Cumulative %Release
+                    </th>
+                    <th scope="col" className="text-right p-2 text-500 font-medium">
+                      % Assay
+                    </th>
+                    <th scope="col" className="text-right p-2 text-500 font-medium">
+                      C1
+                    </th>
+                    <th scope="col" className="text-right p-2 text-500 font-medium">
+                      C2
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {areaFields.map((areaField, u) => {
+                    const unitField = unitFields[u];
+                    //  Read the hidden computed values straight from the payload;
+                    //  they are never recomputed here.
+                    const computedRow = computed.rows?.[group.key]?.[rowIndex];
+                    const jassayVal = computedRow?.[`jassay_${u + 1}`];
+                    const kfracVal = computedRow?.[`kfrac_${u + 1}`];
+                    const unitVal = computedRow?.[`unit_${u + 1}`];
+                    //  C2 = unit_N − jassay_N, display-only; subtract only when
+                    //  BOTH are present numbers, else leave blank for assay2dp to
+                    //  em-dash (matches the no-prior-carry-over first timepoint).
+                    const carryOver =
+                      typeof unitVal === 'number' && typeof jassayVal === 'number'
+                        ? unitVal - jassayVal
+                        : null;
+                    return (
+                      <tr key={u} className="border-top-1 border-200">
+                        <td className="p-1">
+                          {areaField && renderInput(group, rowIndex, areaField)}
+                        </td>
+                        <td className="p-2">
+                          {unitField ? (
+                            computedCell(group, rowIndex, unitField)
+                          ) : (
+                            <span className="font-mono text-right block">—</span>
+                          )}
+                        </td>
+                        <td className="p-2">
+                          <span
+                            className={`font-mono text-right block ${
+                              preview.stale ? 'text-400' : 'text-900 font-medium'
+                            }`}
+                          >
+                            {assay2dp(jassayVal)}
+                          </span>
+                        </td>
+                        <td className="p-2">
+                          <span
+                            className={`font-mono text-right block ${
+                              preview.stale ? 'text-400' : 'text-900 font-medium'
+                            }`}
+                          >
+                            {assay2dp(kfracVal)}
+                          </span>
+                        </td>
+                        <td className="p-2">
+                          <span
+                            className={`font-mono text-right block ${
+                              preview.stale ? 'text-400' : 'text-900 font-medium'
+                            }`}
+                          >
+                            {assay2dp(carryOver)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {/* Per-timepoint Mean / Min / Max / %RSD — reuse computedCell so
+                  rounding/units/blank-handling match the engine exactly. */}
+              <table
+                className="w-full text-sm mt-2"
+                style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}
+              >
+                <thead>
+                  <tr className="bg-gray-50">
+                    {statFields.map((s) => (
+                      <th
+                        scope="col"
+                        key={s.key}
+                        className="text-right p-2 text-500 font-medium"
+                      >
+                        {s.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-top-1 border-200">
+                    {statFields.map((s) => (
+                      <td className="p-2" key={s.key}>
+                        {s.field ? (
+                          computedCell(group, rowIndex, s.field)
+                        ) : (
+                          <span className="font-mono text-right block">—</span>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      </Card>
+    );
+  };
+
   const areaFieldCount = groups.reduce(
     (n, g) => n + (g.fields ?? []).filter((f) => f.kind === 'area').length,
     0,
@@ -911,6 +1152,12 @@ export const WorksheetForm = ({
 
       {/* ── Groups ── */}
       {groups.map((group) => {
+        //  TPL-A6A-0005 only: render the Cumulative % Release section as a
+        //  vertical per-timepoint stack (display-only). Every other template and
+        //  every other group falls through to the generic renderer unchanged.
+        if (allowCumulativeVertical && group.key === 'timepoints_release') {
+          return renderCumulativeVertical(group);
+        }
         const fields = group.fields ?? [];
         //  `hidden` fields are still seeded/computed/stored (seedValues and the
         //  evaluator iterate the full definition), but are not rendered — used to
