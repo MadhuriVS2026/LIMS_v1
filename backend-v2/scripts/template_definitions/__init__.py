@@ -31,6 +31,7 @@ from scripts.template_definitions.a2_bupivacaine_lipid_ratio import TEMPLATES as
 from scripts.template_definitions.a2_lyso_content import TEMPLATES as _A2_LYSO
 from scripts.template_definitions.a2_lyso_content_mgvial import TEMPLATES as _A2_LYSO_MGVIAL
 from scripts.template_definitions.a4_a5_related_substances import TEMPLATES as _A4_A5
+from scripts.template_definitions.a4_phosphate_phosphite_limit import TEMPLATES as _A4_PP
 from scripts.template_definitions.a6_dissolution import TEMPLATES as _A6
 from scripts.template_definitions.a6a_leuprolide_microsphere import TEMPLATES as _A6A_LEUP
 from scripts.template_definitions.a6b_octreotide_ph10 import TEMPLATES as _A6B_OCT
@@ -39,6 +40,7 @@ from scripts.template_definitions.a7_profile_comparison import TEMPLATES as _A7
 from scripts.template_definitions.a8_content_uniformity import TEMPLATES as _A8
 from scripts.template_definitions.a8_cu_tablets_30units import TEMPLATES as _A8_CU30
 from scripts.template_definitions.a9_a10_a13_classical import TEMPLATES as _A9_A10_A13
+from scripts.template_definitions.a9_sodium_metabisulfite import TEMPLATES as _A9_SMBS
 from scripts.template_definitions.a11_microbial_bioassay import TEMPLATES as _A11
 from scripts.template_definitions.a12_derived_rollups import TEMPLATES as _A12
 from scripts.template_definitions.a12_ampho_drug_lipid import TEMPLATES as _A12_AMPHO
@@ -53,6 +55,7 @@ SEED_TEMPLATES: list[SeedTemplate] = [
     *_A2_LYSO_MGVIAL,
     *_A2_BUPI,
     *_A4_A5,
+    *_A4_PP,
     *_A6,
     *_A6A_LEUP,
     *_A6B_OCT,
@@ -61,6 +64,7 @@ SEED_TEMPLATES: list[SeedTemplate] = [
     *_A8,
     *_A8_CU30,
     *_A9_A10_A13,
+    *_A9_SMBS,
     *_A11,
     *_A12,
     *_A12_AMPHO,
