@@ -27,6 +27,7 @@ from scripts.template_definitions._common import SeedTemplate
 from scripts.template_definitions.a1_assay import TEMPLATES as _A1
 from scripts.template_definitions.a1_assay_fp_mgml import TEMPLATES as _A1_FP_MGML
 from scripts.template_definitions.a2_a3_content import TEMPLATES as _A2_A3
+from scripts.template_definitions.a2_ampho_lipid_content import TEMPLATES as _A2_AMPHO
 from scripts.template_definitions.a2_bupivacaine_lipid_ratio import TEMPLATES as _A2_BUPI
 from scripts.template_definitions.a2_lyso_content import TEMPLATES as _A2_LYSO
 from scripts.template_definitions.a2_lyso_content_mgvial import TEMPLATES as _A2_LYSO_MGVIAL
@@ -54,6 +55,7 @@ SEED_TEMPLATES: list[SeedTemplate] = [
     *_A2_LYSO,
     *_A2_LYSO_MGVIAL,
     *_A2_BUPI,
+    *_A2_AMPHO,
     *_A4_A5,
     *_A4_PP,
     *_A6,
