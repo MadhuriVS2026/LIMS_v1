@@ -38,6 +38,7 @@ from scripts.template_definitions.a6a_leuprolide_microsphere import TEMPLATES as
 from scripts.template_definitions.a6b_octreotide_ph10 import TEMPLATES as _A6B_OCT
 from scripts.template_definitions.a6d_franz_ivrt import TEMPLATES as _A6D
 from scripts.template_definitions.a7_profile_comparison import TEMPLATES as _A7
+from scripts.template_definitions.a7_profile_comparison_mirrored import TEMPLATES as _A7M
 from scripts.template_definitions.a8_content_uniformity import TEMPLATES as _A8
 from scripts.template_definitions.a8_cu_tablets_30units import TEMPLATES as _A8_CU30
 from scripts.template_definitions.a9_a10_a13_classical import TEMPLATES as _A9_A10_A13
@@ -46,6 +47,7 @@ from scripts.template_definitions.a11_microbial_bioassay import TEMPLATES as _A1
 from scripts.template_definitions.a12_derived_rollups import TEMPLATES as _A12
 from scripts.template_definitions.a12_ampho_drug_lipid import TEMPLATES as _A12_AMPHO
 from scripts.template_definitions.a14_linearity import TEMPLATES as _A14
+from scripts.template_definitions.nitrosamine_routine import TEMPLATES as _NITRO
 
 #  Ordered by archetype so the seed log reads predictably.
 SEED_TEMPLATES: list[SeedTemplate] = [
@@ -63,6 +65,7 @@ SEED_TEMPLATES: list[SeedTemplate] = [
     *_A6B_OCT,
     *_A6D,
     *_A7,
+    *_A7M,
     *_A8,
     *_A8_CU30,
     *_A9_A10_A13,
@@ -71,6 +74,7 @@ SEED_TEMPLATES: list[SeedTemplate] = [
     *_A12,
     *_A12_AMPHO,
     *_A14,
+    *_NITRO,
 ]
 
 __all__ = ["SEED_TEMPLATES", "SeedTemplate"]
