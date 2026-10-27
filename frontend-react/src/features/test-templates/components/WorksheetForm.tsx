@@ -199,6 +199,13 @@ export const WorksheetForm = ({
   //  calculations; the template field itself is untouched.
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
 
+  //  TPL-A6A-0005 only: per-timepoint count of VISIBLE sample rows in the
+  //  vertical Cumulative % Release render, keyed by timepoint row index. An
+  //  explicit entry (set by the inner "Add row" / per-row clear controls)
+  //  overrides the derived filled-slot count; see visibleCountFor. UI-only —
+  //  no bearing on stored values or the engine (blank area_N slots drop out).
+  const [visibleSamples, setVisibleSamples] = useState<Record<number, number>>({});
+
   const preview = usePreview(detail.worksheet.id);
   //  Server-computed state: the freshest preview, falling back to what the
   //  detail response already carried.
@@ -888,9 +895,52 @@ export const WorksheetForm = ({
     const fieldByKey = (key: string): FieldDef | undefined =>
       (group.fields ?? []).find((f) => f.key === key);
 
+    //  v3: up to 20 fixed sample slots per timepoint (was 6). Derive the slot
+    //  count from the definition's provisioned area_N fields so the UI tracks
+    //  the template rather than a hard-coded width.
+    const SAMPLE_MAX = (group.fields ?? []).filter((f) => /^area_\d+$/.test(f.key)).length || 20;
+
     const timeField = fieldByKey('time_hr');
-    const areaFields = Array.from({ length: 6 }, (_, i) => fieldByKey(`area_${i + 1}`));
-    const unitFields = Array.from({ length: 6 }, (_, i) => fieldByKey(`unit_${i + 1}`));
+    const areaFields = Array.from({ length: SAMPLE_MAX }, (_, i) => fieldByKey(`area_${i + 1}`));
+    const unitFields = Array.from({ length: SAMPLE_MAX }, (_, i) => fieldByKey(`unit_${i + 1}`));
+
+    //  How many sample rows to SHOW for a timepoint. Precedence: an explicit
+    //  visibleSamples[rowIndex] entry (set by Add-row / per-row clear), else the
+    //  number of filled slots = highest N whose area_N carries a present value
+    //  (so reopening a saved sheet shows exactly the filled rows). Clamped to
+    //  [1, SAMPLE_MAX]. UI-only; blank slots drop out of the engine regardless.
+    const visibleCountFor = (rowIndex: number): number => {
+      const explicit = visibleSamples[rowIndex];
+      if (typeof explicit === 'number') {
+        return Math.min(SAMPLE_MAX, Math.max(1, explicit));
+      }
+      const row = (values[group.key] ?? [])[rowIndex] ?? {};
+      let filled = 0;
+      for (let n = 1; n <= SAMPLE_MAX; n += 1) {
+        const v = row[`area_${n}`];
+        if (v !== null && v !== undefined && v !== '') filled = n;
+      }
+      return Math.min(SAMPLE_MAX, Math.max(1, filled));
+    };
+
+    //  Reveal the next empty sample slot for a timepoint (inner "Add row").
+    const addSampleRow = (rowIndex: number) => {
+      setVisibleSamples((prev) => ({
+        ...prev,
+        [rowIndex]: Math.min(SAMPLE_MAX, visibleCountFor(rowIndex) + 1),
+      }));
+    };
+
+    //  Clear (blank) a sample slot's area_N so it and its computed cells drop
+    //  out, then shrink the visible count so the row disappears. Reuses the
+    //  shared setCell persistence path — no parallel write. Keeps >= 1 visible.
+    const clearSampleRow = (rowIndex: number, slot: number) => {
+      setCell(group.key, rowIndex, `area_${slot}`, null);
+      setVisibleSamples((prev) => ({
+        ...prev,
+        [rowIndex]: Math.max(1, visibleCountFor(rowIndex) - 1),
+      }));
+    };
     //  '% Assay' (jassay_N) and 'C1' (kfrac_N) are hidden computed columns read
     //  straight from computed.rows inside the row map below and formatted to 2dp
     //  via assay2dp — no assay math is recomputed in the UI.
@@ -987,10 +1037,19 @@ export const WorksheetForm = ({
                     <th scope="col" className="text-right p-2 text-500 font-medium">
                       C2
                     </th>
+                    {canAddRows && editingThisGroup && (
+                      <th
+                        scope="col"
+                        className="text-center p-2 text-500 font-medium"
+                        style={{ width: '3rem' }}
+                      >
+                        <span className="sr-only">Actions</span>
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
-                  {areaFields.map((areaField, u) => {
+                  {areaFields.slice(0, visibleCountFor(rowIndex)).map((areaField, u) => {
                     const unitField = unitFields[u];
                     //  Read the hidden computed values straight from the payload;
                     //  they are never recomputed here.
@@ -1044,11 +1103,45 @@ export const WorksheetForm = ({
                             {assay2dp(carryOver)}
                           </span>
                         </td>
+                        {canAddRows && editingThisGroup && (
+                          <td className="p-1 text-center">
+                            <Button
+                              icon="pi pi-trash"
+                              size="small"
+                              text
+                              severity="danger"
+                              disabled={visibleCountFor(rowIndex) <= 1}
+                              onClick={() => clearSampleRow(rowIndex, u + 1)}
+                              aria-label={`Clear sample ${u + 1} of timepoint ${rowIndex + 1}`}
+                            />
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+
+              {/* Inner "Add row" — reveals the next empty sample slot (up to 20)
+                  by bumping the per-timepoint visible count; no data is written
+                  until the analyst types an area. Gated to edit + editable like
+                  every other mutating control. */}
+              {canAddRows && editingThisGroup && (
+                <div className="flex align-items-center gap-2 mt-2">
+                  <span className="text-xs text-500">
+                    {visibleCountFor(rowIndex)} of {SAMPLE_MAX} sample(s)
+                  </span>
+                  <Button
+                    label="Add row"
+                    icon="pi pi-plus"
+                    size="small"
+                    text
+                    onClick={() => addSampleRow(rowIndex)}
+                    disabled={visibleCountFor(rowIndex) >= SAMPLE_MAX}
+                    aria-label={`Add sample row to timepoint ${rowIndex + 1}`}
+                  />
+                </div>
+              )}
 
               {/* Per-timepoint Mean / Min / Max / %RSD — reuse computedCell so
                   rounding/units/blank-handling match the engine exactly. */}
