@@ -497,6 +497,17 @@ export const WorksheetForm = ({
     setDirty(true);
   };
 
+  //  Shared cell-wrap rule for wide tables (e.g. the A6D linearity / calibration
+  //  groups). A fixed table layout divides the width evenly; these properties let
+  //  long header labels and entered values break within their column instead of
+  //  forcing the table past the Card edge and clipping. Applied only to wide
+  //  tables so narrow tables keep their current rendering.
+  const WRAP_CELL = {
+    whiteSpace: 'normal',
+    wordBreak: 'break-word',
+    overflowWrap: 'anywhere',
+  } as const;
+
   const renderInput = (group: GroupDef, rowIndex: number, field: FieldDef) => {
     const value = values[group.key]?.[rowIndex]?.[field.key] ?? null;
     //  Mirror fields are filled from their source column and never typed here.
@@ -1392,6 +1403,9 @@ export const WorksheetForm = ({
         const blocks = asSetBlocks
           ? setBlocksFor(rows.length, blockSize)
           : [{ title: '', startRow: 0, endRow: rows.length }];
+        //  Wrap long header labels and entered values only in wide tables; narrow
+        //  tables keep their current (byte-identical) rendering.
+        const cellWrap = wideTable || veryWideTable ? WRAP_CELL : undefined;
         //  Shared column header, repeated once per block. Identical to the
         //  single-table header; factored out so each "Set N" block carries it.
         const tableHead = (
@@ -1399,7 +1413,7 @@ export const WorksheetForm = ({
             <tr className="bg-gray-50">
               <th
                 className={`text-left ${cellPad} text-500 font-medium`}
-                style={{ width: veryWideTable ? '1.6rem' : '3rem' }}
+                style={{ width: veryWideTable ? '1.6rem' : '3rem', ...cellWrap }}
               >
                 #
               </th>
@@ -1409,7 +1423,7 @@ export const WorksheetForm = ({
                   <th
                     key={field.key}
                     className={`${cellPad} text-500 font-medium ${calc ? 'text-right' : 'text-left'}`}
-                    style={{ wordBreak: 'break-word' }}
+                    style={{ wordBreak: 'break-word', ...cellWrap }}
                     title={calc ? field.expression : undefined}
                   >
                     {headerText(field)}
@@ -1446,14 +1460,16 @@ export const WorksheetForm = ({
             const rowIndex = startRow + localIndex;
             return (
               <tr key={rowIndex} className="border-top-1 border-200">
-                <td className={`${cellPad} text-500 font-mono`}>{localIndex + 1}</td>
+                <td className={`${cellPad} text-500 font-mono`} style={cellWrap}>
+                  {localIndex + 1}
+                </td>
                 {visibleFields.map((field) =>
                   field.kind === 'calculated' ? (
-                    <td className={cellPad} key={field.key}>
+                    <td className={cellPad} style={cellWrap} key={field.key}>
                       {computedCell(group, rowIndex, field)}
                     </td>
                   ) : (
-                    <td className={inputCellPad} key={field.key}>
+                    <td className={inputCellPad} style={cellWrap} key={field.key}>
                       {renderInput(group, rowIndex, field)}
                     </td>
                   ),
@@ -1481,9 +1497,14 @@ export const WorksheetForm = ({
             //  compact columns evenly, no horizontal scroll.
             ({ borderCollapse: 'collapse', tableLayout: 'fixed', width: '100%' } as const)
           : wideTable
-            ? ({
+            ? //  Wrap rather than grow: a fixed, full-width layout spreads columns
+              //  evenly so long headers/values wrap within their column instead of
+              //  widening the table past the Card. The `minWidth` floor keeps the
+              //  overflowX wrapper as a scroll fallback only on very narrow screens.
+              ({
                 borderCollapse: 'collapse',
-                tableLayout: 'auto',
+                tableLayout: 'fixed',
+                width: '100%',
                 minWidth: `${tableColCount * colMinRem}rem`,
               } as const)
             : ({ borderCollapse: 'collapse', tableLayout: 'fixed' } as const);

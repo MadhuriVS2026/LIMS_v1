@@ -156,6 +156,44 @@ class TestBracketingPool:
         assert evaluate("count(pool(std, bkt))", ctx) == 2.0
 
 
+class TestWhereMask:
+    #  The six calibration-standard areas / theoretical ppm from TPL-A6D-0002,
+    #  plus three bracketing QC rows that must NOT enter the fit.
+    AREA = [200754.0, 974514.0, 2922207.0, 5786622.0, 7842177.0, 11507227.0]
+    THEO = [3.57735564, 17.8867782, 53.6603346, 107.3206692, 143.0942256, 214.6413384]
+
+    def test_mask_drops_unmasked_positions(self):
+        ctx = {"s": [10.0, 20.0, 30.0], "m": [True, False, True]}
+        assert evaluate("where(s, m)", ctx) == [10.0, 30.0]
+
+    def test_blank_mask_entries_are_false(self):
+        ctx = {"s": [10.0, 20.0, 30.0, 40.0], "m": [None, "", "  ", 1]}
+        assert evaluate("where(s, m)", ctx) == [40.0]
+
+    def test_fewer_than_two_args_is_empty_list(self):
+        assert evaluate("where(s)", {"s": [1.0, 2.0]}) == []
+
+    def test_length_mismatch_truncates_to_shorter(self):
+        ctx = {"s": [1.0, 2.0, 3.0], "m": [True, True]}
+        assert evaluate("where(s, m)", ctx) == [1.0, 2.0]
+
+    def test_regression_over_masked_subset_excludes_qc(self):
+        #  Nine rows: six standards (masked in) + three QC with skewing values
+        #  (masked out). The fit must reproduce the standards-only regression.
+        area = self.AREA + [5_000_000.0, 6_000_000.0, 7_000_000.0]
+        theo = self.THEO + [999.0, 998.0, 997.0]
+        mask = [True] * 6 + [False] * 3
+        ctx = {"area": area, "theo": theo, "m": mask}
+        slope = evaluate("slope(where(area, m), where(theo, m))", ctx)
+        intercept = evaluate("intercept(where(area, m), where(theo, m))", ctx)
+        correl = evaluate("correl(where(area, m), where(theo, m))", ctx)
+        count = evaluate("count(where(area, m))", ctx)
+        assert count == 6.0
+        assert round(slope, 2) == 53797.61
+        assert round(intercept, 2) == 28844.87
+        assert round(correl, 4) == 0.9999
+
+
 class TestRounding:
     @pytest.mark.parametrize(
         "expr,expected",

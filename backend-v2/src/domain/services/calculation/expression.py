@@ -748,6 +748,28 @@ def _f_pool(args: list[Any]) -> Any:
     return [v for v in _flatten(args) if not _is_blank(v)]
 
 
+def _f_where(args: list[Any]) -> Any:
+    """
+    Keep each `series` value whose parallel `mask` entry is truthy-and-not-blank.
+
+    `where(series, mask)` flattens both, zips positionally, and returns the kept
+    values as a list. Blanks that survive the mask are left as-is so a downstream
+    aggregate's own blank-dropping still applies — `slope(where(ys, m), where(xs, m))`
+    keeps today's semantics over the masked subset. Used to fit a regression over a
+    labelled subset of rows that share one group with excluded rows (e.g.
+    calibration standards fitted apart from bracketing QC in the same table).
+    """
+    if len(args) < 2:
+        return []
+    series = _flatten(args[0])
+    mask = _flatten(args[1])
+    out: list[Any] = []
+    for value, flag in zip(series, mask):
+        if not _is_blank(flag) and bool(flag):
+            out.append(value)
+    return out
+
+
 def _f_cumsum(args: list[Any]) -> Any:
     """Running total of a series, blanks treated as zero. Used by the
     dissolution cumulative-release correction chains."""
@@ -786,6 +808,7 @@ _FUNCTIONS: dict[str, Callable[[list[Any]], Any]] = {
     "number": _f_number,
     "value": _f_number,
     "pool": _f_pool,
+    "where": _f_where,
     "cumsum": _f_cumsum,
     "if": _f_blank,  # handled lazily in _Evaluator._call; entry marks it as known
 }

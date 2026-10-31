@@ -178,6 +178,11 @@ class RowSpec:
     default: int = 1
     #  Rows may be labelled from one of their own fields (e.g. analyte name).
     label_from: str | None = None
+    #  Optional per-row opening values: a list of `{fieldKey: value}` maps, one
+    #  per opening row. Absent (the default `()`) preserves today's behaviour of
+    #  rows opening blank. Keys are validated against the group's fields in
+    #  `GroupDef.parse`, where the field-key set is known.
+    seed: tuple[dict[str, Any], ...] = ()
 
     @classmethod
     def parse(cls, raw: dict | None, where: str) -> "RowSpec":
@@ -195,7 +200,24 @@ class RowSpec:
             raise TemplateSchemaError(
                 f"{where}.rows: default ({default}) is outside min..max ({min_}..{max_})"
             )
-        return cls(min=min_, max=max_, default=default, label_from=raw.get("labelFrom"))
+        raw_seed = raw.get("seed") or []
+        if not isinstance(raw_seed, list):
+            raise TemplateSchemaError(f"{where}.rows.seed must be a list")
+        for i, r in enumerate(raw_seed):
+            if not isinstance(r, dict):
+                raise TemplateSchemaError(f"{where}.rows.seed[{i}] must be an object")
+        if len(raw_seed) > max_:
+            raise TemplateSchemaError(
+                f"{where}.rows.seed has {len(raw_seed)} rows, exceeding max ({max_})"
+            )
+        seed = tuple(dict(r) for r in raw_seed)
+        return cls(
+            min=min_,
+            max=max_,
+            default=default,
+            label_from=raw.get("labelFrom"),
+            seed=seed,
+        )
 
 
 @dataclass(frozen=True)
@@ -228,12 +250,22 @@ class GroupDef:
 
         rows = RowSpec.parse(raw.get("rows"), f"{where}.groups[{key}]")
         if kind is GroupKind.SINGLETON and (rows.min, rows.max) != (1, 1):
-            rows = RowSpec(min=1, max=1, default=1, label_from=rows.label_from)
+            rows = RowSpec(
+                min=1, max=1, default=1, label_from=rows.label_from, seed=rows.seed
+            )
 
         if rows.label_from and rows.label_from not in seen:
             raise TemplateSchemaError(
                 f"{where}: group {key!r} labelFrom {rows.label_from!r} is not one of its fields"
             )
+
+        for i, seed_row in enumerate(rows.seed):
+            bad = set(seed_row) - seen
+            if bad:
+                raise TemplateSchemaError(
+                    f"{where}: group {key!r} rows.seed[{i}] names unknown field(s) "
+                    f"{sorted(bad)}"
+                )
 
         return cls(key=key, kind=kind, label=raw.get("label") or key, rows=rows, fields=fields_parsed)
 

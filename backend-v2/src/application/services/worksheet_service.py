@@ -151,13 +151,14 @@ class WorksheetService:
         definition = self._parse(template)
         product = await self._product_repo.get_by_id(trf.product_id)
         context_values = self._seed_context(definition, trf, line, product, actor)
+        group_values = self._seed_group_rows(definition)
 
         worksheet = TestWorksheet(
             trf_test_line_id=line_id,
             template_id=template.id,
             template_version=template.version,
             context_values=context_values,
-            group_values={},
+            group_values=group_values,
             created_by=actor.username,
             modified_by=actor.username,
             template_code=template.code,
@@ -666,6 +667,26 @@ class WorksheetService:
                 value = cf.default
             if value is not None:
                 seeded[cf.key] = value
+        return seeded
+
+    @staticmethod
+    def _seed_group_rows(
+        definition: TemplateDefinition,
+    ) -> dict[str, list[dict[str, Any]]]:
+        """
+        Pre-populate the opening rows of any group whose rows spec declares a
+        `seed`. Each seed entry is one row's starting values; columns a seed row
+        omits are left out so the row builder and evaluator fill them blank.
+
+        Groups without a seed are omitted entirely, which preserves today's
+        empty-rows behaviour (`group_values == {}` at creation for every template
+        that does not opt in). Seeding happens once, at creation; thereafter the
+        stored rows are authoritative and this is never re-applied.
+        """
+        seeded: dict[str, list[dict[str, Any]]] = {}
+        for group in definition.groups:
+            if group.rows.seed:
+                seeded[group.key] = [dict(r) for r in group.rows.seed]
         return seeded
 
     @staticmethod
