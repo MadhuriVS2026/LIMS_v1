@@ -71,6 +71,13 @@ export interface FieldDef {
    * engine ignores it, so templates without it render headers exactly as before.
    */
   labelFrom?: string;
+  /**
+   * UI-only visibility condition, as `"<group>.<field>[idx]"`: the field is
+   * shown only while that entered value is non-blank (e.g. `cells.cell_no[6]`
+   * shows the Cell-7 columns once row 7 of Cell Loading has a Cell no). The
+   * calc engine ignores it; formulas gate themselves on the same value.
+   */
+  showIf?: string;
 }
 
 export interface RowSpec {
@@ -171,6 +178,29 @@ export interface GroupDef {
    * source group's computed rows. The calc engine ignores it.
    */
   chart?: ChartConfig;
+  /**
+   * Optional, UI-only hint on a `singleton` group: render a read-only table of
+   * another group's computed rows instead of a field grid. Rows follow the
+   * source group, so adding a row there adds one here. The calc engine ignores it.
+   */
+  view?: ViewConfig;
+}
+
+export interface ViewColumn {
+  /** Field key in the source group's computed rows. */
+  key: string;
+  label: string;
+  /** Display-only decimal places (the stored value is unchanged). */
+  digits?: number;
+  /** Same rule as `FieldDef.showIf`. */
+  showIf?: string;
+  /** Consecutive columns sharing a band get one spanning header above them. */
+  band?: string;
+}
+
+export interface ViewConfig {
+  sourceGroup: string;
+  columns: ViewColumn[];
 }
 
 export interface CriterionDef {

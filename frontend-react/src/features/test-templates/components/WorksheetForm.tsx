@@ -28,7 +28,9 @@ import { formatLimit } from '../models/describeDefinition';
 import { isSetBlockGroup, setBlockSize, setBlocksFor } from '../models/setBlocks';
 import { groupFooterRows, isColumnAlignedFooter } from '../models/groupFooter';
 import { usePreview } from '../hooks/useWorksheet';
+import { fieldShown } from '../models/showIf';
 import { WorksheetChart } from './WorksheetChart';
+import { WorksheetViewTable } from './WorksheetViewTable';
 import type {
   CriterionResult,
   FieldDef,
@@ -1262,7 +1264,9 @@ export const WorksheetForm = ({
         if (allowCumulativeVertical && group.key === 'timepoints_release') {
           return renderCumulativeVertical(group);
         }
-        const fields = group.fields ?? [];
+        //  `showIf` fields render only while their source value is filled in
+        //  (e.g. the Cell-7 columns appear once Cell Loading row 7 has a Cell no).
+        const fields = (group.fields ?? []).filter((f) => fieldShown(f, values));
         //  `hidden` fields are still seeded/computed/stored (seedValues and the
         //  evaluator iterate the full definition), but are not rendered — used to
         //  keep intermediate calculations and defaults out of the visible table.
@@ -1272,6 +1276,27 @@ export const WorksheetForm = ({
         const min = group.rows?.min ?? 1;
         const max = group.rows?.max ?? 1;
         const canAddRows = editable && group.kind !== 'singleton' && max > min;
+
+        if (group.kind === 'singleton' && group.view) {
+          //  UI-only read-only table over another group's computed rows.
+          return (
+            <Card key={group.key}>
+              <div className="flex justify-content-between align-items-center mb-2">
+                <h3 className="m-0 text-base">{group.label ?? group.key}</h3>
+              </div>
+              <div style={{ overflowX: 'auto', opacity: preview.stale ? 0.5 : 1 }}>
+                <WorksheetViewTable
+                  view={group.view}
+                  computed={computed}
+                  values={values}
+                  tableStyle={{ borderCollapse: 'collapse', width: '100%' }}
+                  headCellClassName="p-2 text-500 font-medium bg-gray-50 border-1 border-200"
+                  cellClassName="p-2 border-1 border-200 font-mono"
+                />
+              </div>
+            </Card>
+          );
+        }
 
         if (group.kind === 'singleton') {
           //  A singleton may carry a non-standard `chart` hint (UI-only). When
@@ -1296,6 +1321,10 @@ export const WorksheetForm = ({
               <Card key={group.key}>
                 <div className="flex justify-content-between align-items-center mb-2">
                   <h3 className="m-0 text-base">{group.label ?? group.key}</h3>
+                  {/*  The title input is only enabled while the section is in
+                       Edit mode, so a chart with a title field needs the same
+                       Edit/Save toolbar as any other section. */}
+                  {titleField && renderGroupToolbar(group)}
                 </div>
                 {titleField && (
                   <div className="mb-3" style={{ maxWidth: '32rem' }}>

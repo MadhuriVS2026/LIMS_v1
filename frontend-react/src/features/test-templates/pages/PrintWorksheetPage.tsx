@@ -13,8 +13,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from 'primereact/button';
 import { useWorksheet } from '../hooks/useWorksheet';
 import { WorksheetChartPrintImage } from '../components/WorksheetChartPrintImage';
+import { WorksheetViewTable } from '../components/WorksheetViewTable';
 import { isSetBlockGroup, setBlockSize, setBlocksFor } from '../models/setBlocks';
-import type { FieldDef, GroupDef, WorksheetComputed } from '../models/testTemplate.types';
+import { fieldShown } from '../models/showIf';
+import type { FieldDef, GroupDef, WorksheetComputed, WorksheetRow } from '../models/testTemplate.types';
 
 const fmtDateTime = (value?: string | null) => (value ? new Date(value).toLocaleString() : '-');
 
@@ -34,8 +36,11 @@ function displayValue(value: unknown, field: FieldDef): string {
 const header = (field: FieldDef) =>
   `${field.label ?? field.key}${field.unit ? ` (${field.unit})` : ''}`;
 
-function visibleFields(group: GroupDef): FieldDef[] {
-  return (group.fields ?? []).filter((f) => !f.hidden);
+function visibleFields(
+  group: GroupDef,
+  values: Record<string, WorksheetRow[] | undefined> | undefined,
+): FieldDef[] {
+  return (group.fields ?? []).filter((f) => !f.hidden && fieldShown(f, values));
 }
 
 export const PrintWorksheetPage = () => {
@@ -78,7 +83,7 @@ export const PrintWorksheetPage = () => {
   //  Threshold: more than 10 columns -> landscape, otherwise portrait.
   const maxTableColumns = groups.reduce((max, group) => {
     if (group.kind === 'singleton') return max;
-    const cols = visibleFields(group).length + 1; // +1 for the row-number column
+    const cols = visibleFields(group, detail.worksheet.group_values).length + 1; // +1 for the row-number column
     return Math.max(max, cols);
   }, 0);
   const landscape = maxTableColumns > 10;
@@ -183,7 +188,21 @@ export const PrintWorksheetPage = () => {
           );
         }
 
-        const fields = visibleFields(group);
+        if (group.view) {
+          return (
+            <div className="ws-section" key={group.key}>
+              <h4>{group.label ?? group.key}</h4>
+              <WorksheetViewTable
+                view={group.view}
+                computed={computed}
+                values={detail.worksheet.group_values}
+                tableClassName="ws-table"
+              />
+            </div>
+          );
+        }
+
+        const fields = visibleFields(group, detail.worksheet.group_values);
         if (fields.length === 0) return null;
         const isSingleton = group.kind === 'singleton';
         const rows = rowsOf(group.key);
