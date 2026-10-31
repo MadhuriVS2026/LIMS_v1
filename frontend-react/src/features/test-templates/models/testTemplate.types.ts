@@ -137,6 +137,22 @@ export interface ChartConfig {
   series: ChartSeries[];
   /** Series keys plotted by default; falls back to `["mean"]` in the UI. */
   defaultSeries?: string[];
+  /** `scatter` draws points only (no connecting line). Defaults to `line`. */
+  type?: 'line' | 'scatter';
+  /** Row field that must be truthy for a row to be plotted (e.g. `is_standard`). */
+  rowFilter?: string;
+  /**
+   * Draws a fitted straight line across the plotted X range and shows its
+   * equation. Each ref is a `group.field` key in `computed.values`.
+   */
+  trendline?: ChartTrendline;
+}
+
+export interface ChartTrendline {
+  slopeRef: string;
+  interceptRef: string;
+  /** Optional R² shown under the equation. */
+  r2Ref?: string;
 }
 
 export interface GroupDef {

@@ -1,18 +1,19 @@
 /**
- * Line chart for a dissolution-style group, driven entirely by a template's
- * `chart` config (see `ChartConfig`). It reads the same server-computed state
- * the rest of the worksheet form uses — `computed.rows[chart.sourceGroup]` — so
- * the plotted line always matches what the engine produced, and repaints when
- * the analyst edits a timepoint.
+ * Chart for a template group, driven entirely by a template's `chart` config
+ * (see `ChartConfig`). It reads the same server-computed state the rest of the
+ * worksheet form uses — `computed.rows[chart.sourceGroup]` — so the plot always
+ * matches what the engine produced, and repaints when the analyst edits a row.
  *
- * X = `chart.xField` (e.g. time in hours); Y = the selected series value
- * (default `mean`). Per-unit series are toggled with the chips above the canvas.
- * Rows whose X or Y is blank/non-numeric are skipped so a partially filled
- * worksheet still draws a clean line.
+ * X = `chart.xField`; Y = each selected series. `type: 'scatter'` draws points
+ * only, `rowFilter` limits which rows are plotted, and `trendline` overlays the
+ * engine's fitted line with its equation (e.g. a calibration curve). Rows whose
+ * X or Y is blank/non-numeric are skipped so a partially filled worksheet still
+ * draws cleanly.
  */
 import { useMemo, useState } from 'react';
 import { Chart } from 'primereact/chart';
-import type { ChartConfig, WorksheetComputed, WorksheetRow } from '../models/testTemplate.types';
+import type { ChartConfig, WorksheetComputed } from '../models/testTemplate.types';
+import { buildPoints, buildTrendline } from '../models/chartData';
 
 interface WorksheetChartProps {
   chart: ChartConfig;
@@ -21,33 +22,6 @@ interface WorksheetChartProps {
   stale?: boolean;
   /** Displayed chart title (from the editable title field, falls back to config). */
   title?: string;
-}
-
-interface Point {
-  x: number;
-  y: number;
-}
-
-//  Treat null/undefined/''/non-finite as "missing" — same blank-tolerance the
-//  rest of the form uses, so a half-entered worksheet still plots cleanly.
-function toNum(value: unknown): number | null {
-  if (value === null || value === undefined || value === '') return null;
-  const n = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
-/** Map computed rows to `{x,y}` points, skipping rows missing either axis. */
-function buildPoints(rows: WorksheetRow[], xField: string, yKey: string): Point[] {
-  const points: Point[] = [];
-  for (const row of rows) {
-    const x = toNum(row[xField]);
-    const y = toNum(row[yKey]);
-    if (x === null || y === null) continue;
-    points.push({ x, y });
-  }
-  //  Sort by X so an out-of-order entry still draws a monotonic line.
-  points.sort((a, b) => a.x - b.x);
-  return points;
 }
 
 //  A small, fixed palette cycled across series. Mean sits first so it reads as
@@ -61,9 +35,11 @@ const SERIES_COLORS = [
   '#ec4899', // pink
   '#14b8a6', // teal
 ];
+const TREND_COLOR = '#111827';
 
 export const WorksheetChart = ({ chart, computed, stale, title }: WorksheetChartProps) => {
   const seriesKeys = useMemo(() => chart.series.map((s) => s.key), [chart.series]);
+  const scatter = chart.type === 'scatter';
 
   const [visible, setVisible] = useState<Set<string>>(() => {
     const defaults = chart.defaultSeries && chart.defaultSeries.length ? chart.defaultSeries : ['mean'];
@@ -88,25 +64,45 @@ export const WorksheetChart = ({ chart, computed, stale, title }: WorksheetChart
 
   //  New object references on every rows/visibility change — PrimeReact's Chart
   //  is memoised on reference equality of `data`/`options`, so without this it
-  //  would not repaint when the analyst edits a timepoint.
-  const data = useMemo(() => {
-    const datasets = chart.series
+  //  would not repaint when the analyst edits a row.
+  const { data, trend } = useMemo(() => {
+    const datasets: Record<string, unknown>[] = chart.series
       .filter((s) => visible.has(s.key))
       .map((s) => {
         const idx = seriesKeys.indexOf(s.key);
         const color = SERIES_COLORS[idx % SERIES_COLORS.length];
         return {
           label: s.label,
-          data: buildPoints(rows, chart.xField, s.key),
+          data: buildPoints(rows, chart.xField, s.key, chart.rowFilter),
           borderColor: color,
           backgroundColor: color,
+          showLine: !scatter,
+          pointRadius: scatter ? 4 : 3,
           tension: 0,
           fill: false,
           spanGaps: true,
         };
       });
-    return { datasets };
-  }, [rows, visible, chart.series, chart.xField, seriesKeys]);
+
+    //  The trendline spans the first series' plotted points (all series share X).
+    const firstKey = chart.series[0]?.key;
+    const basePoints = firstKey ? buildPoints(rows, chart.xField, firstKey, chart.rowFilter) : [];
+    const t = buildTrendline(chart, computed, basePoints);
+    if (t) {
+      datasets.push({
+        label: 'Trendline',
+        data: t.points,
+        borderColor: TREND_COLOR,
+        backgroundColor: TREND_COLOR,
+        borderWidth: 1.5,
+        showLine: true,
+        pointRadius: 0,
+        tension: 0,
+        fill: false,
+      });
+    }
+    return { data: { datasets }, trend: t };
+  }, [rows, visible, chart, computed, seriesKeys, scatter]);
 
   const options = useMemo(
     () => ({
@@ -120,6 +116,7 @@ export const WorksheetChart = ({ chart, computed, stale, title }: WorksheetChart
       scales: {
         x: {
           type: 'linear' as const,
+          beginAtZero: scatter,
           title: { display: true, text: chart.xLabel ?? 'Time' },
         },
         y: {
@@ -128,36 +125,45 @@ export const WorksheetChart = ({ chart, computed, stale, title }: WorksheetChart
         },
       },
     }),
-    [chart.xLabel, chart.yLabel, title],
+    [chart.xLabel, chart.yLabel, title, scatter],
   );
 
   return (
     <div>
-      <div className="flex flex-wrap gap-2 mb-3">
-        {chart.series.map((s) => {
-          const active = visible.has(s.key);
-          const idx = seriesKeys.indexOf(s.key);
-          const color = SERIES_COLORS[idx % SERIES_COLORS.length];
-          return (
-            <button
-              key={s.key}
-              type="button"
-              onClick={() => toggle(s.key)}
-              className={`p-component border-round cursor-pointer border-1 px-2 py-1 text-sm ${
-                active ? 'border-transparent text-white' : 'surface-0 text-700 border-300'
-              }`}
-              style={active ? { backgroundColor: color } : undefined}
-              aria-pressed={active}
-            >
-              <span
-                className="inline-block border-circle mr-2"
-                style={{ width: '0.6rem', height: '0.6rem', backgroundColor: color, verticalAlign: 'middle' }}
-              />
-              {s.label}
-            </button>
-          );
-        })}
-      </div>
+      {chart.series.length > 1 && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {chart.series.map((s) => {
+            const active = visible.has(s.key);
+            const idx = seriesKeys.indexOf(s.key);
+            const color = SERIES_COLORS[idx % SERIES_COLORS.length];
+            return (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => toggle(s.key)}
+                className={`p-component border-round cursor-pointer border-1 px-2 py-1 text-sm ${
+                  active ? 'border-transparent text-white' : 'surface-0 text-700 border-300'
+                }`}
+                style={active ? { backgroundColor: color } : undefined}
+                aria-pressed={active}
+              >
+                <span
+                  className="inline-block border-circle mr-2"
+                  style={{ width: '0.6rem', height: '0.6rem', backgroundColor: color, verticalAlign: 'middle' }}
+                />
+                {s.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {trend && (
+        <div className="text-center text-sm font-mono mb-1">
+          {trend.label.map((line) => (
+            <div key={line}>{line}</div>
+          ))}
+        </div>
+      )}
       <div style={{ height: '320px', opacity: stale ? 0.5 : 1 }}>
         <Chart type="line" data={data} options={options} />
       </div>

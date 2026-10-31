@@ -1,17 +1,18 @@
 /**
- * Static-image renderer for a template's dissolution chart, for the PRINT /
- * Save-as-PDF worksheet. A live Chart.js <canvas> frequently prints blank
- * because the canvas bitmap is not captured by the print renderer, so here we
- * draw the chart off-screen with animation disabled, read it as a PNG data URL
+ * Static-image renderer for a template's chart, for the PRINT / Save-as-PDF
+ * worksheet. A live Chart.js <canvas> frequently prints blank because the
+ * canvas bitmap is not captured by the print renderer, so here we draw the
+ * chart off-screen with animation disabled, read it as a PNG data URL
  * (`toBase64Image()`), and render a plain <img>. The image is produced on mount
  * (synchronously after the first paint) so it is present in the DOM before the
  * user triggers window.print(). It scales to the page width (max-width 100%).
  *
  * Only the default series are drawn (the interactive toggles are screen-only);
  * data comes from the same server-computed state the rest of the print uses
- * (`computed.rows[chart.sourceGroup]`), so the printed line matches the screen.
+ * (`computed.rows[chart.sourceGroup]`) and the same point/trendline helpers as
+ * the screen chart, so the printed plot matches the screen.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Chart,
   LineController,
@@ -23,7 +24,8 @@ import {
   Legend,
   Filler,
 } from 'chart.js';
-import type { ChartConfig, WorksheetComputed, WorksheetRow } from '../models/testTemplate.types';
+import type { ChartConfig, WorksheetComputed } from '../models/testTemplate.types';
+import { buildPoints, buildTrendline } from '../models/chartData';
 
 Chart.register(
   LineController,
@@ -43,36 +45,15 @@ interface Props {
   title?: string;
 }
 
-function toNum(value: unknown): number | null {
-  if (value === null || value === undefined || value === '') return null;
-  const n = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
-interface Point {
-  x: number;
-  y: number;
-}
-
-function buildPoints(rows: WorksheetRow[], xField: string, yKey: string): Point[] {
-  const pts: Point[] = [];
-  for (const row of rows) {
-    const x = toNum(row[xField]);
-    const y = toNum(row[yKey]);
-    if (x === null || y === null) continue;
-    pts.push({ x, y });
-  }
-  pts.sort((a, b) => a.x - b.x);
-  return pts;
-}
-
 const SERIES_COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
+const TREND_COLOR = '#111827';
 
 export const WorksheetChartPrintImage = ({ chart, computed, title }: Props) => {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const rows = computed.rows?.[chart.sourceGroup] ?? [];
+    const scatter = chart.type === 'scatter';
     const seriesKeys = chart.series.map((s) => s.key);
     const defaults =
       chart.defaultSeries && chart.defaultSeries.length ? chart.defaultSeries : ['mean'];
@@ -80,22 +61,44 @@ export const WorksheetChartPrintImage = ({ chart, computed, title }: Props) => {
     let drawKeys = defaults.filter((k) => allowed.has(k));
     if (drawKeys.length === 0) drawKeys = seriesKeys.slice(0, 1);
 
-    const datasets = chart.series
+    const datasets: Record<string, unknown>[] = chart.series
       .filter((s) => drawKeys.includes(s.key))
       .map((s) => {
         const idx = seriesKeys.indexOf(s.key);
         const color = SERIES_COLORS[idx % SERIES_COLORS.length];
         return {
           label: s.label,
-          data: buildPoints(rows, chart.xField, s.key),
+          data: buildPoints(rows, chart.xField, s.key, chart.rowFilter),
           borderColor: color,
           backgroundColor: color,
+          showLine: !scatter,
           tension: 0,
           fill: false,
           spanGaps: true,
-          pointRadius: 2,
+          pointRadius: scatter ? 4 : 2,
         };
       });
+
+    const firstKey = chart.series[0]?.key;
+    const basePoints = firstKey ? buildPoints(rows, chart.xField, firstKey, chart.rowFilter) : [];
+    const trend = buildTrendline(chart, computed, basePoints);
+    if (trend) {
+      datasets.push({
+        label: 'Trendline',
+        data: trend.points,
+        borderColor: TREND_COLOR,
+        backgroundColor: TREND_COLOR,
+        borderWidth: 1.5,
+        showLine: true,
+        pointRadius: 0,
+        tension: 0,
+        fill: false,
+      });
+    }
+
+    const heading = title || chart.title;
+    //  The equation prints as extra title lines (the Subtitle plugin isn't registered).
+    const titleLines = [...(heading ? [heading] : []), ...(trend?.label ?? [])];
 
     //  Off-screen canvas sized for a crisp print image.
     const canvas = document.createElement('canvas');
@@ -104,20 +107,21 @@ export const WorksheetChartPrintImage = ({ chart, computed, title }: Props) => {
 
     const instance = new Chart(canvas, {
       type: 'line',
-      data: { datasets },
+      data: { datasets } as never,
       options: {
         animation: false, //  must be off so the image is ready immediately
         responsive: false,
         devicePixelRatio: 2,
         plugins: {
-          legend: { display: true, position: 'bottom' },
-          title: (title || chart.title)
-            ? { display: true, text: (title || chart.title) as string }
+          legend: { display: chart.series.length > 1, position: 'bottom' },
+          title: titleLines.length
+            ? { display: true, text: titleLines }
             : { display: false },
         },
         scales: {
           x: {
             type: 'linear',
+            beginAtZero: scatter,
             title: { display: true, text: chart.xLabel ?? 'Time' },
           },
           y: {
@@ -134,7 +138,6 @@ export const WorksheetChartPrintImage = ({ chart, computed, title }: Props) => {
     } finally {
       instance.destroy();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chart, computed, title]);
 
   if (!dataUrl) {
@@ -143,7 +146,7 @@ export const WorksheetChartPrintImage = ({ chart, computed, title }: Props) => {
   return (
     <img
       src={dataUrl}
-      alt={chart.title ?? 'Dissolution profile chart'}
+      alt={chart.title ?? 'Chart'}
       style={{ maxWidth: '100%', height: 'auto', display: 'block' }}
     />
   );
