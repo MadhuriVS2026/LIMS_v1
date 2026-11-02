@@ -3,6 +3,7 @@
  */
 import { apiClient } from '@shared/services/apiClient';
 import type {
+  ARDExpTemplate,
   ChemicalReagent,
   ColumnMaster,
   Instrument,
@@ -65,6 +66,21 @@ export const projectApi = {
   },
   async create(payload: Partial<ProjectMaster>): Promise<ProjectMaster> {
     return (await apiClient.post<ProjectMaster>('/projects', payload)).data;
+  },
+};
+
+export const ardExpTemplateApi = {
+  async list(): Promise<ARDExpTemplate[]> {
+    return (await apiClient.get<ARDExpTemplate[]>('/ard-exp-templates')).data;
+  },
+  async create(payload: Partial<ARDExpTemplate>): Promise<ARDExpTemplate> {
+    return (await apiClient.post<ARDExpTemplate>('/ard-exp-templates', payload)).data;
+  },
+  async update(id: number, payload: Partial<ARDExpTemplate>): Promise<ARDExpTemplate> {
+    return (await apiClient.put<ARDExpTemplate>(`/ard-exp-templates/${id}`, payload)).data;
+  },
+  async remove(id: number): Promise<void> {
+    await apiClient.delete(`/ard-exp-templates/${id}`);
   },
 };
 

@@ -31,8 +31,10 @@ from scripts.template_definitions.a2_ampho_lipid_content import TEMPLATES as _A2
 from scripts.template_definitions.a2_bupivacaine_lipid_ratio import TEMPLATES as _A2_BUPI
 from scripts.template_definitions.a2_lyso_content import TEMPLATES as _A2_LYSO
 from scripts.template_definitions.a2_lyso_content_mgvial import TEMPLATES as _A2_LYSO_MGVIAL
+from scripts.template_definitions.a2_sodium_chloride_ic_mgvial import TEMPLATES as _A2_NACL_IC
 from scripts.template_definitions.a4_a5_related_substances import TEMPLATES as _A4_A5
 from scripts.template_definitions.a4_lenacapavir_related_substances import TEMPLATES as _A4_LENA
+from scripts.template_definitions.a4_rs_against_standard_rrf_division import TEMPLATES as _A4_RRFDIV
 from scripts.template_definitions.a4_phosphate_phosphite_limit import TEMPLATES as _A4_PP
 from scripts.template_definitions.a6_dissolution import TEMPLATES as _A6
 from scripts.template_definitions.a6a_leuprolide_microsphere import TEMPLATES as _A6A_LEUP
@@ -57,11 +59,13 @@ SEED_TEMPLATES: list[SeedTemplate] = [
     *_A2_A3,
     *_A2_LYSO,
     *_A2_LYSO_MGVIAL,
+    *_A2_NACL_IC,
     *_A2_BUPI,
     *_A2_AMPHO,
     *_A4_A5,
     *_A4_PP,
     *_A4_LENA,
+    *_A4_RRFDIV,
     *_A6,
     *_A6A_LEUP,
     *_A6B_OCT,

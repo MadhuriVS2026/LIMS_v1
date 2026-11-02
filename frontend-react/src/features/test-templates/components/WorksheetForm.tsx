@@ -27,8 +27,16 @@ import { Tag } from 'primereact/tag';
 import { formatLimit } from '../models/describeDefinition';
 import { isSetBlockGroup, setBlockSize, setBlocksFor } from '../models/setBlocks';
 import { groupFooterRows, isColumnAlignedFooter } from '../models/groupFooter';
+import {
+  addSetColumn,
+  columnCount,
+  columnNameRef,
+  columnSetMin,
+  deleteSetColumn,
+} from '../models/columnSet';
+import { footerCellsByColumn, rowLabelText } from '../models/rowLabel';
 import { usePreview } from '../hooks/useWorksheet';
-import { fieldShown } from '../models/showIf';
+import { fieldShown, groupShown } from '../models/showIf';
 import { WorksheetChart } from './WorksheetChart';
 import { WorksheetViewTable } from './WorksheetViewTable';
 import type {
@@ -251,6 +259,14 @@ export const WorksheetForm = ({
     return field.label ?? field.key;
   };
 
+  const groupHeaderText = (group: GroupDef): string => {
+    if (group.labelFrom) {
+      const resolved = resolveLabelFrom(group.labelFrom);
+      if (resolved !== null) return resolved;
+    }
+    return group.label ?? group.key;
+  };
+
   //  Human labels for every field key/ref, so a blank calculated cell can name
   //  the inputs it is still waiting on rather than showing a bare dash.
   const labelByRef = useMemo(() => {
@@ -462,10 +478,20 @@ export const WorksheetForm = ({
     recalculate(next, contextValues);
   };
 
-  //  Delete a whole input column from a table: hide it from view AND blank its
-  //  values so it drops out of the calculations. The (shared, versioned)
-  //  template field is untouched; this is a per-worksheet UI action.
+  //  Delete a table column. A definition-backed column set (such as TPL-A3's
+  //  media columns) shifts later media cells and names left, then lowers its
+  //  saved count. The older clear-column control instead hides and blanks one
+  //  provisioned field in UI state; its template field remains untouched.
   const deleteColumn = (group: GroupDef, fieldKey: string) => {
+    if (group.columnSet) {
+      const next = deleteSetColumn(values, group, fieldKey, groups);
+      if (!next) return;
+      setValues(next);
+      setDirty(true);
+      recalculate(next, contextValues);
+      return;
+    }
+
     const next = {
       ...values,
       [group.key]: values[group.key].map((row) => ({ ...row, [fieldKey]: null })),
@@ -487,6 +513,15 @@ export const WorksheetForm = ({
     deletableColumns(group).filter((f) => hiddenColumns.has(`${group.key}.${f.key}`)).length;
 
   const addColumn = (group: GroupDef) => {
+    if (group.columnSet) {
+      const next = addSetColumn(values, group, groups);
+      if (!next) return;
+      setValues(next);
+      setDirty(true);
+      recalculate(next, contextValues);
+      return;
+    }
+
     const toRestore = deletableColumns(group).find((f) =>
       hiddenColumns.has(`${group.key}.${f.key}`),
     );
@@ -510,10 +545,17 @@ export const WorksheetForm = ({
     overflowWrap: 'anywhere',
   } as const;
 
-  const renderInput = (group: GroupDef, rowIndex: number, field: FieldDef) => {
+  const renderInput = (
+    group: GroupDef,
+    rowIndex: number,
+    field: FieldDef,
+    editingGroupKey = group.key,
+  ) => {
     const value = values[group.key]?.[rowIndex]?.[field.key] ?? null;
     //  Mirror fields are filled from their source column and never typed here.
-    const disabled = !isGroupEditing(group.key) || isMirrorField(field);
+    //  A solution block renders a hidden child table under its visible parent,
+    //  so `editingGroupKey` lets those inputs share the parent section's lock.
+    const disabled = !isGroupEditing(editingGroupKey) || isMirrorField(field);
     const label = `${group.label ?? group.key} row ${rowIndex + 1} ${field.label ?? field.key}`;
 
     if (field.options && field.options.length) {
@@ -567,6 +609,38 @@ export const WorksheetForm = ({
         useGrouping={false}
         aria-label={label}
       />
+    );
+  };
+
+  //  Header inputs are stored in the first row of their table but rendered once,
+  //  directly beneath the section title. This keeps section-wide values such as
+  //  a dilution note out of every repeated table row.
+  const renderGroupHeaderInputs = (group: GroupDef) => {
+    const headerInputs = (group.headerInputs ?? []).flatMap((item) => {
+      const field = (group.fields ?? []).find((candidate) => candidate.key === item.field);
+      return field && isEditableField(field) ? [{ item, field }] : [];
+    });
+    if (headerInputs.length === 0) return null;
+
+    return (
+      <div className="flex flex-wrap align-items-center gap-3 mb-2">
+        {headerInputs.map(({ item, field }) => (
+          <div className="flex align-items-center gap-2" key={field.key}>
+            <label className="text-sm font-medium text-700 white-space-nowrap">
+              {item.label ?? headerText(field)}
+              {item.label === undefined && field.unit ? ` (${field.unit})` : ''}
+            </label>
+            <div
+              style={{
+                width: item.width ?? (field.type === 'text' ? '20rem' : '8rem'),
+                maxWidth: '100%',
+              }}
+            >
+              {renderInput(group, 0, field)}
+            </div>
+          </div>
+        ))}
+      </div>
     );
   };
 
@@ -628,8 +702,13 @@ export const WorksheetForm = ({
     visibleFields: FieldDef[],
     canAddRows: boolean,
     cellPad: string,
+    showRowNumbers: boolean,
   ) => {
     if (!group.footer || group.footer.length === 0) return null;
+    //  `rowLabel` tables put their column-aligned footer inside the same table
+    //  (renderRowLabelFooter below), matching a paper grid with Mean/SD/RSD as
+    //  its final rows. Existing footer layouts stay byte-for-byte unchanged.
+    if (group.rowLabel) return null;
 
     if (!isColumnAlignedFooter(group.footer)) {
       return (
@@ -670,8 +749,9 @@ export const WorksheetForm = ({
         <tbody>
           {rows.map((row, r) => (
             <tr key={r} className="border-top-1 border-200 bg-gray-50">
-              {/* `#` column — empty, mirrors the data table's row-number column. */}
-              <td className={`${cellPad} text-500`} />
+              {showRowNumbers && (
+                <td className={`${cellPad} text-500`} />
+              )}
               {/* Row label aligned under the first data column (e.g. inj_label). */}
               <td className={`${cellPad} text-sm font-medium text-700`}>{row.label}</td>
               {/* One value per compound column, left-to-right. */}
@@ -695,6 +775,126 @@ export const WorksheetForm = ({
           ))}
         </tbody>
       </table>
+    );
+  };
+
+  //  The footer for a `rowLabel` table lives in the same <table> as its rows.
+  //  A footer cell is resolved by field key, not its visible index. This lets a
+  //  media column be deleted from the middle without shifting Mean/SD/RSD under
+  //  the wrong remaining column.
+  const renderRowLabelFooter = (
+    group: GroupDef,
+    visibleFields: FieldDef[],
+    canAddRows: boolean,
+    cellPad: string,
+  ) => {
+    if (!group.rowLabel || !group.footer || group.footer.length === 0) return null;
+
+    //  A normal (all-labeled) footer on a row-label table belongs inside the
+    //  same grid: its label occupies the caption column and its value sits
+    //  beneath the field selected by `footer.column` (or the first field).
+    if (!isColumnAlignedFooter(group.footer)) {
+      return (
+        <tfoot>
+          {group.footer.map((item) => {
+            const targetColumn = item.column ?? visibleFields[0]?.key;
+            return (
+              <tr key={`${item.ref}-${targetColumn ?? ''}`} className="border-top-1 border-200 bg-gray-50">
+                <td className={`${cellPad} text-sm font-medium text-700`}>{item.label}</td>
+                {visibleFields.map((field) => (
+                  <td className={`${cellPad} text-right`} key={field.key}>
+                    <span
+                      className={`font-mono text-sm ${
+                        preview.stale ? 'text-400' : 'text-900 font-semibold'
+                      }`}
+                    >
+                      {field.key === targetColumn ? footerValueText(item) : ''}
+                    </span>
+                  </td>
+                ))}
+                {canAddRows && <td className={cellPad} />}
+              </tr>
+            );
+          })}
+        </tfoot>
+      );
+    }
+
+    const allColumnKeys =
+      group.columnSet?.columns ??
+      (group.fields ?? []).filter((field) => !field.hidden).map((field) => field.key);
+    const rows = groupFooterRows(group.footer);
+
+    return (
+      <tfoot>
+        {rows.map((row, r) => {
+          const cells = footerCellsByColumn(row, allColumnKeys);
+          return (
+            <tr key={r} className="border-top-1 border-200 bg-gray-50">
+              <td className={`${cellPad} text-sm font-medium text-700`}>{row.label}</td>
+              {visibleFields.map((field) => {
+                const cell = cells.get(field.key);
+                return (
+                  <td className={`${cellPad} text-right`} key={field.key}>
+                    <span
+                      className={`font-mono text-sm ${
+                        preview.stale ? 'text-400' : 'text-900 font-semibold'
+                      }`}
+                    >
+                      {cell ? footerValueText(cell) : '—'}
+                    </span>
+                  </td>
+                );
+              })}
+              {canAddRows && <td className={cellPad} />}
+            </tr>
+          );
+        })}
+      </tfoot>
+    );
+  };
+
+  const renderTableFooterRows = (
+    group: GroupDef,
+    visibleFields: FieldDef[],
+    leadingColumnCount: number,
+    cellPad: string,
+  ) => {
+    const rows = group.tableFooterRows ?? [];
+    if (rows.length === 0 || visibleFields.length === 0) return null;
+
+    return (
+      <tfoot>
+        {rows.map((row, rowIndex) => {
+          const labelSpan = Math.min(
+            visibleFields.length,
+            Math.max(1, row.labelColSpan ?? 1),
+          );
+          const valueFields = visibleFields.slice(labelSpan);
+          return (
+            <tr key={`${row.label}-${rowIndex}`} className="border-top-1 border-200 bg-gray-50">
+              {leadingColumnCount > 0 && <td className={cellPad} />}
+              <td colSpan={labelSpan} className={`${cellPad} text-right font-medium text-700`}>
+                {row.label}
+              </td>
+              {valueFields.map((field) => {
+                const cell = row.values[field.key];
+                return (
+                  <td key={field.key} className={`${cellPad} text-right`}>
+                    <span
+                      className={`font-mono text-sm ${
+                        preview.stale ? 'text-400' : 'text-900 font-semibold'
+                      }`}
+                    >
+                      {cell ? footerValueText(cell) : ''}
+                    </span>
+                  </td>
+                );
+              })}
+            </tr>
+          );
+        })}
+      </tfoot>
     );
   };
 
@@ -812,20 +1012,32 @@ export const WorksheetForm = ({
     });
   };
 
-  //  Clear resets this section's rows/fields to their defaults (tables fall back
-  //  to the minimum row count), recalculates, and persists — so "Delete" empties
-  //  the subsection without removing the group the template defines.
-  const clearGroup = (group: GroupDef) => {
-    const min = group.rows?.min ?? 1;
-    const count = group.kind === 'singleton' ? 1 : min;
-    const blankRows: WorksheetRow[] = Array.from({ length: count }, () => {
+  const blankRowsForGroup = (group: GroupDef, count: number): WorksheetRow[] =>
+    Array.from({ length: count }, () => {
       const row: WorksheetRow = {};
       for (const field of group.fields ?? []) {
         if (isEditableField(field)) row[field.key] = field.default ?? null;
       }
       return row;
     });
-    const next = { ...values, [group.key]: blankRows };
+
+  //  Clear resets this section's rows/fields to their defaults (tables fall back
+  //  to the minimum row count), recalculates, and persists — so "Delete" empties
+  //  the subsection without removing the group the template defines. A
+  //  solution block also clears the hidden Set table rendered inside it.
+  const clearGroup = (group: GroupDef) => {
+    const min = group.rows?.min ?? 1;
+    const count = group.kind === 'singleton' ? 1 : min;
+    let next: Values = { ...values, [group.key]: blankRowsForGroup(group, count) };
+
+    if (group.solutionBlock) {
+      const setsGroup = groups.find((candidate) => candidate.key === group.solutionBlock?.setsGroup);
+      if (setsGroup) {
+        const setCount = setsGroup.kind === 'singleton' ? 1 : (setsGroup.rows?.min ?? 1);
+        next = { ...next, [setsGroup.key]: blankRowsForGroup(setsGroup, setCount) };
+      }
+    }
+
     setValues(next);
     setDirty(true);
     recalculate(next, contextValues);
@@ -871,6 +1083,240 @@ export const WorksheetForm = ({
           aria-label={`Clear ${group.label ?? group.key}`}
         />
       </div>
+    );
+  };
+
+  /**
+   * A reusable solution block: the visible singleton owns one medium's dilution
+   * inputs, and its hidden source group owns that medium's editable Set rows.
+   * Keeping the set data in a normal table group means the calc engine, audit
+   * save path, and Add/Delete Row behaviour remain entirely definition-driven.
+   */
+  const renderSolutionBlock = (group: GroupDef) => {
+    const block = group.solutionBlock;
+    const setsGroup = block
+      ? groups.find((candidate) => candidate.key === block.setsGroup)
+      : undefined;
+    if (!block || !setsGroup) return null;
+
+    const dilutionFields = (group.fields ?? []).filter(
+      (field) => isEditableField(field) && !field.hidden,
+    );
+    const setFields = (setsGroup.fields ?? []).filter(
+      (field) =>
+        !field.hidden &&
+        fieldShown(field, values) &&
+        (isEditableField(field) || field.kind === 'calculated'),
+    );
+    const rows = values[setsGroup.key] ?? [];
+    const min = setsGroup.rows?.min ?? 1;
+    const max = setsGroup.rows?.max ?? 1;
+    const canAddRows = editable && max > min;
+    const editingThisGroup = isGroupEditing(group.key);
+    const hasRowLabel = !!setsGroup.rowLabel;
+    const showRowNumbers = !hasRowLabel && setsGroup.showRowNumbers !== false;
+    const leadingColumns = hasRowLabel || showRowNumbers ? 1 : 0;
+    const footer = setsGroup.footer ?? [];
+    const areaColumnCount = setsGroup.columnSet ? columnCount(setsGroup, values) : 0;
+    const areaColumnMinimum = setsGroup.columnSet ? columnSetMin(setsGroup) : 0;
+    const canAddAreaColumn =
+      !!setsGroup.columnSet && areaColumnCount < setsGroup.columnSet.columns.length;
+    const setTableColumnCount = leadingColumns + setFields.length + (canAddRows ? 1 : 0);
+    const wideSetTable = setTableColumnCount > 8;
+    const setTableStyle = wideSetTable
+      ? ({
+          borderCollapse: 'collapse',
+          tableLayout: 'fixed',
+          width: '100%',
+          minWidth: `${setTableColumnCount * 5}rem`,
+        } as const)
+      : ({ borderCollapse: 'collapse', tableLayout: 'fixed' } as const);
+
+    return (
+      <Card key={group.key}>
+        <div className="flex justify-content-between align-items-center mb-2">
+          <h3 className="m-0 text-base">{groupHeaderText(group)}</h3>
+          <div className="flex align-items-center gap-2">
+            {setsGroup.columnSet && editingThisGroup && (
+              <Button
+                label="Add Column"
+                icon="pi pi-plus"
+                size="small"
+                text
+                onClick={() => addColumn(setsGroup)}
+                disabled={!canAddAreaColumn}
+                tooltip={
+                  canAddAreaColumn
+                    ? `Add Area column (${areaColumnCount} of ${setsGroup.columnSet.columns.length})`
+                    : 'All Area columns are shown'
+                }
+              />
+            )}
+            {canAddRows && editingThisGroup && (
+              <>
+                <span className="text-xs text-500">
+                  {rows.length} of {max} set(s)
+                </span>
+                <Button
+                  label="Add Row"
+                  icon="pi pi-plus"
+                  size="small"
+                  text
+                  onClick={() => addRow(setsGroup)}
+                  disabled={rows.length >= max}
+                  aria-label={`Add row to ${groupHeaderText(group)} media solution`}
+                />
+              </>
+            )}
+            {renderGroupToolbar(group)}
+          </div>
+        </div>
+
+        <h4 className="m-0 mb-1 text-sm font-medium text-700">
+          {block.dilutionLabel ?? 'Solution Dilution'}
+        </h4>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="w-full text-sm" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <thead>
+              <tr className="bg-gray-50">
+                {dilutionFields.map((field) => (
+                  <th
+                    key={field.key}
+                    className="p-2 text-left text-500 font-medium"
+                    style={{ wordBreak: 'break-word' }}
+                  >
+                    {headerText(field)}
+                    {field.unit ? ` (${field.unit})` : ''}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-top-1 border-200">
+                {dilutionFields.map((field) => (
+                  <td className="p-1" key={field.key}>
+                    {renderInput(group, 0, field)}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-3" style={{ overflowX: 'auto' }}>
+          <table className="w-full text-sm" style={setTableStyle}>
+            <thead>
+              <tr className="bg-gray-50">
+                {hasRowLabel ? (
+                  <th className="p-2 text-left text-500 font-medium" style={{ width: '5rem' }}>
+                    {setsGroup.rowLabel?.header ?? ''}
+                  </th>
+                ) : (
+                  showRowNumbers && (
+                    <th className="p-2 text-left text-500 font-medium" style={{ width: '3rem' }}>
+                      #
+                    </th>
+                  )
+                )}
+                {setFields.map((field) => {
+                  const calculated = field.kind === 'calculated';
+                  const isAreaColumn = !!setsGroup.columnSet?.columns.includes(field.key);
+                  const canDeleteAreaColumn =
+                    editingThisGroup &&
+                    !calculated &&
+                    isEditableField(field) &&
+                    isAreaColumn &&
+                    areaColumnCount > areaColumnMinimum;
+                  return (
+                    <th
+                      className={`p-2 text-500 font-medium ${calculated ? 'text-right' : 'text-left'}`}
+                      key={field.key}
+                      title={calculated ? field.expression : undefined}
+                    >
+                      {headerText(field)}
+                      {field.unit ? ` (${field.unit})` : ''}
+                      {field.kind === 'area' && <i className="pi pi-chart-line ml-1 text-blue-500" />}
+                      {calculated && <i className="pi pi-calculator ml-1" />}
+                      {canDeleteAreaColumn && (
+                        <i
+                          className="pi pi-trash ml-1 text-red-400 cursor-pointer"
+                          title={`Delete column ${headerText(field)}`}
+                          role="button"
+                          aria-label={`Delete column ${headerText(field)}`}
+                          onClick={() => deleteColumn(setsGroup, field.key)}
+                        />
+                      )}
+                    </th>
+                  );
+                })}
+                {canAddRows && <th style={{ width: '3rem' }} />}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((_row, rowIndex) => (
+                <tr key={rowIndex} className="border-top-1 border-200">
+                  {hasRowLabel ? (
+                    <td className="p-2 text-700 font-medium">
+                      {rowLabelText(
+                        setsGroup.rowLabel as NonNullable<GroupDef['rowLabel']>,
+                        rowIndex + 1,
+                      )}
+                    </td>
+                  ) : (
+                    showRowNumbers && <td className="p-2 text-500 font-mono">{rowIndex + 1}</td>
+                  )}
+                  {setFields.map((field) =>
+                    field.kind === 'calculated' ? (
+                      <td className="p-2" key={field.key}>
+                        {computedCell(setsGroup, rowIndex, field)}
+                      </td>
+                    ) : (
+                      <td className="p-1" key={field.key}>
+                        {renderInput(setsGroup, rowIndex, field, group.key)}
+                      </td>
+                    ),
+                  )}
+                  {canAddRows && (
+                    <td className="p-1 text-center">
+                      {editingThisGroup && (
+                        <Button
+                          icon="pi pi-trash"
+                          size="small"
+                          text
+                          severity="danger"
+                          disabled={rows.length <= min}
+                          onClick={() => removeRow(setsGroup, rowIndex)}
+                          aria-label={`Remove set ${rowIndex + 1} from ${groupHeaderText(group)}`}
+                        />
+                      )}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+            {footer.length > 0 && (
+              <tfoot>
+                {footer.map((item) => (
+                  <tr key={item.ref} className="border-top-1 border-200 bg-gray-50">
+                    <td
+                      className="p-2 text-sm font-medium text-700"
+                      colSpan={Math.max(1, leadingColumns + Math.max(0, setFields.length - 1))}
+                    >
+                      {item.label}
+                    </td>
+                    <td className="p-2 text-right">
+                      <span className={`font-mono text-sm ${preview.stale ? 'text-400' : 'text-900 font-semibold'}`}>
+                        {footerValueText(item)}
+                      </span>
+                    </td>
+                    {canAddRows && <td className="p-2" />}
+                  </tr>
+                ))}
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </Card>
     );
   };
 
@@ -1196,8 +1642,26 @@ export const WorksheetForm = ({
     );
   };
 
+  //  Count only analyst-visible chromatographic fields. A hidden Set table can
+  //  be rendered inside a visible solution block, so include it only while its
+  //  visible parent medium is active.
+  const renderedSolutionSetGroups = new Set(
+    groups
+      .filter((group) => !group.hidden && groupShown(group, values) && group.solutionBlock)
+      .map((group) => group.solutionBlock?.setsGroup)
+      .filter((key): key is string => !!key),
+  );
   const areaFieldCount = groups.reduce(
-    (n, g) => n + (g.fields ?? []).filter((f) => f.kind === 'area').length,
+    (count, group) => {
+      const rendered =
+        (!group.hidden && groupShown(group, values)) || renderedSolutionSetGroups.has(group.key);
+      return count +
+        (rendered
+          ? (group.fields ?? []).filter(
+              (field) => field.kind === 'area' && !field.hidden && fieldShown(field, values),
+            ).length
+          : 0);
+    },
     0,
   );
 
@@ -1258,6 +1722,11 @@ export const WorksheetForm = ({
 
       {/* ── Groups ── */}
       {groups.map((group) => {
+        //  Hidden groups still seed and calculate. They are implementation data
+        //  for a visible group (for example, a table's editable column names),
+        //  not sections an analyst should see on screen.
+        if (group.hidden || !groupShown(group, values)) return null;
+
         //  TPL-A6A-0005 only: render the Cumulative % Release section as a
         //  vertical per-timepoint stack (display-only). Every other template and
         //  every other group falls through to the generic renderer unchanged.
@@ -1296,6 +1765,10 @@ export const WorksheetForm = ({
               </div>
             </Card>
           );
+        }
+
+        if (group.kind === 'singleton' && group.solutionBlock) {
+          return renderSolutionBlock(group);
         }
 
         if (group.kind === 'singleton') {
@@ -1343,6 +1816,74 @@ export const WorksheetForm = ({
               </Card>
             );
           }
+          if (group.renderAsTable) {
+            //  Keep the singleton group scalar for the evaluator, but render its
+            //  one record as a worksheet-style header row plus value row.
+            const tableFields = fields.filter(
+              (field) => !field.hidden && (isEditableField(field) || field.kind === 'calculated'),
+            );
+            const hasEditable = tableFields.some((field) => isEditableField(field));
+            return (
+              <Card key={group.key}>
+                <div className="flex justify-content-between align-items-center mb-2">
+                  <h3 className="m-0 text-base">{group.label ?? group.key}</h3>
+                  {hasEditable && renderGroupToolbar(group)}
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table
+                    className="w-full text-sm"
+                    style={{
+                      borderCollapse: 'collapse',
+                      tableLayout: 'fixed',
+                      minWidth: `${Math.max(1, tableFields.length) * 7}rem`,
+                    }}
+                  >
+                    <thead>
+                      <tr className="bg-gray-50">
+                        {tableFields.map((field) => {
+                          const calc = field.kind === 'calculated';
+                          return (
+                            <th
+                              key={field.key}
+                              className={`p-2 text-500 font-medium ${calc ? 'text-right' : 'text-left'}`}
+                              style={{ width: field.type === 'text' ? '15rem' : '7rem' }}
+                              title={calc ? field.expression : undefined}
+                            >
+                              {headerText(field)}
+                              {field.unit ? ` (${field.unit})` : ''}
+                              {field.kind === 'area' && (
+                                <i
+                                  className="pi pi-chart-line ml-1 text-blue-500"
+                                  title="Chromatographic area — manual entry pending the Waters integration"
+                                />
+                              )}
+                              {calc && <i className="pi pi-calculator ml-1 text-500" />}
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-top-1 border-200">
+                        {tableFields.map((field) =>
+                          field.kind === 'calculated' ? (
+                            <td className="p-2" key={field.key}>
+                              {computedCell(group, 0, field)}
+                            </td>
+                          ) : (
+                            <td className="p-1" key={field.key}>
+                              {renderInput(group, 0, field)}
+                            </td>
+                          ),
+                        )}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            );
+          }
+
           //  Only show the toolbar on sections the analyst can actually fill in.
           const hasEditable = editableFields.length > 0;
           return (
@@ -1385,7 +1926,20 @@ export const WorksheetForm = ({
         }
 
         const editingThisGroup = isGroupEditing(group.key);
-        const hasEditableCols = editableFields.length > 0;
+        const hasEditableHeaderInputs = (group.headerInputs ?? []).some((item) => {
+          const field = (group.fields ?? []).find((candidate) => candidate.key === item.field);
+          return field !== undefined && isEditableField(field);
+        });
+        const hasEditableCols = editableFields.length > 0 || hasEditableHeaderInputs;
+        //  A definition-owned column set stores its count and names in ordinary
+        //  worksheet values. The first `count` fields are the visible set, and
+        //  the count is changed by Add/Delete Column rather than by UI-only
+        //  hidden state.
+        const columnSetCount = group.columnSet ? columnCount(group, values) : 0;
+        const columnSetMinimum = group.columnSet ? columnSetMin(group) : 0;
+        const canAddSetColumn =
+          !!group.columnSet && columnSetCount < group.columnSet.columns.length;
+        const usesColumnControls = allowClearColumn || !!group.columnSet;
         //  Wide tables (e.g. the 12-vessel dissolution timepoints) have far more
         //  columns than fit the card. A fixed layout squeezes them until some
         //  columns collapse to near-zero width and look "missing", so for
@@ -1396,8 +1950,18 @@ export const WorksheetForm = ({
         const hiddenInGroup = [...editableFields, ...calculatedFields].filter((f) =>
           hiddenColumns.has(`${group.key}.${f.key}`),
         ).length;
+        //  A `rowLabel` replaces the ordinal `#` column with a caption column
+        //  such as Media Name / Standard - N. A plain `showRowNumbers: false`
+        //  table continues to have no leading column.
+        const hasRowLabel = !!group.rowLabel;
+        const showRowNumbers = !hasRowLabel && group.showRowNumbers !== false;
+        const leadingColumnCount = hasRowLabel || showRowNumbers ? 1 : 0;
         const tableColCount =
-          1 + editableFields.length + calculatedFields.length - hiddenInGroup + (canAddRows ? 1 : 0);
+          leadingColumnCount +
+          editableFields.length +
+          calculatedFields.length -
+          hiddenInGroup +
+          (canAddRows ? 1 : 0);
         const wideTable = tableColCount > 8;
         //  Very wide tables (e.g. the 15-unit dissolution timepoints, ~16 cols)
         //  must show every column without horizontal scrolling. Compact mode
@@ -1417,6 +1981,9 @@ export const WorksheetForm = ({
             !hiddenColumns.has(`${group.key}.${f.key}`) &&
             (isEditableField(f) || f.kind === 'calculated'),
         );
+        const hasHeaderGroups =
+          !!group.rowLabel?.headerGroup ||
+          visibleFields.some((field) => !!field.headerGroup);
         //  Opt-in "Set N" labeled blocks (shape heuristic — see models/setBlocks.ts):
         //  a group with a hidden `cidx` field and no `set_no` column (e.g.
         //  TPL-A2-0004's Sample Details after the SET column was removed) renders
@@ -1439,41 +2006,107 @@ export const WorksheetForm = ({
         //  single-table header; factored out so each "Set N" block carries it.
         const tableHead = (
           <thead>
+            {hasHeaderGroups && (
+              <tr className="bg-gray-100">
+                {hasRowLabel ? (
+                  <th
+                    className={`text-left ${cellPad} text-700 font-medium`}
+                    style={{ width: veryWideTable ? '4rem' : '7rem', ...cellWrap }}
+                  >
+                    {group.rowLabel?.headerGroup ?? ''}
+                  </th>
+                ) : (
+                  showRowNumbers && (
+                    <th
+                      className={`text-left ${cellPad} text-700 font-medium`}
+                      style={{ width: veryWideTable ? '1.6rem' : '3rem', ...cellWrap }}
+                    />
+                  )
+                )}
+                {visibleFields.map((field) => (
+                  <th
+                    key={`header-group-${field.key}`}
+                    className={`${cellPad} text-700 font-medium`}
+                    style={{ width: field.width, wordBreak: 'break-word', ...cellWrap }}
+                  >
+                    {field.headerGroup ?? ''}
+                  </th>
+                ))}
+                {canAddRows && <th style={{ width: veryWideTable ? '1.8rem' : '3rem' }} />}
+              </tr>
+            )}
             <tr className="bg-gray-50">
-              <th
-                className={`text-left ${cellPad} text-500 font-medium`}
-                style={{ width: veryWideTable ? '1.6rem' : '3rem', ...cellWrap }}
-              >
-                #
-              </th>
+              {hasRowLabel ? (
+                <th
+                  className={`text-left ${cellPad} text-500 font-medium`}
+                  style={{ width: veryWideTable ? '4rem' : '7rem', ...cellWrap }}
+                >
+                  {group.rowLabel?.header ?? ''}
+                </th>
+              ) : (
+                showRowNumbers && (
+                  <th
+                    className={`text-left ${cellPad} text-500 font-medium`}
+                    style={{ width: veryWideTable ? '1.6rem' : '3rem', ...cellWrap }}
+                  >
+                    #
+                  </th>
+                )
+              )}
               {visibleFields.map((field) => {
                 const calc = field.kind === 'calculated';
+                const nameRef = columnNameRef(group, field);
+                const canEditColumnName =
+                  !!group.columnSet && !calc && nameRef !== null && editingThisGroup;
+                const isColumnSetField = !!group.columnSet?.columns.includes(field.key);
+                const canDeleteColumn = group.columnSet
+                  ? editingThisGroup &&
+                    !calc &&
+                    isEditableField(field) &&
+                    isColumnSetField &&
+                    columnSetCount > columnSetMinimum
+                  : allowClearColumn && !calc && isEditableField(field) && editingThisGroup;
                 return (
                   <th
                     key={field.key}
                     className={`${cellPad} text-500 font-medium ${calc ? 'text-right' : 'text-left'}`}
-                    style={{ wordBreak: 'break-word', ...cellWrap }}
+                    style={{ width: field.width, wordBreak: 'break-word', ...cellWrap }}
                     title={calc ? field.expression : undefined}
                   >
-                    {headerText(field)}
-                    {field.unit ? ` (${field.unit})` : ''}
-                    {field.kind === 'area' && (
-                      <i
-                        className="pi pi-chart-line ml-1 text-blue-500"
-                        title="Chromatographic area — manual entry pending the Waters integration"
-                      />
-                    )}
-                    {calc && <i className="pi pi-calculator ml-1" />}
-                    {/* Per-column delete (scoped to this template; input columns; edit mode). */}
-                    {allowClearColumn && !calc && isEditableField(field) && editingThisGroup && (
-                      <i
-                        className="pi pi-trash ml-1 text-red-400 cursor-pointer"
-                        title={`Delete column "${field.label ?? field.key}"`}
-                        role="button"
-                        aria-label={`Delete column ${field.label ?? field.key}`}
-                        onClick={() => deleteColumn(group, field.key)}
-                      />
-                    )}
+                    <div className="flex align-items-center gap-1">
+                      {canEditColumnName && nameRef ? (
+                        <InputText
+                          value={(values[nameRef.group]?.[nameRef.row]?.[nameRef.field] as string) ?? ''}
+                          onChange={(event) =>
+                            setCell(nameRef.group, nameRef.row, nameRef.field, event.target.value)
+                          }
+                          placeholder={field.label ?? field.key}
+                          className="w-full"
+                          aria-label={`Media name for ${field.label ?? field.key}`}
+                        />
+                      ) : (
+                        <span>
+                          {headerText(field)}
+                          {field.unit ? ` (${field.unit})` : ''}
+                        </span>
+                      )}
+                      {field.kind === 'area' && (
+                        <i
+                          className="pi pi-chart-line text-blue-500"
+                          title="Chromatographic area — manual entry pending the Waters integration"
+                        />
+                      )}
+                      {calc && <i className="pi pi-calculator" />}
+                      {canDeleteColumn && (
+                        <i
+                          className="pi pi-trash text-red-400 cursor-pointer"
+                          title={`Delete column "${headerText(field)}"`}
+                          role="button"
+                          aria-label={`Delete column ${headerText(field)}`}
+                          onClick={() => deleteColumn(group, field.key)}
+                        />
+                      )}
+                    </div>
                   </th>
                 );
               })}
@@ -1489,9 +2122,17 @@ export const WorksheetForm = ({
             const rowIndex = startRow + localIndex;
             return (
               <tr key={rowIndex} className="border-top-1 border-200">
-                <td className={`${cellPad} text-500 font-mono`} style={cellWrap}>
-                  {localIndex + 1}
-                </td>
+                {hasRowLabel ? (
+                  <td className={`${cellPad} text-700 font-medium`} style={cellWrap}>
+                    {rowLabelText(group.rowLabel as NonNullable<GroupDef['rowLabel']>, rowIndex + 1)}
+                  </td>
+                ) : (
+                  showRowNumbers && (
+                    <td className={`${cellPad} text-500 font-mono`} style={cellWrap}>
+                      {localIndex + 1}
+                    </td>
+                  )
+                )}
                 {visibleFields.map((field) =>
                   field.kind === 'calculated' ? (
                     <td className={cellPad} style={cellWrap} key={field.key}>
@@ -1557,19 +2198,24 @@ export const WorksheetForm = ({
                     />
                   </>
                 )}
-                {/* Add Column: restore a deleted column (scoped to this template, edit mode). */}
-                {allowClearColumn && editingThisGroup && (
+                {/* Add Column: either expands a definition-owned column set or
+                    restores a legacy UI-hidden column. Both paths are edit-only. */}
+                {usesColumnControls && editingThisGroup && (
                   <Button
                     label="Add Column"
                     icon="pi pi-plus"
                     size="small"
                     text
                     onClick={() => addColumn(group)}
-                    disabled={hiddenCountFor(group) === 0}
+                    disabled={group.columnSet ? !canAddSetColumn : hiddenCountFor(group) === 0}
                     tooltip={
-                      hiddenCountFor(group) === 0
-                        ? 'All columns are shown'
-                        : `Restore a deleted column (${hiddenCountFor(group)} hidden)`
+                      group.columnSet
+                        ? canAddSetColumn
+                          ? `Add media column (${columnSetCount} of ${group.columnSet.columns.length})`
+                          : 'All media columns are shown'
+                        : hiddenCountFor(group) === 0
+                          ? 'All columns are shown'
+                          : `Restore a deleted column (${hiddenCountFor(group)} hidden)`
                     }
                   />
                 )}
@@ -1577,6 +2223,7 @@ export const WorksheetForm = ({
               </div>
             </div>
 
+            {renderGroupHeaderInputs(group)}
             {renderGroupHeaderContext(group)}
 
             {blocks.map((block, blockIndex) => (
@@ -1591,11 +2238,19 @@ export const WorksheetForm = ({
                   >
                     {tableHead}
                     <tbody>{renderRows(block.startRow, block.endRow)}</tbody>
+                    {blockIndex === blocks.length - 1 &&
+                      renderRowLabelFooter(group, visibleFields, canAddRows, cellPad)}
+                    {blockIndex === blocks.length - 1 &&
+                      renderTableFooterRows(group, visibleFields, leadingColumnCount, cellPad)}
                   </table>
                 </div>
               </div>
             ))}
-            {renderGroupFooter(group, visibleFields, canAddRows, cellPad)}
+            {!group.rowLabel &&
+              renderGroupFooter(group, visibleFields, canAddRows, cellPad, showRowNumbers)}
+            {group.note && (
+              <p className="text-xs text-600 m-0 mt-2">{group.note}</p>
+            )}
           </Card>
         );
       })}

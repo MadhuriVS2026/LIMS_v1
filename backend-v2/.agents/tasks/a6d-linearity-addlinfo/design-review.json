@@ -1,0 +1,27 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "id": 1,
+      "severity": "NIT",
+      "location": "Acceptance criteria — AC12",
+      "problem": "AC12 says a 'freshly instantiated worksheet for TPL-A6D-0002 opens the linearity group with nine rows', but create_worksheet rejects non-Active templates (is_selectable == status ACTIVE) and TPL-A6D-0002 is Draft, so a literal create_worksheet call would raise. The Testability section already reframes AC12 as an evaluate({}, {}) blank-sheet test, but the AC12 prose does not.",
+      "fix": "Reword AC12 to assert TemplateDefinition.parse + WorksheetEvaluator.evaluate({}, {}) gives has_blocking_failure == False and linearity.rows.default == 9 with no field default, instead of a create_worksheet call on a Draft row."
+    },
+    {
+      "id": 2,
+      "severity": "NIT",
+      "location": "Functional requirements — FR3 / AC12",
+      "problem": "FR3 states the group 'opens with nine blank rows' as if a backend guarantee. Backend evaluate({}, {}) and create_worksheet (group_values={}) store no rows; the nine-row open is produced by the frontend row builder reading rows.default (WorksheetForm.tsx).",
+      "fix": "Add to FR3: '(the nine-row open is produced by the frontend row builder reading rows.default; the stored definition and backend evaluator hold no rows).'"
+    },
+    {
+      "id": 3,
+      "severity": "NIT",
+      "location": "Addition 2 — time_points_min field",
+      "problem": "time_points_min is type:text with unit:'min'. Parses fine, but a unit on a free-text list field is display-only and may render oddly.",
+      "fix": "Optional: drop unit:'min' and fold it into the label ('Time Points (min)'), or leave as-is."
+    }
+  ],
+  "reviewDoc": "d:\\RD-instance\\GIT\\backend-v2\\.agents\\tasks\\a6d-linearity-addlinfo\\design-review.md"
+}

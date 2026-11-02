@@ -31,6 +31,8 @@ export interface FieldDef {
   key: string;
   kind: FieldKind;
   label?: string;
+  /** Optional top-level table header rendered above this field's regular label. */
+  headerGroup?: string;
   type?: ValueType;
   unit?: string | null;
   /** CALCULATED only. */
@@ -74,10 +76,16 @@ export interface FieldDef {
   /**
    * UI-only visibility condition, as `"<group>.<field>[idx]"`: the field is
    * shown only while that entered value is non-blank (e.g. `cells.cell_no[6]`
-   * shows the Cell-7 columns once row 7 of Cell Loading has a Cell no). The
-   * calc engine ignores it; formulas gate themselves on the same value.
+   * shows the Cell-7 columns once row 7 of Cell Loading has a Cell no). It may
+   * compare the value to a number, e.g. `"media_names.media_count[0] >= 7"`.
+   * The calc engine ignores it; formulas gate themselves on the same value.
    */
   showIf?: string;
+  /**
+   * Optional CSS width for this table column (for example, `"72%"`).
+   * It has no effect on singleton field grids.
+   */
+  width?: string;
 }
 
 export interface RowSpec {
@@ -85,6 +93,8 @@ export interface RowSpec {
   max?: number;
   default?: number;
   labelFrom?: string;
+  /** Opening rows seeded once when a worksheet is created. */
+  seed?: Record<string, unknown>[];
 }
 
 /**
@@ -102,8 +112,35 @@ export interface GroupFooterItem {
   label?: string;
   /** Dotted path into computed.values, e.g. `stats.rsd_std`. */
   ref: string;
+  /**
+   * Optional table field key that receives this value when a row-label table
+   * renders a standard footer inside its table.
+   */
+  column?: string;
   unit?: string | null;
   rounding?: Rounding;
+}
+
+/**
+ * A calculated value placed in a specific column of a table-footer row.
+ * This keeps spreadsheet-style summary values aligned with their data columns.
+ */
+export interface TableFooterValue {
+  /** Dotted path into `computed.values`, e.g. `summary.total_unknowns`. */
+  ref: string;
+  unit?: string | null;
+  rounding?: Rounding;
+}
+
+/**
+ * A table-footer row rendered inside the table after its data rows. The label
+ * spans the specified count of leading visible data columns; each keyed value
+ * then appears under its matching field column.
+ */
+export interface TableFooterRow {
+  label: string;
+  labelColSpan?: number;
+  values: Record<string, TableFooterValue>;
 }
 
 /**
@@ -118,11 +155,28 @@ export interface GroupHeaderContextItem {
   ref: string;
 }
 
+/**
+ * An editable worksheet field rendered inline immediately beneath a table
+ * section's title. `field` names a field in the same group; it is normally
+ * hidden from the table because the header value applies to the whole section
+ * and is stored on that table's first row.
+ */
+export interface GroupHeaderInputItem {
+  /** Inline caption. Falls back to the referenced field's label. */
+  label?: string;
+  /** Editable field key from the containing group. */
+  field: string;
+  /** Optional CSS width for the input control, e.g. `"20rem"`. */
+  width?: string;
+}
+
 /** A single plottable series on a chart group, keyed by a field in the source
  * group's computed rows (e.g. `mean`, `unit_1`). */
 export interface ChartSeries {
   key: string;
   label: string;
+  /** Optional `computed.values` key whose value replaces `label` when filled (e.g. `batch_no`). */
+  labelRef?: string;
 }
 
 /**
@@ -146,6 +200,15 @@ export interface ChartConfig {
   defaultSeries?: string[];
   /** `scatter` draws points only (no connecting line). Defaults to `line`. */
   type?: 'line' | 'scatter';
+  /** Show the Chart.js legend (series names) on screen and in print. */
+  legend?: boolean;
+  /** Axis range / tick spacing / tick decimals. Data outside min..max widens the axis. */
+  xAxis?: ChartAxis;
+  yAxis?: ChartAxis;
+  /** Chart.js point style for the data series, e.g. `rectRot` (diamond). */
+  pointStyle?: string;
+  /** Plot height in pixels on screen (default 320); print scales to match. */
+  height?: number;
   /** Row field that must be truthy for a row to be plotted (e.g. `is_standard`). */
   rowFilter?: string;
   /**
@@ -153,6 +216,14 @@ export interface ChartConfig {
    * equation. Each ref is a `group.field` key in `computed.values`.
    */
   trendline?: ChartTrendline;
+}
+
+export interface ChartAxis {
+  min?: number;
+  max?: number;
+  step?: number;
+  /** Decimal places on tick labels, e.g. 3 -> "50.000". */
+  digits?: number;
 }
 
 export interface ChartTrendline {
@@ -166,12 +237,38 @@ export interface GroupDef {
   key: string;
   kind: GroupKind;
   label?: string;
+  /**
+   * UI-only, singleton groups: show their fields as a single row of a
+   * spreadsheet-style table instead of the default card grid.
+   */
+  renderAsTable?: boolean;
+  /**
+   * UI-only dynamic section title sourced from a worksheet cell, using the same
+   * `"<group>.<field>[idx]"` grammar as `FieldDef.labelFrom`. It falls back
+   * to `label` while blank — e.g. an editable media name drives a Media
+   * Solution card's title.
+   */
+  labelFrom?: string;
+  /**
+   * UI-only visibility condition using the same grammar as `FieldDef.showIf`.
+   * It lets a complete section appear once its paired dynamic media column is
+   * in use, and disappear when that column is removed.
+   */
+  showIf?: string;
+  /** Optional explanatory text rendered directly below the group table. */
+  note?: string;
+  /** Whether a table/sequence renders its ordinal `#` column. Defaults to true. */
+  showRowNumbers?: boolean;
   rows?: RowSpec;
   fields: FieldDef[];
   /** Optional computed summary shown directly beneath the table. */
   footer?: GroupFooterItem[];
+  /** Spreadsheet-style calculated rows rendered inside the table footer. */
+  tableFooterRows?: TableFooterRow[];
   /** Optional read-only context summary shown directly above the table. */
   headerContext?: GroupHeaderContextItem[];
+  /** Optional editable fields shown inline directly beneath a table title. */
+  headerInputs?: GroupHeaderInputItem[];
   /**
    * Optional, non-standard UI-only hint: when present on a `singleton` group the
    * worksheet form renders a line chart (not a field grid) from the referenced
@@ -184,6 +281,64 @@ export interface GroupDef {
    * source group, so adding a row there adds one here. The calc engine ignores it.
    */
   view?: ViewConfig;
+  /**
+   * UI-only: the group is still seeded, computed and stored but is not rendered
+   * as a section of its own (screen or print) — e.g. a singleton that holds a
+   * table's column names, edited from that table's header.
+   */
+  hidden?: boolean;
+  /** UI-only, tables: a caption column in place of the `#` row number. */
+  rowLabel?: RowLabelConfig;
+  /** UI-only, tables: columns the analyst can add, delete and name per worksheet. */
+  columnSet?: ColumnSetConfig;
+  /**
+   * UI-only, singleton: a one-row dilution form plus a linked editable Set
+   * table (used for a complete per-media solution block). The calculation
+   * engine still sees ordinary groups and fields.
+   */
+  solutionBlock?: SolutionBlockConfig;
+}
+
+/** One media solution's table lives in a hidden, linked source group. */
+export interface SolutionBlockConfig {
+  /** Hidden table group whose Area/Mean/mg/mL rows render inside this block. */
+  setsGroup: string;
+  /** Caption above the singleton dilution inputs. Defaults to "Solution Dilution". */
+  dilutionLabel?: string;
+}
+
+/**
+ * Caption column for a table group. The footer then renders inside the table,
+ * with its row labels (Mean / SD / ...) in this column.
+ */
+export interface RowLabelConfig {
+  /** Header of the caption column, e.g. `"Media Name"`. */
+  header?: string;
+  /** Optional top-level table header rendered above the caption header. */
+  headerGroup?: string;
+  /** Caption of each row; `{n}` is the 1-based row number, e.g. `"Standard - {n}"`. */
+  format: string;
+}
+
+/**
+ * A run of a table's columns whose number in use and names are per-worksheet
+ * values (see `models/columnSet.ts`). Each column's `labelFrom` names the cell
+ * holding its editable name, and its `showIf` compares the count with its
+ * position so screen and print hide the columns not in use.
+ */
+export interface ColumnSetConfig {
+  /** The group's field keys forming the set, in order; the first `count` are in use. */
+  columns: string[];
+  /** `"<group>.<field>"` of the stored number of columns in use (a singleton input). */
+  countRef: string;
+  /** Fewest columns in use; Delete Column stops here. Defaults to 1. */
+  min?: number;
+  /**
+   * One or more worksheet groups paired with each provisioned column. When a
+   * column is added/deleted, matching group sets are reset or shifted with it,
+   * so a Media Solution never becomes detached from its Standard Area column.
+   */
+  linkedGroups?: string[][];
 }
 
 export interface ViewColumn {
@@ -201,6 +356,16 @@ export interface ViewColumn {
 export interface ViewConfig {
   sourceGroup: string;
   columns: ViewColumn[];
+  /** Summary rows under the data rows (e.g. per-cell Slope / r / r²). */
+  footer?: ViewFooterRow[];
+}
+
+export interface ViewFooterRow {
+  /** Shown in the first column. */
+  label: string;
+  digits?: number;
+  /** Column key -> `computed.values` key, e.g. `{ per_area_1: 'timepoint_pa.slope_1' }`. */
+  values: Record<string, string>;
 }
 
 export interface CriterionDef {

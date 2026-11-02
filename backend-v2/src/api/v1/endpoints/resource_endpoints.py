@@ -1,13 +1,15 @@
 """Resource Manager API endpoints: Instruments, Columns, Reference Standards,
 Chemicals/Reagents, and Volumetric Solutions. Stability Management has its own
 endpoints — see stability_endpoints.py."""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.v1.dependencies import get_current_user, get_session, require_role
 from src.api.v1.schemas.resource_schemas import (
+    ARDExpTemplateResponse,
     ChemicalResponse,
     ColumnResponse,
+    CreateARDExpTemplateRequest,
     CreateChemicalRequest,
     CreateColumnRequest,
     CreateInstrumentRequest,
@@ -18,6 +20,7 @@ from src.api.v1.schemas.resource_schemas import (
     ProjectResponse,
     RecordCalibrationRequest,
     ReferenceStandardResponse,
+    UpdateARDExpTemplateRequest,
     VolumetricSolutionResponse,
 )
 from src.config.dependency_injection import Container
@@ -169,3 +172,51 @@ async def create_project(
         request.market, request.start_date, request.end_date, request.license, request.comments,
         request.status, request.requested_person, request.remarks, current_user,
     )
+
+
+# ─── ARD-EXP-TEMPLATES Master ───
+@router.get("/ard-exp-templates", response_model=list[ARDExpTemplateResponse])
+async def list_ard_exp_templates(
+    current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)
+):
+    return await Container.get_resource_service(session).list_ard_exp_templates()
+
+
+@router.post("/ard-exp-templates", response_model=ARDExpTemplateResponse)
+async def create_ard_exp_template(
+    request: CreateARDExpTemplateRequest,
+    current_user: User = Depends(require_role("Admin")),
+    session: AsyncSession = Depends(get_session),
+):
+    service = Container.get_resource_service(session)
+    return await service.create_ard_exp_template(
+        request.template_name, request.comments, request.primary_department, request.plant,
+        request.location, request.is_active, request.secondary_department, request.module,
+        current_user, request.template_code, request.document_no, request.content,
+    )
+
+
+@router.put("/ard-exp-templates/{template_id}", response_model=ARDExpTemplateResponse)
+async def update_ard_exp_template(
+    template_id: int,
+    request: UpdateARDExpTemplateRequest,
+    current_user: User = Depends(require_role("Admin")),
+    session: AsyncSession = Depends(get_session),
+):
+    service = Container.get_resource_service(session)
+    return await service.update_ard_exp_template(
+        template_id, request.template_name, request.comments, request.primary_department,
+        request.plant, request.location, request.is_active, request.secondary_department,
+        request.module, current_user, request.template_code, request.document_no,
+        request.content,
+    )
+
+
+@router.delete("/ard-exp-templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_ard_exp_template(
+    template_id: int,
+    current_user: User = Depends(require_role("Admin")),
+    session: AsyncSession = Depends(get_session),
+):
+    service = Container.get_resource_service(session)
+    await service.delete_ard_exp_template(template_id, current_user)

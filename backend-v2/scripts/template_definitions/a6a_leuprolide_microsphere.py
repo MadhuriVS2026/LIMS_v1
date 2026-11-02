@@ -54,6 +54,13 @@ A6B-0001/0002.
 from scripts.template_definitions._common import SeedTemplate, sst_rsd_criterion
 
 _UNITS = 6
+#  v3: extend the per-sample field families (area/jassay/kfrac/unit) and the
+#  stats aggregate from 6 to 20 fixed sample slots, and raise weights.rows.max
+#  to 20 (keep its default at _UNITS). Slots 7..20 are blank in the parity
+#  fixture, so the blank-tolerant aggregates leave every gold value unchanged.
+_SAMPLES = 20
+#  v3: cap the timepoint sequence at 10 blocks (original-request limit).
+_TIMEPOINTS_MAX = 10
 
 
 # ── Context header (sheet rows 2-15) ─────────────────────────────────
@@ -202,7 +209,9 @@ def _weights_group() -> dict:
     #  Only 3 filled on the sheet (F22=49.17, F23=50.56, F24=49.77); rest blank.
     return {
         "key": "weights", "kind": "table", "label": "Pellets Weight in mg",
-        "rows": {"min": 1, "max": _UNITS, "default": _UNITS, "labelFrom": "unit_label"},
+        #  v3: rows.max raised to _SAMPLES (20) so area_20 can resolve
+        #  weights.weight[19]; default stays at _UNITS (6).
+        "rows": {"min": 1, "max": _SAMPLES, "default": _UNITS, "labelFrom": "unit_label"},
         "fields": [
             {"key": "unit_label", "kind": "input", "type": "text",
              "label": "Dissolution Unit"},                                  # E22:E27
@@ -290,28 +299,30 @@ def _timepoints_release_group() -> dict:
         {"key": "time_hr", "kind": "input", "type": "text",
          "label": "Timepoint"},                                            # A-label
     ]
-    #  area_1..area_6 — per-unit Sample Area (sheet column B within each block).
-    for u in range(1, _UNITS + 1):
+    #  area_1..area_20 — per-unit Sample Area (sheet column B within each block).
+    #  v3: extended from _UNITS (6) to _SAMPLES (20) fixed slots; slots 7..20 are
+    #  blank in the fixture and are ignored by the blank-tolerant aggregates.
+    for u in range(1, _SAMPLES + 1):
         fields.append({"key": f"area_{u}", "kind": "area",
                        "label": f"Sample Area {u}"})                        # B[block+u-1]
-    #  Loop A: jassay_1..6 — raw per-unit %Assay J (hidden). Real edge to area_u.
-    for u in range(1, _UNITS + 1):
+    #  Loop A: jassay_1..20 — raw per-unit %Assay J (hidden). Real edge to area_u.
+    for u in range(1, _SAMPLES + 1):
         fields.append({"key": f"jassay_{u}", "kind": "calculated", "hidden": True,
                        "expression": _jassay_expression(u)})                # J column
-    #  Loop B: kfrac_1..6 — this row's replace fraction K = J*A37/A35 (hidden).
+    #  Loop B: kfrac_1..20 — this row's replace fraction K = J*A37/A35 (hidden).
     #          Depends on the SAME row's jassay_u (real dependency edge).
-    for u in range(1, _UNITS + 1):
+    for u in range(1, _SAMPLES + 1):
         fields.append({"key": f"kfrac_{u}", "kind": "calculated", "hidden": True,
                        "expression": f"jassay_{u} * prep.withdraw_replace"
                                      f" / prep.media_vol"})                 # K column
-    #  Loop C: unit_1..6 — reported Cumulative %Release C = J + Σ K[1..b-1].
+    #  Loop C: unit_1..20 — reported Cumulative %Release C = J + Σ K[1..b-1].
     #          sum(prior.kfrac_u) is 0 on row 1 (=> unit = J = C40), else = L.
-    for u in range(1, _UNITS + 1):
+    for u in range(1, _SAMPLES + 1):
         fields.append({"key": f"unit_{u}", "kind": "calculated",
                        "label": f"Unit-{u}", "unit": "%",
                        "expression": f"jassay_{u} + sum(prior.kfrac_{u})"})  # C column
-    #  Per-block aggregates over the 6 unit_n (sheet D/E/F/G on block-start row).
-    ul = "[" + ", ".join(f"unit_{u}" for u in range(1, _UNITS + 1)) + "]"
+    #  Per-block aggregates over the 20 unit_n (sheet D/E/F/G on block-start row).
+    ul = "[" + ", ".join(f"unit_{u}" for u in range(1, _SAMPLES + 1)) + "]"
     fields.append({"key": "mean", "kind": "calculated", "label": "Mean", "unit": "%",
                    "expression": f"mean({ul})"})                            # D
     fields.append({"key": "min_val", "kind": "calculated", "label": "Min", "unit": "%",
@@ -323,7 +334,9 @@ def _timepoints_release_group() -> dict:
     return {
         "key": "timepoints_release", "kind": "sequence",
         "label": "Cumulative % Release",
-        "rows": {"min": 1, "max": 25, "default": 7, "labelFrom": "time_hr"},
+        #  v3: cap timepoint blocks at _TIMEPOINTS_MAX (10) per the original
+        #  request; only 7 blocks were ever labelled/used so no data is dropped.
+        "rows": {"min": 1, "max": _TIMEPOINTS_MAX, "default": 7, "labelFrom": "time_hr"},
         "fields": fields,
     }
 

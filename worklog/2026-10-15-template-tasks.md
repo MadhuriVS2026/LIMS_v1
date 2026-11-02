@@ -76,3 +76,51 @@ before each change). Frontend changes are in source and were committed/pushed.
 - Template & calculation edits live only in `lims.db` (gitignored). Not yet
   captured as declarative seed modules in source control.
 - Worksheet 27 30-min areas for units 2–4 may be corrupted (re-enter).
+
+---
+
+# Worklog — 29 October 2026
+
+## TPL-A4-0003 — Related substance_RS-1_Lenacapavir injection
+
+Template-specific edits to the `sst` and standard sections (template id=50,
+v1 Active). Applied to `backend-v2/lims.db` (gitignored; timestamped backups
+`lims.db.bak-a4sens-*` and `lims.db.bak-a4stdinj-*` made before each change).
+Verified end-to-end through the calc engine (`TemplateDefinition.parse` +
+`WorksheetEvaluator`).
+
+### Sensitivity Table (section "System Suitability / Sensitivity")
+
+- Replaced the old SST form-view fields with the Sensitivity Table from the
+  sheet. New `sst` fields:
+  - `area_lena2_sensitivity` — input (manual).
+  - `area_lena2_std` — **calculated / auto-fetched** = `std_preps.area[0]`
+    (STD-1 / Inj-1 area), 0 dp.
+  - `dilution_factor` — input, default 2000.
+  - `result` — **calculated** = `area_lena2_sensitivity / area_lena2_std *
+    dilution_factor`, 3 dp.
+- Removed the other SST fields: old raw `sensitivity_ratio`, `tailing_lena2`,
+  `resolution_desbromo_keto`, `resolution_amine_lkh`, `rt_lena2_sample`, and the
+  leftover free-text `dilution_factor` / `result` / `limit` inputs.
+- Criteria: re-pointed `sensitivity_ratio_range` from the old raw ratio to
+  **`sst.result`** (between 0.70 and 1.30) — the 0.70–1.30 limit applies to the
+  dilution-factor-scaled Result, not the raw ratio. Dropped the advisory
+  `tailing_range` criterion (its target field was removed).
+- Verified: `(4388 / 9298867) * 2000 = 0.944` (3 dp) against the sheet example.
+
+### Standard Injections block (below Standard Preparations)
+
+- Added a new singleton `std_injections` ("Standard Injections") inserted right
+  after `std_preps`. Transposed display of the 6 STD injection areas + Mean +
+  SD + %RSD footer. All cells auto-fetch / auto-calculate from the existing
+  standard data (single source of truth, no new manual entry):
+  - `std_1`..`std_6` = `std_preps.area[0..5]` (0 dp; blank row shows blank).
+  - `mean` = `stats.mean_std` (0 dp); `sd` = `stats.sd_std` (2 dp);
+    `rsd` = `stats.rsd_std` (2 dp), labelled "% RSD (Limit: NMT 1.5)".
+- Verified against the sheet: STD areas 10715758 / 10706105 / 10682530 /
+  10682530 / 10689079 (STD-6 blank) → Mean **10695200**, SD 15000.62,
+  **%RSD 0.14**.
+
+Note: the Sensitivity "STD / Inj-1 area" auto-fetches STD-1 (`std_preps.area[0]`).
+If a dedicated sensitivity-standard injection should feed it instead, re-point
+the expression.

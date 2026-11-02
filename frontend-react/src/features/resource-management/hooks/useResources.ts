@@ -3,6 +3,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  ardExpTemplateApi,
   chemicalApi,
   columnApi,
   instrumentApi,
@@ -10,6 +11,7 @@ import {
   referenceStandardApi,
   volumetricApi,
 } from '../api/resourceApi';
+import type { ARDExpTemplate } from '../models/resource.types';
 
 export function useInstruments() {
   return useQuery({ queryKey: ['instruments'], queryFn: instrumentApi.list });
@@ -57,6 +59,34 @@ export function useProjects() {
 export function useCreateProject() {
   const qc = useQueryClient();
   return useMutation({ mutationFn: projectApi.create, onSuccess: () => qc.invalidateQueries({ queryKey: ['projects'] }) });
+}
+
+const ARD_EXP_TEMPLATES_KEY = ['ard-exp-templates'];
+
+export function useARDExpTemplates() {
+  return useQuery({ queryKey: ARD_EXP_TEMPLATES_KEY, queryFn: ardExpTemplateApi.list });
+}
+export function useCreateARDExpTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ardExpTemplateApi.create,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ARD_EXP_TEMPLATES_KEY }),
+  });
+}
+export function useUpdateARDExpTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: Partial<ARDExpTemplate> }) =>
+      ardExpTemplateApi.update(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ARD_EXP_TEMPLATES_KEY }),
+  });
+}
+export function useDeleteARDExpTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => ardExpTemplateApi.remove(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ARD_EXP_TEMPLATES_KEY }),
+  });
 }
 
 // Stability now has its own dedicated feature — see @features/stability/hooks/useStability.ts

@@ -912,8 +912,7 @@ class TestA10LossOnDrying:
 class TestA10WeightPerMl:
     GROUPS = {
         "determinations": [
-            {"prep_ref": "P1", "empty_weight": 20.0, "with_sample": 45.0,
-             "with_water": 44.5},
+            {"empty_weight": 20.0, "with_sample": 45.0, "with_water": 44.5},
         ],
     }
 
@@ -931,6 +930,45 @@ class TestA10WeightPerMl:
             1.0174
         )
         assert result.reportable_result == pytest.approx(1.0174)
+
+
+class TestA10GrossContent:
+    """Second section: gross content = (W1 - W2) / Mean Weight per mL."""
+
+    #  A determination whose Weight per mL rounds to 1.0077 g/mL, matching the
+    #  density used on the sheet's gross-content block.
+    #  ratio = 1.0077 / 0.99704; empty 0, water 1 so ratio = with_sample.
+    GROUPS = {
+        "determinations": [
+            {"empty_weight": 0.0, "with_sample": 1.0077 / 0.99704, "with_water": 1.0},
+        ],
+        "gross_content": [
+            {"batch_no": "ES23T008", "filled_weight": 13.0771, "empty_weight": 7.5555},
+            {"batch_no": "ES23T008", "filled_weight": 12.9220, "empty_weight": 7.4192},
+            {"batch_no": "ES23T008", "filled_weight": 13.0609, "empty_weight": 7.5278},
+        ],
+    }
+
+    @pytest.fixture()
+    def result(self):
+        return evaluator("TPL-A10-0002").evaluate({}, self.GROUPS)
+
+    def test_net_weight_is_w1_minus_w2(self, result):
+        assert result.row_value("gross_content", 0, "net_weight") == pytest.approx(5.5216)
+        assert result.row_value("gross_content", 1, "net_weight") == pytest.approx(5.5028)
+        assert result.row_value("gross_content", 2, "net_weight") == pytest.approx(5.5331)
+
+    def test_gross_content_divides_net_by_mean_weight_per_ml(self, result):
+        # density = Mean Weight per mL = 1.0077 g/mL (4dp)
+        assert result.row_value("determinations", 0, "weight_per_ml") == pytest.approx(1.0077)
+        # 5.5216 / 1.0077 = 5.47931... → 4dp 5.4794
+        assert result.row_value("gross_content", 0, "gross_content_ml") == pytest.approx(5.4794)
+        # 5.5331 / 1.0077 = 5.49083... → 4dp 5.4908
+        assert result.row_value("gross_content", 2, "gross_content_ml") == pytest.approx(5.4908)
+
+    def test_average_gross_content_is_mean_of_the_rows(self, result):
+        # mean of 5.4794, 5.4608, 5.4908 = 5.4770 (4dp)
+        assert result.values["gross_stats.mean_gross_content"] == pytest.approx(5.477)
 
 
 # ── A13: Trace / nitrosamine impurities ─────────────────────────────

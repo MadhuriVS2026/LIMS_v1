@@ -25,7 +25,7 @@ import {
   Filler,
 } from 'chart.js';
 import type { ChartConfig, WorksheetComputed } from '../models/testTemplate.types';
-import { buildPoints, buildTrendline } from '../models/chartData';
+import { axisScale, buildPoints, buildTrendline, seriesLabel } from '../models/chartData';
 
 Chart.register(
   LineController,
@@ -67,7 +67,7 @@ export const WorksheetChartPrintImage = ({ chart, computed, title }: Props) => {
         const idx = seriesKeys.indexOf(s.key);
         const color = SERIES_COLORS[idx % SERIES_COLORS.length];
         return {
-          label: s.label,
+          label: seriesLabel(s, computed),
           data: buildPoints(rows, chart.xField, s.key, chart.rowFilter),
           borderColor: color,
           backgroundColor: color,
@@ -75,9 +75,12 @@ export const WorksheetChartPrintImage = ({ chart, computed, title }: Props) => {
           tension: 0,
           fill: false,
           spanGaps: true,
-          pointRadius: scatter ? 4 : 2,
+          pointRadius: scatter ? 4 : chart.pointStyle ? 5 : 2,
+          pointStyle: chart.pointStyle ?? 'circle',
+          borderWidth: chart.pointStyle ? 2.5 : 2,
         };
       });
+    const plottedPts = (datasets as { data: { x: number; y: number }[] }[]).flatMap((d) => d.data);
 
     const firstKey = chart.series[0]?.key;
     const basePoints = firstKey ? buildPoints(rows, chart.xField, firstKey, chart.rowFilter) : [];
@@ -103,7 +106,7 @@ export const WorksheetChartPrintImage = ({ chart, computed, title }: Props) => {
     //  Off-screen canvas sized for a crisp print image.
     const canvas = document.createElement('canvas');
     canvas.width = 900;
-    canvas.height = 420;
+    canvas.height = Math.round(420 * ((chart.height ?? 320) / 320));
 
     const instance = new Chart(canvas, {
       type: 'line',
@@ -113,7 +116,11 @@ export const WorksheetChartPrintImage = ({ chart, computed, title }: Props) => {
         responsive: false,
         devicePixelRatio: 2,
         plugins: {
-          legend: { display: chart.series.length > 1, position: 'bottom' },
+          legend: {
+            display: chart.series.length > 1 || !!chart.legend,
+            position: 'bottom',
+            labels: { filter: (item) => item.text !== 'Trendline' },
+          },
           title: titleLines.length
             ? { display: true, text: titleLines }
             : { display: false },
@@ -123,10 +130,12 @@ export const WorksheetChartPrintImage = ({ chart, computed, title }: Props) => {
             type: 'linear',
             beginAtZero: scatter,
             title: { display: true, text: chart.xLabel ?? 'Time' },
+            ...axisScale(chart.xAxis, plottedPts.map((p) => p.x)),
           },
           y: {
             beginAtZero: true,
             title: { display: true, text: chart.yLabel ?? '% Release' },
+            ...axisScale(chart.yAxis, plottedPts.map((p) => p.y)),
           },
         },
       },

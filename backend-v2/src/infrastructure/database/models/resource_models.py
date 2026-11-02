@@ -1,7 +1,7 @@
 """SQLAlchemy ORM models for Resource Manager: Column, ReferenceStandard, Chemical, Volumetric."""
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.infrastructure.database.models.base_model import BaseModel
@@ -80,6 +80,27 @@ class ProjectMasterModel(BaseModel):
     status: Mapped[str] = mapped_column(String(50), default="Active")
     requested_person: Mapped[str | None] = mapped_column(String(500), nullable=True)
     remarks: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+
+
+class ARDExpTemplateModel(BaseModel):
+    __tablename__ = "ard_exp_templates"
+
+    template_name: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
+    comments: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    primary_department: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    plant: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    location: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    secondary_department: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    module: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    #  Source form identity (e.g. "ADS-01-00") and its document number
+    #  (e.g. "ADS/001/00") preserved from the originating sheet.
+    template_code: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    document_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    #  Complete, non-standardised sheet content as extracted from the source
+    #  document: header fields + every section/table verbatim, stored as JSON text
+    #  so the full form can be reproduced without flattening or summarising it.
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class VolumetricSolutionModel(BaseModel):

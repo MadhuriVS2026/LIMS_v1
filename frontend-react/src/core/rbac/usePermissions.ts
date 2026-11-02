@@ -52,6 +52,9 @@ const MENU_ACCESS: Record<string, Role[]> = {
   columns: ['Admin', 'Analyst', 'Supervisor', 'QA'],
   volumetric: ['Admin', 'Analyst', 'Supervisor', 'QA'],
   projects: ['Admin', 'Analyst', 'Supervisor', 'QA'],
+  //  Admin master — ARD experiment template catalogue. Authoring (add/edit/delete)
+  //  is Admin-only, enforced by the backend; the menu itself is Admin-gated.
+  ardExpTemplates: ['Admin'],
   sap: ['Admin', 'QA', 'Analyst'],
   users: ['Admin'],
   audit: ['Admin', 'Analyst', 'Supervisor', 'QA'],

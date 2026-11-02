@@ -132,27 +132,38 @@ def _standard_group() -> dict:
 
 # ── Blank chromatogram area (sheet C15) ──────────────────────────────
 def _blank_group() -> dict:
-    #  C15 = 0: the blank area subtracted from every raw area. Kept explicit so
-    #  the `corrected = area - blank_area` subtraction is visible, not dropped.
+    #  Sheet rows 14-15: the Blank is the first row of the Name/Area/Corrected
+    #  area block (B15="Blank", C15=0, D15=0). Modelled as a single-row table so
+    #  it renders with the same three columns as the Standard area table. C15 = 0
+    #  is the blank area subtracted from every raw area (corrected = area - C15),
+    #  referenced downstream as `blank.area[0]`.
     return {
-        "key": "blank", "kind": "singleton", "label": "Blank chromatogram",
+        "key": "blank", "kind": "table", "label": "Blank chromatogram",
+        "rows": {"min": 1, "max": 1, "default": 1, "labelFrom": "name"},
         "fields": [
-            {"key": "blank_area", "kind": "area", "label": "Blank Area",
-             "default": 0},                                                 # C15
+            {"key": "name", "kind": "input", "type": "text", "label": "Name",
+             "default": "Blank"},                                           # B15
+            {"key": "area", "kind": "area", "label": "Area", "default": 0}, # C15
+            {"key": "corrected", "kind": "calculated", "label": "Corrected area",
+             "expression": "area - area"},                                  # D15 = C15 - C15 = 0
         ],
     }
 
 
 # ── Standard & blank chromatogram areas — left block (rows 15-25) ─────
 def _std_areas_group() -> dict:
-    #  B17..B22 Standard-01..06; D17..D22 corrected = Cn - C$15.
+    #  B17..B22 Standard-01..06 (Name of Standard); C17..C22 Area;
+    #  D17..D22 corrected = Cn - C$15.
     return {
         "key": "std_areas", "kind": "table", "label": "Standard area",
-        "rows": {"min": 1, "max": _STD_ROWS, "default": _STD_ROWS},
+        "rows": {"min": 1, "max": _STD_ROWS, "default": _STD_ROWS,
+                 "labelFrom": "name"},
         "fields": [
+            {"key": "name", "kind": "input", "type": "text",
+             "label": "Name of Standard"},                                  # B17..B22
             {"key": "area", "kind": "area", "label": "Area"},               # C17..C22
             {"key": "corrected", "kind": "calculated", "label": "Corrected area",
-             "expression": "area - blank.blank_area"},                      # D17..D22
+             "expression": "area - blank.area[0]"},                        # D17..D22
         ],
         "footer": [
             {"label": "Average Area", "ref": "std_stats.avg_area"},
@@ -186,14 +197,18 @@ def _std_stats_group() -> dict:
 
 # ── BKT standard areas — right block (rows 15-25) ────────────────────
 def _bkt_group() -> dict:
-    #  E16..E22 BKT Standard-01..07; G16..G22 corrected = Fn - C$15.
+    #  E16..E22 BKT Standard-01..07 (Bracketing Standard Name); F16..F22 Area;
+    #  G16..G22 corrected = Fn - C$15.
     return {
         "key": "bkt", "kind": "table", "label": "BKT standard area",
-        "rows": {"min": 0, "max": _BKT_ROWS, "default": _BKT_ROWS},
+        "rows": {"min": 0, "max": _BKT_ROWS, "default": _BKT_ROWS,
+                 "labelFrom": "name"},
         "fields": [
+            {"key": "name", "kind": "input", "type": "text",
+             "label": "Bracketing Standard Name"},                          # E16..E22
             {"key": "area", "kind": "area", "label": "Area"},               # F16..F22
             {"key": "corrected", "kind": "calculated", "label": "Corrected area",
-             "expression": "area - blank.blank_area"},                      # G16..G22
+             "expression": "area - blank.area[0]"},                        # G16..G22
         ],
         "footer": [
             {"label": "Average Area", "ref": "bkt_stats.avg_area"},
@@ -271,7 +286,7 @@ def _samples_group() -> dict:
             {"key": "dilution_3", "kind": "input", "label": "Dilution", "default": 1},  # L
             {"key": "area", "kind": "area", "label": "Area"},               # M
             {"key": "corrected", "kind": "calculated", "label": "Corrected area",
-             "expression": "area - blank.blank_area"},                      # N = M - C$15
+             "expression": "area - blank.area[0]"},                        # N = M - C$15
             {"key": "ppm", "kind": "calculated", "label": "Results in PPM",
              "unit": "ppm", "expression": _ppm_expression(),
              "rounding": {"mode": "trunc", "digits": 4}},                   # O (TRUNC 4)

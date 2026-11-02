@@ -1,0 +1,14 @@
+tests/calculation/test_a2_0004_tabular_parity.py -q  => 14 passed in 0.18s
+  (existing gold assertions + new "% Mean each compound" block assertions under
+   Set-1-only fixture AND the new both-sets fixture class)
+
+python -m pytest tests/calculation -q  => 5 failed, 767 passed in 21.68s
+
+The 5 failures are the KNOWN pre-existing unrelated ones (SAME 5, no new ones):
+  FAILED tests/calculation/test_seeded_template_parity.py::TestA6BDissolutionWithReplacement::test_unit1_release_carryover
+  FAILED tests/calculation/test_seeded_template_parity.py::TestA6BDissolutionWithReplacement::test_per_timepoint_summary
+  FAILED tests/calculation/test_seeded_template_parity.py::TestA6BDissolutionWithReplacement::test_amount_remaining
+  FAILED tests/calculation/test_worksheet_service.py::test_a_different_analyst_cannot_enter_results_on_an_assigned_trf
+  FAILED tests/calculation/test_worksheet_service.py::test_a_qa_correction_reopens_and_republishes_the_result
+
+(3 A6B dissolution + 2 worksheet_service, unrelated to TPL-A2-0004.)

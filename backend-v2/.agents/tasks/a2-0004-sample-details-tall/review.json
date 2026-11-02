@@ -1,0 +1,18 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "label": "drug_lipid reads pct_mean, not pct_assay",
+      "severity": "non-blocking",
+      "confidence": "confirmed",
+      "detail": "Checkpoint #7 literally specifies reading pct_assay; the code reads lipid_samples.pct_mean[(rowno-1)*4+idx]. Result is identical because pct_mean = mean([pct_assay]) and each compound row has a single injection, so pct_mean == pct_assay (both unrounded) and the gold ratio 0.841429 is reproduced. Consumed column name differs from checkpoint wording only."
+    },
+    {
+      "label": "Extra % Mean column beyond plan/checkpoint column list",
+      "severity": "non-blocking",
+      "confidence": "confirmed",
+      "detail": "Checkpoint #2 names % Assay as the final calculated column; an additional pct_mean = mean([pct_assay]) (no rounding) was added and drug_lipid routed through it. Justified by the user's %Mean clarification (evidence) and the sheet's ='Lipid '!O43 reference; behaviorally inert for the gold data. Confirm intended column set."
+    }
+  ],
+  "reviewDoc": "d:\\RD-instance\\GIT\\backend-v2\\.agents\\tasks\\a2-0004-sample-details-tall\\review.md"
+}

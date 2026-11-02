@@ -1,0 +1,30 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "findings": [
+    {
+      "id": 1,
+      "severity": "MEDIUM",
+      "title": "hiddenColumns is never persisted, so the seeded default-six mechanism re-hides populated media columns on reload; the design claims the opposite",
+      "location": "Decision 1 (\"Default-visible set via an initial hiddenColumns seed\"); Summary of files touched, frontend change (3)",
+      "problem": "hiddenColumns is pure in-memory UI state (useState(new Set()), WorksheetForm.tsx line 200), never persisted to or restored from group_values, and reset on every mount. Seeding it with std_areas.media_7..media_10 on mount means that if an analyst reveals media_7 via Add Column and enters STD areas, reopening the worksheet re-hides media_7..media_10. The data survives in group_values and still feeds stats/footer/reportable, but the column vanishes from the rendered table while silently affecting the calculation -- a GxP correctness/traceability hazard. The design's claim that such a worksheet 'simply carries fewer entries in hiddenColumns, exactly like the existing feature' is wrong: hiddenColumns carries nothing across a reload, and the seeded-hidden approach is not equivalent to TPL-A6A-0004 (which starts with an empty hidden set and never seeds hidden columns).",
+      "fix": "Make the on-mount hidden set reveal any column that has stored data. Recommended (option c): start from {media_7..media_10} hidden, then delete from the hidden set every media_N (and all below it, keeping a trailing suffix) that has at least one non-blank stored std_areas cell -- preserving the six-column default for new worksheets while never hiding a populated column on reload, with no new persisted state. Alternatively persist the visible count/hidden set into group_values (added scope, call it out). Correct the design's false equivalence claim and add a reopen-after-adding-a-column test case to Edge cases and Testability."
+    },
+    {
+      "id": 2,
+      "severity": "NIT",
+      "title": "The hiddenColumns seed is mandated but its initializer/site is left to the implementer",
+      "location": "Decision 1 (\"a lazy initial value for the hiddenColumns state, gated to TPL-A3-0001\"); files-touched summary (3)",
+      "problem": "The design names the mechanism but gives no initializer snippet or placement. Since the exact seed logic is the crux of Finding 1, leaving it as prose is an under-specification. (detail.worksheet.template_code is in scope at the useState call site, verified at line 181, so a lazy initializer is feasible.)",
+      "fix": "Specify the lazy initializer explicitly (the Finding-1 option-c snippet is a drop-in) and state that it replaces useState<Set<string>>(new Set()) at the existing hiddenColumns declaration."
+    },
+    {
+      "id": 3,
+      "severity": "NIT",
+      "title": "Worktree-vs-live split for source edits is not reconciled against the live-DB edit",
+      "location": "Summary of files touched (frontend path shown as live path) vs Decision 5 (edits live backend-v2/lims.db)",
+      "problem": "All source verification is against the worktree checkout (correct for a mergeable change), but Decision 5 edits the live (non-worktree) DB directly and the files-touched summary lists the frontend file by its live path. The design never states the reconciliation: source edits (frontend + tests) land in the worktree and merge, while only the DB data edit is applied to the live DB (the running app's DB per DATABASE_URL=sqlite+aiosqlite:///./lims.db, confirmed).",
+      "fix": "Add one sentence to the files-touched summary: source changes (frontend + tests) are made in the worktree checkout and merged; only the DB data edit (Decision 5) is applied directly to the live backend-v2/lims.db. No behavioral change."
+    }
+  ],
+  "reviewDoc": "d:\\RD-instance\\GIT\\.agents\\tasks\\satsol-media-columns\\design-review.md"
+}

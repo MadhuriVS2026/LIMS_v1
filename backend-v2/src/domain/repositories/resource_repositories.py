@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 
 from src.domain.entities.instrument import Instrument
 from src.domain.entities.resource_items import (
+    ARDExpTemplate,
     ChemicalReagent,
     ColumnMaster,
     ProjectMaster,
@@ -66,3 +67,20 @@ class IProjectRepository(ABC):
 
     @abstractmethod
     async def create(self, project: ProjectMaster) -> ProjectMaster: ...
+
+
+class IARDExpTemplateRepository(ABC):
+    @abstractmethod
+    async def get_by_id(self, template_id: int) -> ARDExpTemplate | None: ...
+
+    @abstractmethod
+    async def list_all(self) -> list[ARDExpTemplate]: ...
+
+    @abstractmethod
+    async def create(self, template: ARDExpTemplate) -> ARDExpTemplate: ...
+
+    @abstractmethod
+    async def update(self, template: ARDExpTemplate) -> ARDExpTemplate: ...
+
+    @abstractmethod
+    async def delete(self, template_id: int) -> None: ...

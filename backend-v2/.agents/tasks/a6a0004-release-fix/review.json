@@ -1,0 +1,7 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    "Non-blocking: three frontend files (WorksheetForm.tsx, PrintWorksheetPage.tsx, TemplateListPage.tsx) are modified in the working tree but are unrelated to this backend-only %-release calc fix; keep them out of any commit that lands this change."
+  ],
+  "reviewDoc": "d:\\RD-instance\\GIT\\backend-v2\\.agents\\tasks\\a6a0004-release-fix\\review.md"
+}

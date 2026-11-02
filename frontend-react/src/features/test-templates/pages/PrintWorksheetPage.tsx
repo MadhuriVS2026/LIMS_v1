@@ -15,8 +15,18 @@ import { useWorksheet } from '../hooks/useWorksheet';
 import { WorksheetChartPrintImage } from '../components/WorksheetChartPrintImage';
 import { WorksheetViewTable } from '../components/WorksheetViewTable';
 import { isSetBlockGroup, setBlockSize, setBlocksFor } from '../models/setBlocks';
-import { fieldShown } from '../models/showIf';
-import type { FieldDef, GroupDef, WorksheetComputed, WorksheetRow } from '../models/testTemplate.types';
+import { groupFooterRows, isColumnAlignedFooter } from '../models/groupFooter';
+import { footerCellsByColumn, rowLabelText } from '../models/rowLabel';
+import { formatLimit } from '../models/describeDefinition';
+import { fieldShown, groupShown } from '../models/showIf';
+import type {
+  CriterionResult,
+  FieldDef,
+  GroupDef,
+  GroupFooterItem,
+  WorksheetComputed,
+  WorksheetRow,
+} from '../models/testTemplate.types';
 
 const fmtDateTime = (value?: string | null) => (value ? new Date(value).toLocaleString() : '-');
 
@@ -33,8 +43,58 @@ function displayValue(value: unknown, field: FieldDef): string {
   return String(value);
 }
 
-const header = (field: FieldDef) =>
-  `${field.label ?? field.key}${field.unit ? ` (${field.unit})` : ''}`;
+function headerText(
+  field: FieldDef,
+  computed: WorksheetComputed,
+  values: Record<string, WorksheetRow[] | undefined> | undefined,
+): string {
+  let dynamic: string | null = null;
+  if (field.labelFrom) {
+    const match = field.labelFrom.match(
+      /^([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)(?:\[(\d+)\])?$/,
+    );
+    if (match) {
+      const [, groupKey, fieldKey, idxRaw] = match;
+      const index = idxRaw === undefined ? 0 : Number(idxRaw);
+      const fromComputed = computed.rows?.[groupKey]?.[index]?.[fieldKey];
+      const fromValues = values?.[groupKey]?.[index]?.[fieldKey];
+      const raw = fromComputed !== null && fromComputed !== undefined ? fromComputed : fromValues;
+      if (raw !== null && raw !== undefined && String(raw).trim() !== '') {
+        dynamic = String(raw).trim();
+      }
+    }
+  }
+  const label = dynamic ?? field.label ?? field.key;
+  return `${label}${field.unit ? ` (${field.unit})` : ''}`;
+}
+
+function footerValueText(item: GroupFooterItem, computed: WorksheetComputed): string {
+  const raw = computed.values?.[item.ref];
+  const field: FieldDef = {
+    key: item.ref,
+    kind: 'calculated',
+    unit: item.unit,
+    rounding: item.rounding,
+  };
+  return displayValue(raw, field) || '—';
+}
+
+//  Observed value for an acceptance criterion, matching the on-screen render
+//  in WorksheetForm: blank observed prints an em-dash, numbers are trimmed to
+//  6 significant digits, everything else stringified.
+function criterionObserved(observed: unknown): string {
+  if (observed === null || observed === undefined) return '—';
+  if (typeof observed === 'number') return String(Number(observed.toPrecision(6)));
+  return String(observed);
+}
+
+//  Pass/fail wording, mirroring the CriterionRow tag: `null` passed is "not yet
+//  assessable" (blank observed), advisory failures read "Outside limit".
+function criterionResult(c: CriterionResult): string {
+  if (c.passed === null) return 'Not assessed';
+  if (c.passed) return 'Pass';
+  return c.severity === 'advisory' ? 'Outside limit' : 'Fail';
+}
 
 function visibleFields(
   group: GroupDef,
@@ -77,13 +137,153 @@ export const PrintWorksheetPage = () => {
 
   const rowsOf = (groupKey: string) => computed.rows?.[groupKey] ?? [];
 
+  const groupHeaderText = (group: GroupDef): string => {
+    if (group.labelFrom) {
+      const match = group.labelFrom.match(
+        /^([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)(?:\[(\d+)\])?$/,
+      );
+      if (match) {
+        const [, groupKey, fieldKey, idxRaw] = match;
+        const index = idxRaw === undefined ? 0 : Number(idxRaw);
+        const fromComputed = computed.rows?.[groupKey]?.[index]?.[fieldKey];
+        const fromValues = detail.worksheet.group_values?.[groupKey]?.[index]?.[fieldKey];
+        const raw = fromComputed !== null && fromComputed !== undefined ? fromComputed : fromValues;
+        if (raw !== null && raw !== undefined && String(raw).trim() !== '') return String(raw).trim();
+      }
+    }
+    return group.label ?? group.key;
+  };
+
+  const renderGroupHeaderInputs = (group: GroupDef, row: WorksheetRow) => {
+    const headerInputs = (group.headerInputs ?? []).flatMap((item) => {
+      const field = (group.fields ?? []).find((candidate) => candidate.key === item.field);
+      return field ? [{ item, field }] : [];
+    });
+    if (headerInputs.length === 0) return null;
+
+    const storedRow = detail.worksheet.group_values?.[group.key]?.[0] ?? {};
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'baseline',
+          gap: '10px 18px',
+          marginBottom: '4px',
+          fontSize: '10px',
+        }}
+      >
+        {headerInputs.map(({ item, field }) => {
+          const value = row[field.key] ?? storedRow[field.key];
+          return (
+            <span key={field.key} style={{ display: 'inline-flex', alignItems: 'baseline', gap: '4px' }}>
+              <strong>{item.label ?? headerText(field, computed, detail.worksheet.group_values)}</strong>
+              <span
+                style={{
+                  display: 'inline-block',
+                  minWidth: item.width ?? (field.type === 'text' ? '20rem' : '8rem'),
+                  borderBottom: '1px solid #777',
+                  textAlign: field.type === 'text' ? 'left' : 'right',
+                }}
+              >
+                {displayValue(value, field) || '—'}
+              </span>
+            </span>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderSolutionBlock = (group: GroupDef) => {
+    const block = group.solutionBlock;
+    const setsGroup = block ? groups.find((candidate) => candidate.key === block.setsGroup) : undefined;
+    if (!block || !setsGroup) return null;
+
+    const dilutionFields = (group.fields ?? []).filter((field) => !field.hidden && field.kind !== 'calculated');
+    const setFields = visibleFields(setsGroup, detail.worksheet.group_values);
+    const parentRow = rowsOf(group.key)[0] ?? {};
+    const setRows = rowsOf(setsGroup.key);
+    const hasRowLabel = !!setsGroup.rowLabel;
+    const showRowNumbers = !hasRowLabel && setsGroup.showRowNumbers !== false;
+    const leadingColumns = hasRowLabel || showRowNumbers ? 1 : 0;
+
+    return (
+      <div className="ws-section" key={group.key}>
+        <h4>{groupHeaderText(group)}</h4>
+        <div style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '3px' }}>
+          {block.dilutionLabel ?? 'Solution Dilution'}
+        </div>
+        <table className="ws-table">
+          <thead>
+            <tr>
+              {dilutionFields.map((field) => (
+                <th key={field.key}>{headerText(field, computed, detail.worksheet.group_values)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {dilutionFields.map((field) => (
+                <td className="num" key={field.key}>{displayValue(parentRow[field.key], field)}</td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+
+        <table className="ws-table" style={{ marginTop: '8px' }}>
+          <thead>
+            <tr>
+              {hasRowLabel ? (
+                <th>{setsGroup.rowLabel?.header ?? ''}</th>
+              ) : (
+                showRowNumbers && <th style={{ width: '2rem' }}>#</th>
+              )}
+              {setFields.map((field) => (
+                <th key={field.key}>{headerText(field, computed, detail.worksheet.group_values)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {setRows.map((row, index) => (
+              <tr key={index}>
+                {hasRowLabel ? (
+                  <td>{rowLabelText(setsGroup.rowLabel as NonNullable<GroupDef['rowLabel']>, index + 1)}</td>
+                ) : (
+                  showRowNumbers && <td>{index + 1}</td>
+                )}
+                {setFields.map((field) => (
+                  <td className="num" key={field.key}>{displayValue(row[field.key], field)}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+          {(setsGroup.footer ?? []).length > 0 && (
+            <tfoot>
+              {(setsGroup.footer ?? []).map((item) => (
+                <tr key={item.ref}>
+                  <th colSpan={Math.max(1, leadingColumns + Math.max(0, setFields.length - 1))}>
+                    {item.label}
+                  </th>
+                  <td className="num">{footerValueText(item, computed)}</td>
+                </tr>
+              ))}
+            </tfoot>
+          )}
+        </table>
+      </div>
+    );
+  };
+
   //  Switch the printed page to landscape when any table is wide. A multi-row
   //  (table/sequence) group prints one column per visible field plus the "#"
   //  column; dissolution worksheets with many unit columns overflow portrait.
   //  Threshold: more than 10 columns -> landscape, otherwise portrait.
   const maxTableColumns = groups.reduce((max, group) => {
-    if (group.kind === 'singleton') return max;
-    const cols = visibleFields(group, detail.worksheet.group_values).length + 1; // +1 for the row-number column
+    if (group.hidden || group.kind === 'singleton') return max;
+    const cols =
+      visibleFields(group, detail.worksheet.group_values).length +
+      (group.showRowNumbers === false ? 0 : 1);
     return Math.max(max, cols);
   }, 0);
   const landscape = maxTableColumns > 10;
@@ -169,6 +369,14 @@ export const PrintWorksheetPage = () => {
 
       {/* ── Groups ── */}
       {groups.map((group) => {
+        //  Hidden groups hold supporting worksheet values (for example, editable
+        //  table column names) and should not print as their own sections.
+        if (group.hidden || !groupShown(group, detail.worksheet.group_values)) return null;
+
+        if (group.kind === 'singleton' && group.solutionBlock) {
+          return renderSolutionBlock(group);
+        }
+
         //  A group carrying a chart config prints the chart as a static image
         //  (a live canvas would print blank). Rendered regardless of fields —
         //  a chart group's only field is a title input.
@@ -205,7 +413,57 @@ export const PrintWorksheetPage = () => {
         const fields = visibleFields(group, detail.worksheet.group_values);
         if (fields.length === 0) return null;
         const isSingleton = group.kind === 'singleton';
+        const hasRowLabel = !!group.rowLabel;
+        const showRowNumbers = !hasRowLabel && group.showRowNumbers !== false;
+        const hasHeaderGroups =
+          !!group.rowLabel?.headerGroup ||
+          fields.some((field) => !!field.headerGroup);
         const rows = rowsOf(group.key);
+        const footerRows =
+          hasRowLabel && isColumnAlignedFooter(group.footer)
+            ? groupFooterRows(group.footer)
+            : [];
+        const flatRowLabelFooter =
+          hasRowLabel && group.footer && !isColumnAlignedFooter(group.footer)
+            ? group.footer
+            : [];
+        const tableFooterRows = group.tableFooterRows ?? [];
+        //  Footer refs are declared for every provisioned column. Map them by
+        //  field key before rendering the visible subset, so hiding Media 3 does
+        //  not make Media 4 display Media 3's Mean/SD/RSD.
+        const footerColumnKeys =
+          group.columnSet?.columns ??
+          (group.fields ?? []).filter((field) => !field.hidden).map((field) => field.key);
+
+        if (isSingleton && group.renderAsTable) {
+          const row = rows[0] ?? {};
+          return (
+            <div className="ws-section" key={group.key}>
+              <h4>{group.label ?? group.key}</h4>
+              <table className="ws-table">
+                <thead>
+                  <tr>
+                    {fields.map((field) => (
+                      <th key={field.key} style={{ width: field.type === 'text' ? '15rem' : '7rem' }}>
+                        {headerText(field, computed, detail.worksheet.group_values)}
+                        {field.unit ? ` (${field.unit})` : ''}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    {fields.map((field) => (
+                      <td key={field.key} className="num">
+                        {displayValue(row[field.key], field)}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          );
+        }
 
         if (isSingleton) {
           const row = rows[0] ?? {};
@@ -218,7 +476,9 @@ export const PrintWorksheetPage = () => {
                     <tr key={i}>
                       {pair.map((f) => (
                         <Fragment key={f.key}>
-                          <th style={{ width: '18%' }}>{header(f)}</th>
+                          <th style={{ width: '18%' }}>
+                            {headerText(f, computed, detail.worksheet.group_values)}
+                          </th>
                           <td className="num" style={{ width: '32%' }}>
                             {displayValue(row[f.key], f)}
                           </td>
@@ -259,19 +519,44 @@ export const PrintWorksheetPage = () => {
         ) => (
           <div className="ws-section" key={key}>
             <h4>{title || (group.label ?? group.key)}</h4>
+            {key === 0 && renderGroupHeaderInputs(group, rows[0] ?? {})}
             <table className="ws-table">
               <thead>
+                {hasHeaderGroups && (
+                  <tr>
+                    {hasRowLabel ? (
+                      <th>{group.rowLabel?.headerGroup ?? ''}</th>
+                    ) : (
+                      showRowNumbers && <th style={{ width: '2rem' }} />
+                    )}
+                    {fields.map((field) => (
+                      <th key={`header-group-${field.key}`} style={{ width: field.width }}>
+                        {field.headerGroup ?? ''}
+                      </th>
+                    ))}
+                  </tr>
+                )}
                 <tr>
-                  <th style={{ width: '2rem' }}>#</th>
+                  {hasRowLabel ? (
+                    <th>{group.rowLabel?.header ?? ''}</th>
+                  ) : (
+                    showRowNumbers && <th style={{ width: '2rem' }}>#</th>
+                  )}
                   {fields.map((f) => (
-                    <th key={f.key}>{header(f)}</th>
+                    <th key={f.key} style={{ width: f.width }}>
+                      {headerText(f, computed, detail.worksheet.group_values)}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {rows.slice(startRow, endRow).map((row, localIndex) => (
                   <tr key={startRow + localIndex}>
-                    <td>{localIndex + 1}</td>
+                    {hasRowLabel ? (
+                      <td>{rowLabelText(group.rowLabel as NonNullable<GroupDef['rowLabel']>, startRow + localIndex + 1)}</td>
+                    ) : (
+                      showRowNumbers && <td>{localIndex + 1}</td>
+                    )}
                     {fields.map((f) => (
                       <td key={f.key} className="num">
                         {displayValue(row[f.key], f)}
@@ -281,15 +566,85 @@ export const PrintWorksheetPage = () => {
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={fields.length + 1}>No data.</td>
+                    <td colSpan={fields.length + (hasRowLabel || showRowNumbers ? 1 : 0)}>No data.</td>
                   </tr>
                 )}
               </tbody>
+              {endRow === rows.length && footerRows.length > 0 && (
+                <tfoot>
+                  {footerRows.map((footerRow, footerIndex) => {
+                    const cells = footerCellsByColumn(footerRow, footerColumnKeys);
+                    return (
+                      <tr key={footerIndex}>
+                        <th>{footerRow.label}</th>
+                        {fields.map((field) => {
+                          const item = cells.get(field.key);
+                          return (
+                            <td key={field.key} className="num">
+                              {item ? footerValueText(item, computed) : '—'}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tfoot>
+              )}
+              {endRow === rows.length && flatRowLabelFooter.length > 0 && (
+                <tfoot>
+                  {flatRowLabelFooter.map((item) => {
+                    const targetColumn = item.column ?? fields[0]?.key;
+                    return (
+                      <tr key={`${item.ref}-${targetColumn ?? ''}`}>
+                        <th>{item.label}</th>
+                        {fields.map((field) => (
+                          <td key={field.key} className="num">
+                            {field.key === targetColumn ? footerValueText(item, computed) : ''}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tfoot>
+              )}
+              {endRow === rows.length && tableFooterRows.length > 0 && (
+                <tfoot>
+                  {tableFooterRows.map((footerRow, footerIndex) => {
+                    const labelSpan = Math.min(
+                      fields.length,
+                      Math.max(1, footerRow.labelColSpan ?? 1),
+                    );
+                    return (
+                      <tr key={`${footerRow.label}-${footerIndex}`}>
+                        {(hasRowLabel || showRowNumbers) && <td />}
+                        <th colSpan={labelSpan}>{footerRow.label}</th>
+                        {fields.slice(labelSpan).map((field) => {
+                          const item = footerRow.values[field.key];
+                          return (
+                            <td key={field.key} className="num">
+                              {item ? footerValueText(item, computed) : ''}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tfoot>
+              )}
             </table>
           </div>
         );
         if (!asSetBlocks) {
-          return renderTable('', 0, rows.length, 0);
+          return (
+            <Fragment key={group.key}>
+              {renderTable('', 0, rows.length, 0)}
+              {group.note && (
+                <div className="ws-section" style={{ marginTop: '-0.5rem' }}>
+                  <p style={{ margin: 0, fontSize: '9px' }}>{group.note}</p>
+                </div>
+              )}
+            </Fragment>
+          );
         }
         //  Set-block group: a wrapper fragment carrying the group label once,
         //  then one titled `.ws-section` table per "Set N" block.
@@ -304,6 +659,35 @@ export const PrintWorksheetPage = () => {
           </Fragment>
         );
       })}
+
+      {/* ── Acceptance criteria ── */}
+      {computed.criteria.length > 0 && (
+        <div className="ws-section">
+          <h4>Acceptance Criteria</h4>
+          <table className="ws-table">
+            <thead>
+              <tr>
+                <th>Criterion</th>
+                <th>Limit</th>
+                <th>Severity</th>
+                <th className="num">Observed</th>
+                <th>Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              {computed.criteria.map((c) => (
+                <tr key={c.key}>
+                  <td>{c.label}</td>
+                  <td>{c.limit_text || formatLimit(c.operator, c.limit)}</td>
+                  <td>{c.severity === 'advisory' ? 'Advisory' : 'Blocking'}</td>
+                  <td className="num">{criterionObserved(c.observed)}</td>
+                  <td>{criterionResult(c)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* ── Reportable result + signatures ── */}
       <div className="ws-section" style={{ marginTop: '1rem' }}>

@@ -1,0 +1,24 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "severity": "NIT",
+      "location": "scripts/seed_data.py seed block (design file #10)",
+      "problem": "The projects_data tuples carry 13 positional values while requested_person, remarks, and created_by are hard-coded as constants in the ProjectMasterModel(...) call, which is a minor readability inconsistency.",
+      "fix": "Leave as-is (functionally correct and consistent with other seeds) or add a one-line comment noting those three fields are intentionally constant across seed rows."
+    },
+    {
+      "severity": "NIT",
+      "location": "src/features/resource-management/index.ts (design file #15)",
+      "problem": "The ProjectMasterPage export position is unspecified; purely cosmetic since barrel order does not affect resolution.",
+      "fix": "Add export { ProjectMasterPage } from './pages/ProjectMasterPage'; grouped with the other Resource Manager page exports."
+    },
+    {
+      "severity": "NIT",
+      "location": "Testability -> Integration-testable (API)",
+      "problem": "The copied template tests/calculation/test_coa_api.py imports its user()/seed_test helpers from the calculation-scoped conftest, which must not be reused from the new tests/resource/ package.",
+      "fix": "In tests/resource/test_project_api.py build the override user via `from tests.conftest import make_admin_user` (and make_analyst_user for the 403 path), not from tests.calculation.conftest."
+    }
+  ],
+  "reviewDoc": "d:\\RD-instance\\GIT\\.agents\\tasks\\resource-project-master\\design-review.md"
+}

@@ -90,3 +90,6 @@ backend-v2/*.db.bak
 # SQL data dumps — full DB export incl. bcrypt password hashes, not source
 *_schema_and_data*.sql
 lims_schema_and_data.sql
+
+# Git worktrees (nested working trees, never committed)
+.worktrees/

@@ -75,6 +75,23 @@ export interface VolumetricSolution {
   status: string;
 }
 
+export interface ARDExpTemplate {
+  id: number;
+  template_name: string;
+  comments?: string | null;
+  primary_department?: string | null;
+  plant?: string | null;
+  location?: string | null;
+  is_active: boolean;
+  secondary_department?: string | null;
+  module?: string | null;
+  template_code?: string | null;
+  document_no?: string | null;
+  //  Full verbatim sheet content as a JSON string:
+  //  { source_form, document_no, header_category, sections_index[], blocks[] }
+  content?: string | null;
+}
+
 export interface ProjectMaster {
   id: number;
   project_id: string;

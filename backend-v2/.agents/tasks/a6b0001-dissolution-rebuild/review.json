@@ -1,0 +1,18 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "label": "Min/Max span generality",
+      "severity": "non-blocking",
+      "confidence": "possible",
+      "detail": "release/amount Min/Max are computed over all 12 visible unit columns, whereas the sheet's 0.5hr summary cells reference MIN/MAX(B:G) (6 units). They coincide at the pinned 0.5hr row so the gold-value gate passes, but the general-row behavior is unverified. Author-documented. Confirm with QA that the 12-unit span is the intended reporting definition."
+    },
+    {
+      "label": "Rounding expressed as attributes, not inline formulas",
+      "severity": "informational",
+      "confidence": "confirmed",
+      "detail": "The brief phrases rounding as ROUND(...,3)/TRUNC(...,5) inside formulas; the implementation carries it as structured rounding attributes (conc_ppm round/3, rsd_std trunc/5, mean_bkt trunc/1, rsd_bkt trunc/5; replicate mean left raw). Functionally equivalent and confirmed correct against gold values. Noted only so a reviewer grepping formula strings does not mistake their absence for a gap."
+    }
+  ],
+  "reviewDoc": "d:\\RD-instance\\GIT\\backend-v2\\.agents\\tasks\\a6b0001-dissolution-rebuild\\review.md"
+}

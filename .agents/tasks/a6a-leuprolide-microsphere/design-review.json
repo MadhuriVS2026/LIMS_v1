@@ -1,0 +1,27 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "id": 1,
+      "severity": "NIT",
+      "location": "§4 params group header / §Summary params line",
+      "problem": "Cell-range annotation says rows 21-27 / H21:I25; the H/I parameter content is actually rows 22-27 (I22..I25 + media H26/H27). Cosmetic annotation only; all field cells are individually correct.",
+      "fix": "Change header to '(sheet rows 22-27, H/I cols)' and summary to 'params (I22:I25 + media H26/H27)'. No field change."
+    },
+    {
+      "id": 2,
+      "severity": "NIT",
+      "location": "§3 std_stats group",
+      "problem": "Pooled D27/D28/D29 are described as computed/displayed without restating in §3 that they are parity-pinned; gold values are present in the gold footer but a reader of §3 alone may miss it. Expressions are faithful.",
+      "fix": "Add a cross-reference line in §3: 'D27/D28/D29 parity gold 1102713.9 / 6388.7457 / 0.57936, see gold set'. Optional."
+    },
+    {
+      "id": 3,
+      "severity": "NIT",
+      "location": "§Identity Registration paragraph",
+      "problem": "Registration placement prose is correct (after *_A6, before *_A6B_OCT, verified against SEED_TEMPLATES) but does not show the exact lines to add.",
+      "fix": "Show the exact import line and the splice position between *_A6 and *_A6B_OCT in SEED_TEMPLATES."
+    }
+  ],
+  "reviewDoc": "d:\\RD-instance\\GIT\\.agents\\tasks\\a6a-leuprolide-microsphere\\design-review.md"
+}

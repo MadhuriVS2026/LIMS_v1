@@ -1,0 +1,11 @@
+Commit (local, NOT pushed): 90bcaf2
+Branch: MadhuriWorktree
+Message: feat: add '% Mean each compound' summary block below Set 2 on TPL-A2-0004
+
+Files changed (tracked): 2
+  backend-v2/scripts/template_definitions/a2_bupivacaine_lipid_ratio.py
+  backend-v2/tests/calculation/test_a2_0004_tabular_parity.py
+
+Live DB row id 35 (TPL-A2-0004, v1, Active) updated out-of-band via
+scripts/update_a2_0004_definition.py and verified byte-equal to the module
+(lims.db is not git-tracked). Throwaway scripts deleted.

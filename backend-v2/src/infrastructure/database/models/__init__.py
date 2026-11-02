@@ -23,6 +23,7 @@ from src.infrastructure.database.models.mrn_model import (  # noqa: F401
 from src.infrastructure.database.models.oos_model import OOSInvestigationModel  # noqa: F401
 from src.infrastructure.database.models.product_model import ProductModel  # noqa: F401
 from src.infrastructure.database.models.resource_models import (  # noqa: F401
+    ARDExpTemplateModel,
     ChemicalReagentModel,
     ColumnMasterModel,
     ProjectMasterModel,

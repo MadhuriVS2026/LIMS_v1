@@ -1,0 +1,9 @@
+After `python -m scripts.update_a2_0004_definition` (1 row updated):
+
+identity preserved: id=35 archetype=A2 version=1 status=Active test_id=32
+identity: 35 TPL-A2-0004 1 Active
+exact_equal: True        (DB definition JSON == json.dumps(module definition), byte-for-byte)
+normalized_equal: True   (json.loads(DB) == module definition dict)
+
+Identity columns (id, code, archetype, version, status, test_id) unchanged by
+the update (asserted inside update_a2_0004_definition.py: before == after).

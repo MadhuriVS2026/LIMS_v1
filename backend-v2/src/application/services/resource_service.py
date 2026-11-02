@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from src.domain.entities.audit_log import AuditLog
 from src.domain.entities.instrument import Instrument
 from src.domain.entities.resource_items import (
+    ARDExpTemplate,
     ChemicalReagent,
     ColumnMaster,
     ProjectMaster,
@@ -18,6 +19,7 @@ from src.domain.entities.resource_items import (
 from src.domain.entities.user import User
 from src.domain.repositories.audit_repository import IAuditLogRepository
 from src.domain.repositories.resource_repositories import (
+    IARDExpTemplateRepository,
     IChemicalRepository,
     IColumnRepository,
     IInstrumentRepository,
@@ -38,6 +40,7 @@ class ResourceService:
         chemical_repo: IChemicalRepository,
         volumetric_repo: IVolumetricSolutionRepository,
         project_repo: IProjectRepository,
+        ard_exp_template_repo: IARDExpTemplateRepository,
         audit_repo: IAuditLogRepository,
     ) -> None:
         self._instrument_repo = instrument_repo
@@ -46,6 +49,7 @@ class ResourceService:
         self._chemical_repo = chemical_repo
         self._volumetric_repo = volumetric_repo
         self._project_repo = project_repo
+        self._ard_exp_template_repo = ard_exp_template_repo
         self._audit_repo = audit_repo
 
     # ─── Instruments ───
@@ -205,3 +209,69 @@ class ResourceService:
                       table_name="project_master", record_id=created.id)
         )
         return created
+
+    # ─── ARD-EXP-TEMPLATES Master ───
+    async def list_ard_exp_templates(self) -> list[ARDExpTemplate]:
+        return await self._ard_exp_template_repo.list_all()
+
+    async def create_ard_exp_template(
+        self, template_name: str, comments: str | None, primary_department: str | None,
+        plant: str | None, location: str | None, is_active: bool,
+        secondary_department: str | None, module: str | None, actor: User,
+        template_code: str | None = None, document_no: str | None = None,
+        content: str | None = None,
+    ) -> ARDExpTemplate:
+        template = ARDExpTemplate(
+            template_name=template_name, comments=comments,
+            primary_department=primary_department, plant=plant, location=location,
+            is_active=is_active, secondary_department=secondary_department, module=module,
+            template_code=template_code, document_no=document_no, content=content,
+            created_by=actor.username, modified_by=actor.username,
+        )
+        created = await self._ard_exp_template_repo.create(template)
+        await self._audit_repo.write(
+            AuditLog(user_id=actor.id, username=actor.username, action="CREATE",
+                      table_name="ard_exp_templates", record_id=created.id)
+        )
+        return created
+
+    async def update_ard_exp_template(
+        self, template_id: int, template_name: str, comments: str | None,
+        primary_department: str | None, plant: str | None, location: str | None,
+        is_active: bool, secondary_department: str | None, module: str | None, actor: User,
+        template_code: str | None = None, document_no: str | None = None,
+        content: str | None = None,
+    ) -> ARDExpTemplate:
+        existing = await self._ard_exp_template_repo.get_by_id(template_id)
+        if existing is None:
+            from src.application.exceptions.application_exceptions import NotFoundException
+            raise NotFoundException("ARD-EXP template not found")
+        existing.template_name = template_name
+        existing.comments = comments
+        existing.primary_department = primary_department
+        existing.plant = plant
+        existing.location = location
+        existing.is_active = is_active
+        existing.secondary_department = secondary_department
+        existing.module = module
+        existing.template_code = template_code
+        existing.document_no = document_no
+        existing.content = content
+        existing.mark_modified(actor.username)
+        updated = await self._ard_exp_template_repo.update(existing)
+        await self._audit_repo.write(
+            AuditLog(user_id=actor.id, username=actor.username, action="UPDATE",
+                      table_name="ard_exp_templates", record_id=updated.id)
+        )
+        return updated
+
+    async def delete_ard_exp_template(self, template_id: int, actor: User) -> None:
+        existing = await self._ard_exp_template_repo.get_by_id(template_id)
+        if existing is None:
+            from src.application.exceptions.application_exceptions import NotFoundException
+            raise NotFoundException("ARD-EXP template not found")
+        await self._ard_exp_template_repo.delete(template_id)
+        await self._audit_repo.write(
+            AuditLog(user_id=actor.id, username=actor.username, action="DELETE",
+                      table_name="ard_exp_templates", record_id=template_id)
+        )

@@ -4,4 +4,5 @@ export { StandardsPage } from './pages/StandardsPage';
 export { ColumnsPage } from './pages/ColumnsPage';
 export { VolumetricPage } from './pages/VolumetricPage';
 export { ProjectMasterPage } from './pages/ProjectMasterPage';
+export { ARDExpTemplatesPage } from './pages/ARDExpTemplatesPage';
 // Stability now has its own dedicated feature — see @features/stability.

@@ -1,0 +1,20 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "severity": "NIT",
+      "title": "Stale 'last non-blank' comment in _extract_result is a latent trap",
+      "where": "src/domain/services/calculation/evaluator.py _extract_result; design resultRef note",
+      "detail": "The evaluator comment says the reportable result is the 'last non-blank' value, but the loop returns the FIRST non-blank. Immaterial for this template because residue_24hr.mean is a row-constant column aggregate (first == last). Design round-1 NIT #3 already corrected its own prose.",
+      "fix": "No change needed for TPL-A6B-0002. Implementer note: do not rely on 'last' semantics if the result group ever carries a row-varying field; residue_24hr.mean is safe because it is identical on every row."
+    },
+    {
+      "severity": "NIT",
+      "title": "Weight-stats sheet-quirk expression needs an inline comment to prevent a future 'fix'",
+      "where": "design.md 'Sample-weight statistics' section; weight_stats.sd_1hr/sd_4hr/sd_24hr",
+      "detail": "sd_* = sd(pool(weights.w_1hr, [mean_1hr])) intentionally reproduces the sheet bug STDEV(F22:F28) that includes the mean cell F28 (verified: 0.155 with mean cell vs 0.219 for the two raw values). Correct and intentional but non-obvious; a maintainer could 'simplify' it and break parity.",
+      "fix": "Carry a one-line comment on each sd_* field: '# sheet F29=STDEV(F22:F28) includes the mean cell F28 - pool([mean_*]) reproduces it; do not simplify.'"
+    }
+  ],
+  "reviewDoc": "d:\\RD-instance\\GIT\\backend-v2\\.agents\\tasks\\a6b-0002-octreotide-ph10\\design-review.md"
+}

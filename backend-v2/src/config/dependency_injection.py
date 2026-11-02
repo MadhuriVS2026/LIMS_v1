@@ -37,6 +37,7 @@ from src.infrastructure.database.repositories.product_repository_impl import (
     ProductRepositoryImpl,
 )
 from src.infrastructure.database.repositories.resource_repositories_impl import (
+    ARDExpTemplateRepositoryImpl,
     ChemicalRepositoryImpl,
     ColumnRepositoryImpl,
     InstrumentRepositoryImpl,
@@ -137,6 +138,7 @@ class Container:
             ChemicalRepositoryImpl(session),
             VolumetricSolutionRepositoryImpl(session),
             ProjectRepositoryImpl(session),
+            ARDExpTemplateRepositoryImpl(session),
             AuditLogRepositoryImpl(session),
         )
 

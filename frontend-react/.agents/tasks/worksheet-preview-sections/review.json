@@ -1,0 +1,8 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "findings": [
+    "Scope exceeds the single authorized file (confirmed): the working tree modifies five frontend files — WorksheetPreviewPage.tsx (new, authorized) plus AppRouter.tsx, test-templates/index.ts, TemplateListPage.tsx, and trf/pages/TRFDetailPage.tsx. Checklist item 1 authorizes only WorksheetPreviewPage.tsx and requires no other frontend file be modified. The verification note cites a parent 'decision B' relaxing this, but that relaxation is not present in the authoritative task text. No backend file was touched. Resolution: narrow the working tree to the single authorized file, or carry the scope relaxation into the authoritative task text.",
+    "Unrelated TRF change bundled in (confirmed): TRFDetailPage.tsx reworks the Add-Test-Line dropdown to list test templates, which is a separate earlier task and does not belong to the worksheet-preview rework. It should not ride in this diff."
+  ],
+  "reviewDoc": "d:\\RD-instance\\GIT\\frontend-react\\.agents\\tasks\\worksheet-preview-sections\\review.md"
+}

@@ -296,14 +296,22 @@ A10_WPM_DEFINITION = {
         {
             "key": "determinations",
             "kind": "table",
-            "label": "Pycnometer Determinations",
+            "label": "Weight determination using Pycnometer",
             "rows": {"min": 1, "max": 6, "default": 2},
             "fields": [
-                {"key": "prep_ref", "kind": "input", "type": "text", "label": "Pycnometer"},
+                {"key": "batch_no", "kind": "input", "type": "text", "label": "Batch No"},
+                {
+                    "key": "info",
+                    "kind": "input",
+                    "type": "text",
+                    "label": "Info",
+                    # Auto-growing textarea so lengthy notes wrap and remain visible.
+                    "multiline": True,
+                },
                 {
                     "key": "empty_weight",
                     "kind": "input",
-                    "label": "Empty (W)",
+                    "label": "wt of pycnometer, Empty (W)",
                     "unit": "g",
                     "required": True,
                 },
@@ -346,6 +354,89 @@ A10_WPM_DEFINITION = {
                     "label": "Mean Weight per mL",
                     "unit": "g/mL",
                     "expression": "mean(determinations.weight_per_ml)",
+                    "rounding": {"mode": "round", "digits": 4},
+                },
+            ],
+        },
+        {
+            "key": "gross_content",
+            "kind": "table",
+            "label": "Weight determination using Pycnometer 2",
+            "rows": {"min": 1, "max": 6, "default": 3},
+            "fields": [
+                {"key": "batch_no", "kind": "input", "type": "text", "label": "Batch No"},
+                {
+                    "key": "info",
+                    "kind": "input",
+                    "type": "text",
+                    "label": "Info",
+                    # Auto-growing textarea so lengthy notes wrap and remain visible.
+                    "multiline": True,
+                },
+                {
+                    "key": "filled_weight",
+                    "kind": "input",
+                    "label": "wt of filled individual container (W1)",
+                    "unit": "g",
+                    "required": True,
+                },
+                {
+                    "key": "empty_weight",
+                    "kind": "input",
+                    "label": "wt of Individual empty container (W2)",
+                    "unit": "g",
+                    "required": True,
+                },
+                {
+                    "key": "net_weight",
+                    "kind": "calculated",
+                    "label": "W1 - W2",
+                    "unit": "g",
+                    "expression": "filled_weight - empty_weight",
+                    "rounding": {"mode": "round", "digits": 4},
+                },
+                {
+                    "key": "gross_content_ml",
+                    "kind": "calculated",
+                    "label": "Gross Content",
+                    "unit": "mL",
+                    #  Net content weight divided by the density (Mean Weight per
+                    #  mL) measured in the pycnometer section above. The unrounded
+                    #  mean is used so the result matches the sheet's full-precision
+                    #  division rather than a twice-rounded value.
+                    "expression": "(filled_weight - empty_weight) / mean(determinations.weight_per_ml)",
+                    "rounding": {"mode": "round", "digits": 4},
+                },
+            ],
+            #  Bottom "Average" row rendered inside the table, its label spanning
+            #  the five leading columns and its value aligned under Gross Content
+            #  — the layout of the source sheet's final row.
+            "tableFooterRows": [
+                {
+                    "label": "Average",
+                    "labelColSpan": 5,
+                    "values": {
+                        "gross_content_ml": {
+                            "ref": "gross_stats.mean_gross_content",
+                            "unit": "mL",
+                            "rounding": {"mode": "round", "digits": 4},
+                        },
+                    },
+                },
+            ],
+        },
+        {
+            "key": "gross_stats",
+            "kind": "singleton",
+            "label": "Gross Content Summary",
+            "hidden": True,
+            "fields": [
+                {
+                    "key": "mean_gross_content",
+                    "kind": "calculated",
+                    "label": "Average Gross Content",
+                    "unit": "mL",
+                    "expression": "mean(gross_content.gross_content_ml)",
                     "rounding": {"mode": "round", "digits": 4},
                 },
             ],

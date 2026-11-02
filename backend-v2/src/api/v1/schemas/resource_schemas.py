@@ -196,3 +196,47 @@ class ProjectResponse(BaseModel):
 
 
 
+
+class CreateARDExpTemplateRequest(BaseModel):
+    template_name: str
+    comments: str | None = None
+    primary_department: str | None = None
+    plant: str | None = None
+    location: str | None = None
+    is_active: bool = True
+    secondary_department: str | None = None
+    module: str | None = None
+    template_code: str | None = None
+    document_no: str | None = None
+    content: str | None = None
+
+
+class UpdateARDExpTemplateRequest(BaseModel):
+    template_name: str
+    comments: str | None = None
+    primary_department: str | None = None
+    plant: str | None = None
+    location: str | None = None
+    is_active: bool = True
+    secondary_department: str | None = None
+    module: str | None = None
+    template_code: str | None = None
+    document_no: str | None = None
+    content: str | None = None
+
+
+class ARDExpTemplateResponse(BaseModel):
+    id: int
+    template_name: str
+    comments: str | None = None
+    primary_department: str | None = None
+    plant: str | None = None
+    location: str | None = None
+    is_active: bool
+    secondary_department: str | None = None
+    module: str | None = None
+    template_code: str | None = None
+    document_no: str | None = None
+    content: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)

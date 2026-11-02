@@ -1,0 +1,24 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "severity": "NIT",
+      "where": "§3 QC theoretical_ppm open confirmation",
+      "problem": "QC theoretical_ppm fate is left as an open question (computed-by-formula vs manual input) while defaulting to computed. With QC seed rows lacking dilution inputs, QC theoretical_ppm/recovery_pct stay EMPTY and qc_recovery_low/high stay permanently not-assessable (passed=None) until an analyst hand-enters QC dilutions — a behavior change from the old input-based QC theoretical. It is a decision, not an open question.",
+      "fix": "State the decision explicitly. Recommended: keep computed-by-formula and add one line to the QC edge case noting the advisory QC-recovery criteria remain not-assessable until QC dilution inputs are entered, so the permanent passed=None is not read as a defect."
+    },
+    {
+      "severity": "NIT",
+      "where": "§3 concentration_pct column and seed table",
+      "problem": "User data expresses levels as 1%/5%/... but the seed stores bare integers 1/5/15/... The column is correctly display-only and in no formula, but the display convention (unit:'%') is not stated, risking an implementer reading 1% as 0.01.",
+      "fix": "Add a note: concentration_pct stores the nominal integer level; the % is a UI display unit, not a 0.01-scale fraction; it is informational and enters no formula."
+    },
+    {
+      "severity": "NIT",
+      "where": "§2c is_standard mask and Edge cases (rename / rows-beyond-seed)",
+      "problem": "Row membership binds to six exact label strings. A typo'd standard label silently drops that row from the regression and changes every downstream observed_ppm/flux with no surfaced error — a GxP foot-gun. The behavior is documented but buried in edge cases, and nothing asserts the standard count.",
+      "fix": "Add a self-check assertion that the masked standard count == 6, and promote the rename/added-row behavior to a named 'Known limitation' as a consciously accepted risk."
+    }
+  ],
+  "reviewDoc": "d:\\RD-instance\\GIT\\backend-v2\\.agents\\tasks\\a6d-calib-merge\\design-review.md"
+}

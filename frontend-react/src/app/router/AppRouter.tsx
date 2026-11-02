@@ -15,6 +15,7 @@ import {
   TestsPage,
 } from '@features/sample-management';
 import {
+  ARDExpTemplatesPage,
   ChemicalsPage,
   ColumnsPage,
   InstrumentsPage,
@@ -67,6 +68,7 @@ export const AppRouter = () => (
         <Route path="/columns" element={<ColumnsPage />} />
         <Route path="/volumetric" element={<VolumetricPage />} />
         <Route path="/projects" element={<ProjectMasterPage />} />
+        <Route path="/ard-exp-templates" element={<ARDExpTemplatesPage />} />
 
         <Route path="/mrn/queue" element={<MaterialQueuePage />} />
         <Route path="/mrn" element={<MyMRNsPage />} />

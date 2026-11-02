@@ -109,6 +109,20 @@ export const WorksheetViewTable = ({
             </tr>
           ))
         )}
+        {(view.footer ?? []).map((f) => (
+          <tr key={`footer-${f.label}`} style={{ fontWeight: 600 }}>
+            {columns.map((c, ci) => {
+              const ref = f.values[c.key];
+              const text =
+                ci === 0 ? f.label : ref ? format(computed.values?.[ref], f.digits) : '';
+              return (
+                <td key={c.key} className={cellClassName} style={{ textAlign: 'center' }}>
+                  {text}
+                </td>
+              );
+            })}
+          </tr>
+        ))}
       </tbody>
     </table>
   );

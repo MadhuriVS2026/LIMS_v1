@@ -85,6 +85,24 @@ class ProjectMaster(BaseEntity):
 
 
 @dataclass
+class ARDExpTemplate(BaseEntity):
+    """ARD-EXP-TEMPLATES master — experiment template catalogue for the ARD module."""
+
+    template_name: str = field(default="")
+    comments: str | None = field(default=None)
+    primary_department: str | None = field(default=None)
+    plant: str | None = field(default=None)
+    location: str | None = field(default=None)
+    is_active: bool = field(default=True)
+    secondary_department: str | None = field(default=None)
+    module: str | None = field(default=None)
+    template_code: str | None = field(default=None)
+    document_no: str | None = field(default=None)
+    #  Full verbatim sheet content as JSON text (header + all sections).
+    content: str | None = field(default=None)
+
+
+@dataclass
 class VolumetricSolution(BaseEntity):
     """Volumetric solution preparation & standardization master."""
 

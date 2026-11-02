@@ -83,5 +83,6 @@ application code.
 
 ## Commit
 
-- Commit hash: _(recorded below after commit)_
+- Commit hash: `d73918a` — "feat: generic opt-in equal-consecutive column merge,
+  enabled for A2-0004 SET column" (local only; not pushed).
 - Backend/DB/engine files touched: **NONE**.

@@ -1,0 +1,27 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "id": 1,
+      "severity": "NIT",
+      "location": "Addition 2 — 'Net changes to context[]' section and Summary",
+      "problem": "Internal inconsistency in the new-context-key count: the text says 'Add 5 new fields:' and the Summary says 'five are new context fields', but it then lists six keys and self-corrects to 'six new keys'. The canonical key list, the JSON block, and acceptance criterion #7 all correctly say six.",
+      "fix": "Change 'Add 5 new fields:' to 'Add 6 new fields:' and the Summary's 'five are new context fields' to 'six'. Keep the six-key canonical list (working_std_no, use_before_date, time_points_min, avg_weight_mg, trf_number, ar_number) and AC #7 as the source of truth."
+    },
+    {
+      "id": 2,
+      "severity": "NIT",
+      "location": "Decision A assumption note and 'Stated assumptions' section",
+      "problem": "The design flags creation-time group_values persistence as an unverified assumption and proposes a set_values/create-mapper fallback. It is actually already proven: test_template_repository_impl.create() maps group_values to the JSON column, and tests/calculation/test_template_repository.py::test_worksheet_create_and_fetch_by_test_line round-trips a creation-time group_values. Overstating the risk.",
+      "fix": "Downgrade the assumption to a one-line confirmation citing create() and the round-trip test; drop or demote the fallback as unneeded."
+    },
+    {
+      "id": 3,
+      "severity": "NIT",
+      "location": "Decision C — the two 'entered once per block' columns",
+      "problem": "std_weight_mg and diluted_to_ml_1 are ordinary blank per-row inputs; the 'once per block' semantic is convention-only and unenforced (no merge/rowspan primitive exists, confirmed). An analyst can type into those cells on any row, and a blank does not actually mean 'inherited from row 1'.",
+      "fix": "Add one sentence to Decision C noting these two columns are not visually merged and nothing prevents per-row entry, so downstream readers of the stored rows must not treat blanks beneath row 1 as inherited values. (Optional; already covered under Out of Scope.)"
+    }
+  ],
+  "reviewDoc": "d:\\RD-instance\\GIT\\backend-v2\\.agents\\tasks\\a6d-linearity-seed-v2\\design-review.md"
+}

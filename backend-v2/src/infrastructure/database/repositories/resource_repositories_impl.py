@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.entities.instrument import Instrument
 from src.domain.entities.resource_items import (
+    ARDExpTemplate,
     ChemicalReagent,
     ColumnMaster,
     ProjectMaster,
@@ -13,6 +14,7 @@ from src.domain.entities.resource_items import (
     VolumetricSolution,
 )
 from src.domain.repositories.resource_repositories import (
+    IARDExpTemplateRepository,
     IChemicalRepository,
     IColumnRepository,
     IInstrumentRepository,
@@ -22,6 +24,7 @@ from src.domain.repositories.resource_repositories import (
 )
 from src.infrastructure.database.models.instrument_model import InstrumentModel
 from src.infrastructure.database.models.resource_models import (
+    ARDExpTemplateModel,
     ChemicalReagentModel,
     ColumnMasterModel,
     ProjectMasterModel,
@@ -265,3 +268,68 @@ class ProjectRepositoryImpl(IProjectRepository):
 
 
 
+
+class ARDExpTemplateRepositoryImpl(IARDExpTemplateRepository):
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_by_id(self, template_id: int) -> ARDExpTemplate | None:
+        model = await self._session.get(ARDExpTemplateModel, template_id)
+        return self._to_entity(model) if model else None
+
+    async def list_all(self) -> list[ARDExpTemplate]:
+        result = await self._session.execute(select(ARDExpTemplateModel))
+        return [self._to_entity(m) for m in result.scalars().all()]
+
+    async def create(self, template: ARDExpTemplate) -> ARDExpTemplate:
+        model = ARDExpTemplateModel(
+            template_name=template.template_name, comments=template.comments,
+            primary_department=template.primary_department, plant=template.plant,
+            location=template.location, is_active=template.is_active,
+            secondary_department=template.secondary_department, module=template.module,
+            template_code=template.template_code, document_no=template.document_no,
+            content=template.content,
+            created_by=template.created_by, modified_by=template.modified_by,
+        )
+        self._session.add(model)
+        await self._session.flush()
+        return self._to_entity(model)
+
+    async def update(self, template: ARDExpTemplate) -> ARDExpTemplate:
+        model = await self._session.get(ARDExpTemplateModel, template.id)
+        if model is None:
+            raise ValueError(f"ARD-EXP template {template.id} not found")
+        model.template_name = template.template_name
+        model.comments = template.comments
+        model.primary_department = template.primary_department
+        model.plant = template.plant
+        model.location = template.location
+        model.is_active = template.is_active
+        model.secondary_department = template.secondary_department
+        model.module = template.module
+        model.template_code = template.template_code
+        model.document_no = template.document_no
+        model.content = template.content
+        model.modified_by = template.modified_by
+        await self._session.flush()
+        return self._to_entity(model)
+
+    async def delete(self, template_id: int) -> None:
+        model = await self._session.get(ARDExpTemplateModel, template_id)
+        if model is None:
+            raise ValueError(f"ARD-EXP template {template_id} not found")
+        await self._session.delete(model)
+        await self._session.flush()
+
+    @staticmethod
+    def _to_entity(model: ARDExpTemplateModel) -> ARDExpTemplate:
+        return ARDExpTemplate(
+            id=model.id, template_name=model.template_name, comments=model.comments,
+            primary_department=model.primary_department, plant=model.plant,
+            location=model.location, is_active=model.is_active,
+            secondary_department=model.secondary_department, module=model.module,
+            template_code=model.template_code, document_no=model.document_no,
+            content=model.content,
+            created_by=model.created_by, created_date=model.created_date,
+            modified_by=model.modified_by, modified_date=model.modified_date,
+        )

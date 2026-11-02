@@ -1,0 +1,50 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "id": 1,
+      "severity": "NIT",
+      "area": "sub-section modeling",
+      "where": "design.md section 3 / FR3",
+      "problem": "The user asked for 'Sampling details' inside/under the Sampling Timepoints section, but the schema has no nesting so it is modeled as a sibling 'singleton' group placed immediately before 'timepoints'. This is a presentation compromise, not literal nesting.",
+      "fix": "Keep group label 'Sampling details' and position it adjacent (immediately before) 'timepoints'. If true visual nesting is later required, that is a frontend heading-style change only, as the design already scopes it. No action required to proceed."
+    },
+    {
+      "id": 2,
+      "severity": "NIT",
+      "area": "sub-section modeling / rendering",
+      "where": "design.md section 3 closing note / FR3",
+      "problem": "The literal two-row layout ('Cell no' header row + 'Sample weight (mg)' row) is not reproduced; cell identity is carried in per-field labels 'Cell {n} Sample Weight'. Consistent with how the existing 'cells' group renders, but not the user's verbatim table shape.",
+      "fix": "Acceptable as designed (matches the 'cells' singleton pattern). If the exact two-row label layout is mandatory, it is a bespoke frontend widget and a separate scope item."
+    },
+    {
+      "id": 3,
+      "severity": "NIT",
+      "area": "duplication / authoring script",
+      "where": "design.md FR2, FR6 step 1-4 vs _apply_cu30_kedit.py precedent",
+      "problem": "The cited precedent _apply_cu30_kedit.py asserts byte-equality against an in-memory seed-module definition, whereas this task must base the new definition on the LIVE lims.db row. A copy-paste of the precedent could wrongly use a seed module as the base.",
+      "fix": "In the author script, base definition on copy.deepcopy(db_row.definition) read from lims.db, apply the FR3 edit, then assert the re-read new row equals json.dumps(that edited dict, sort_keys=True). The design already states this; just do not copy the precedent's seed.definition source verbatim."
+    }
+  ],
+  "verifiedAssumptions": [
+    "Live DB: single TPL-A6D-% row id=26, version=1, Active, archetype=A6d, result_unit=µg/cm²/√h, test_id=25; TPL-A6D-0002 is next free code.",
+    "test_id=25 resolves to TST-IVRT 'In-Vitro Release Rate (IVRT)'.",
+    "Stored definition group order calibration,curve,qc,cells,timepoints,flux; resultRef=flux.mean_flux; 6 per-cell fields each in cells/timepoints/flux.",
+    "hidden, mirrorFrom, footer, headerContext, chart absent from stored A6D JSON.",
+    "cells is a singleton holding applied_mg_{n}; sampling_details mirrors this real pattern.",
+    "Single _CELL_RANGE drives cells/timepoints/flux and _series(...) aggregates in a6d_franz_ivrt.py.",
+    "new_version shares the same code; create_template auto-generates the code; no clone-into-chosen-code method exists.",
+    "validate_definition runs TemplateDefinition.parse then WorksheetEvaluator.evaluate({},{}); create/update/submit all enforce it.",
+    "_apply_cu30_kedit.py is a real precedent: parse + evaluate + async_session_factory write + sort_keys byte-equality re-read.",
+    "WorksheetForm.tsx line 181 gates allowClearColumn to TPL-A6A-0004; add/delete column controls guarded by it.",
+    "addColumn/deleteColumn are hide/restore of pre-provisioned columns, not runtime schema growth (explicit code comment).",
+    "mirrorFrom is a display-only row-aligned echo, not a cross-section cell-count mechanism.",
+    "FieldDef.parse does not model hidden or mirrorFrom (frontend-only).",
+    "sample_weight_mg_{n} is a valid identifier not in _IDENT_RESERVED; kind=input and type=number are valid enum members; singleton needs non-empty fields.",
+    "test_seeded_template_parity.py reads SEED_TEMPLATES (seed modules), not the DB, so a DB-only duplicate leaves it unchanged.",
+    "lims.db.bak-<slug>-<yyyymmdd-HHMMSS> is the established backup naming convention in the repo.",
+    "seed_test_templates.py documents --draft, --validate-only, and approved_by='seed' Active default, matching NFR2."
+  ],
+  "unverifiedOrWrongAssumptions": [],
+  "reviewDoc": "d:\\RD-instance\\GIT\\backend-v2\\.agents\\tasks\\a6d-sampling-details\\design-review.md"
+}

@@ -1,0 +1,1141 @@
+{
+  "resultRef": "flux.mean_flux",
+  "context": [
+    {
+      "key": "generic_name",
+      "kind": "context",
+      "type": "text",
+      "label": "Generic Name",
+      "source": "product.name"
+    },
+    {
+      "key": "batch_no",
+      "kind": "context",
+      "type": "text",
+      "label": "Batch No.",
+      "default": "LE6001",
+      "overridable": true
+    },
+    {
+      "key": "label_claim",
+      "kind": "context",
+      "type": "number",
+      "label": "Label Claim",
+      "source": "trf.label_claim_numeric",
+      "overridable": true
+    },
+    {
+      "key": "potency",
+      "kind": "context",
+      "label": "Standard Potency",
+      "unit": "%",
+      "default": 99.67,
+      "overridable": true
+    },
+    {
+      "key": "membrane",
+      "kind": "context",
+      "type": "text",
+      "label": "Membrane Type / Make",
+      "overridable": true
+    },
+    {
+      "key": "membrane_lot",
+      "kind": "context",
+      "type": "text",
+      "label": "Membrane B. No.",
+      "overridable": true
+    },
+    {
+      "key": "receptor_media",
+      "kind": "context",
+      "type": "text",
+      "label": "Receptor Media",
+      "overridable": true
+    },
+    {
+      "key": "receptor_volume",
+      "kind": "context",
+      "label": "Total Receptor Volume",
+      "unit": "mL",
+      "default": 7,
+      "overridable": true
+    },
+    {
+      "key": "replacement_volume",
+      "kind": "context",
+      "label": "Media Replacement Volume",
+      "unit": "mL",
+      "default": 1,
+      "overridable": true
+    },
+    {
+      "key": "sample_pip",
+      "kind": "context",
+      "label": "Withdrawn Aliquot",
+      "unit": "mL",
+      "default": 1,
+      "overridable": true
+    },
+    {
+      "key": "sample_vol",
+      "kind": "context",
+      "label": "Diluted to",
+      "unit": "mL",
+      "default": 1,
+      "overridable": true
+    },
+    {
+      "key": "donor_area",
+      "kind": "context",
+      "label": "Donor Chamber Area",
+      "unit": "cm\u00b2",
+      "default": 1.76,
+      "overridable": true
+    },
+    {
+      "key": "temperature_c",
+      "kind": "context",
+      "label": "Temperature",
+      "unit": "\u00b0C",
+      "default": 32,
+      "overridable": true
+    },
+    {
+      "key": "method_no",
+      "kind": "context",
+      "type": "text",
+      "label": "Method No.",
+      "overridable": true
+    },
+    {
+      "key": "instrument_id",
+      "kind": "context",
+      "type": "text",
+      "label": "Instrument ID",
+      "overridable": true
+    },
+    {
+      "key": "analysed_by",
+      "kind": "context",
+      "type": "text",
+      "label": "Analysed By",
+      "source": "session.analyst"
+    },
+    {
+      "key": "date_of_analysis",
+      "kind": "context",
+      "type": "text",
+      "label": "Date of Analysis",
+      "default": "06 April 2026",
+      "overridable": true
+    },
+    {
+      "key": "working_std_no",
+      "kind": "context",
+      "type": "text",
+      "label": "Working / Reference Standard No.",
+      "default": "WS/25/079",
+      "overridable": true
+    },
+    {
+      "key": "use_before_date",
+      "kind": "context",
+      "type": "text",
+      "label": "Use Before Date",
+      "default": "26-May",
+      "overridable": true
+    },
+    {
+      "key": "time_points_min",
+      "kind": "context",
+      "type": "text",
+      "label": "Time Points (Min)",
+      "default": "40, 80, 120, 160, 200, 240",
+      "overridable": true
+    },
+    {
+      "key": "avg_weight_mg",
+      "kind": "context",
+      "type": "number",
+      "unit": "mg",
+      "label": "Average Weight",
+      "default": 100,
+      "overridable": true
+    },
+    {
+      "key": "trf_number",
+      "kind": "context",
+      "type": "text",
+      "label": "TRF Number",
+      "default": "TRF-021-26-053",
+      "overridable": true
+    },
+    {
+      "key": "ar_number",
+      "kind": "context",
+      "type": "text",
+      "label": "A.R. No.",
+      "default": "AD/048/26/0121",
+      "overridable": true
+    }
+  ],
+  "groups": [
+    {
+      "key": "calibration",
+      "kind": "table",
+      "label": "Calibration Standards",
+      "rows": {
+        "min": 2,
+        "max": 10,
+        "default": 6,
+        "labelFrom": "level"
+      },
+      "fields": [
+        {
+          "key": "level",
+          "kind": "input",
+          "type": "text",
+          "label": "Standard"
+        },
+        {
+          "key": "nominal_pct",
+          "kind": "input",
+          "label": "Nominal",
+          "unit": "%"
+        },
+        {
+          "key": "weight_mg",
+          "kind": "input",
+          "label": "Std. Wt.",
+          "unit": "mg",
+          "required": true
+        },
+        {
+          "key": "c_vol_1",
+          "kind": "input",
+          "label": "Vol 1",
+          "unit": "mL",
+          "required": true
+        },
+        {
+          "key": "c_pip_1",
+          "kind": "input",
+          "label": "Pip 1",
+          "unit": "mL",
+          "default": 1
+        },
+        {
+          "key": "c_vol_2",
+          "kind": "input",
+          "label": "Vol 2",
+          "unit": "mL",
+          "default": 1
+        },
+        {
+          "key": "c_pip_2",
+          "kind": "input",
+          "label": "Pip 2",
+          "unit": "mL",
+          "default": 1
+        },
+        {
+          "key": "c_vol_3",
+          "kind": "input",
+          "label": "Vol 3",
+          "unit": "mL",
+          "default": 1
+        },
+        {
+          "key": "theoretical_ppm",
+          "kind": "calculated",
+          "label": "Theoretical Conc.",
+          "unit": "ppm",
+          "expression": "weight_mg / c_vol_1 * c_pip_1 / c_vol_2 * c_pip_2 / c_vol_3 * potency / 100 * 1000"
+        },
+        {
+          "key": "area",
+          "kind": "area",
+          "label": "Area Response",
+          "unit": "\u00b5V\u00b7s"
+        },
+        {
+          "key": "observed_ppm",
+          "kind": "calculated",
+          "label": "Observed Conc.",
+          "unit": "ppm",
+          "expression": "(area - curve.curve_intercept) / curve.curve_slope"
+        },
+        {
+          "key": "recovery_pct",
+          "kind": "calculated",
+          "label": "% Recovery",
+          "unit": "%",
+          "expression": "observed_ppm / theoretical_ppm * 100",
+          "rounding": {
+            "mode": "round",
+            "digits": 2
+          }
+        }
+      ]
+    },
+    {
+      "key": "curve",
+      "kind": "singleton",
+      "label": "Regression",
+      "fields": [
+        {
+          "key": "curve_slope",
+          "kind": "calculated",
+          "label": "Slope",
+          "unit": "area / ppm",
+          "expression": "slope(calibration.area, calibration.theoretical_ppm)",
+          "rounding": {
+            "mode": "round",
+            "digits": 2
+          }
+        },
+        {
+          "key": "curve_intercept",
+          "kind": "calculated",
+          "label": "Intercept",
+          "expression": "intercept(calibration.area, calibration.theoretical_ppm)",
+          "rounding": {
+            "mode": "round",
+            "digits": 2
+          }
+        },
+        {
+          "key": "correlation",
+          "kind": "calculated",
+          "label": "Correlation (r)",
+          "expression": "correl(calibration.area, calibration.theoretical_ppm)",
+          "rounding": {
+            "mode": "round",
+            "digits": 4
+          }
+        }
+      ]
+    },
+    {
+      "key": "qc",
+      "kind": "table",
+      "label": "Bracketing QC Standards",
+      "rows": {
+        "min": 0,
+        "max": 24,
+        "default": 6,
+        "labelFrom": "level"
+      },
+      "fields": [
+        {
+          "key": "level",
+          "kind": "input",
+          "type": "text",
+          "label": "QC"
+        },
+        {
+          "key": "theoretical_ppm",
+          "kind": "input",
+          "label": "Theoretical Conc.",
+          "unit": "ppm"
+        },
+        {
+          "key": "area",
+          "kind": "area",
+          "label": "Area Response",
+          "unit": "\u00b5V\u00b7s"
+        },
+        {
+          "key": "observed_ppm",
+          "kind": "calculated",
+          "label": "Observed Conc.",
+          "unit": "ppm",
+          "expression": "(area - curve.curve_intercept) / curve.curve_slope"
+        },
+        {
+          "key": "recovery_pct",
+          "kind": "calculated",
+          "label": "% Recovery",
+          "unit": "%",
+          "expression": "observed_ppm / theoretical_ppm * 100",
+          "rounding": {
+            "mode": "round",
+            "digits": 2
+          }
+        }
+      ]
+    },
+    {
+      "key": "linearity",
+      "kind": "sequence",
+      "label": "Standard Tapinarof for Linearity",
+      "rows": {
+        "min": 9,
+        "max": 15,
+        "default": 9,
+        "labelFrom": "calibration_curve",
+        "seed": [
+          {
+            "calibration_curve": "Calibration standard-1",
+            "concentration_pct": 1
+          },
+          {
+            "calibration_curve": "Calibration standard-2",
+            "concentration_pct": 5
+          },
+          {
+            "calibration_curve": "Calibration standard-3",
+            "concentration_pct": 15
+          },
+          {
+            "calibration_curve": "Calibration standard-4",
+            "concentration_pct": 30
+          },
+          {
+            "calibration_curve": "Calibration standard-5",
+            "concentration_pct": 40
+          },
+          {
+            "calibration_curve": "Calibration standard-6",
+            "concentration_pct": 60
+          },
+          {
+            "calibration_curve": "LQC",
+            "concentration_pct": 1
+          },
+          {
+            "calibration_curve": "MQC",
+            "concentration_pct": 15
+          },
+          {
+            "calibration_curve": "HQC",
+            "concentration_pct": 30
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "calibration_curve",
+          "kind": "input",
+          "type": "text",
+          "label": "Calibration curve"
+        },
+        {
+          "key": "concentration_pct",
+          "kind": "input",
+          "type": "number",
+          "label": "Concentration",
+          "unit": "%"
+        },
+        {
+          "key": "std_weight_mg",
+          "kind": "input",
+          "type": "number",
+          "label": "Standard Weight",
+          "unit": "mg"
+        },
+        {
+          "key": "diluted_to_ml_1",
+          "kind": "input",
+          "type": "number",
+          "label": "Diluted to",
+          "unit": "mL"
+        },
+        {
+          "key": "ml_a",
+          "kind": "input",
+          "type": "number",
+          "label": "mL",
+          "unit": "mL"
+        },
+        {
+          "key": "ml_b",
+          "kind": "input",
+          "type": "number",
+          "label": "mL",
+          "unit": "mL"
+        },
+        {
+          "key": "ml_taken",
+          "kind": "input",
+          "type": "number",
+          "label": "mL taken",
+          "unit": "mL"
+        },
+        {
+          "key": "diluted_to_ml_2",
+          "kind": "input",
+          "type": "number",
+          "label": "Diluted to",
+          "unit": "mL"
+        }
+      ]
+    },
+    {
+      "key": "cells",
+      "kind": "singleton",
+      "label": "Cell Loading",
+      "fields": [
+        {
+          "key": "applied_mg_1",
+          "kind": "input",
+          "label": "Cell 1 Applied Dose",
+          "unit": "mg"
+        },
+        {
+          "key": "applied_mg_2",
+          "kind": "input",
+          "label": "Cell 2 Applied Dose",
+          "unit": "mg"
+        },
+        {
+          "key": "applied_mg_3",
+          "kind": "input",
+          "label": "Cell 3 Applied Dose",
+          "unit": "mg"
+        },
+        {
+          "key": "applied_mg_4",
+          "kind": "input",
+          "label": "Cell 4 Applied Dose",
+          "unit": "mg"
+        },
+        {
+          "key": "applied_mg_5",
+          "kind": "input",
+          "label": "Cell 5 Applied Dose",
+          "unit": "mg"
+        },
+        {
+          "key": "applied_mg_6",
+          "kind": "input",
+          "label": "Cell 6 Applied Dose",
+          "unit": "mg"
+        }
+      ]
+    },
+    {
+      "key": "sampling_details",
+      "kind": "singleton",
+      "label": "Sampling details",
+      "fields": [
+        {
+          "key": "sample_weight_mg_1",
+          "kind": "input",
+          "type": "number",
+          "label": "Cell 1 Sample Weight",
+          "unit": "mg"
+        },
+        {
+          "key": "sample_weight_mg_2",
+          "kind": "input",
+          "type": "number",
+          "label": "Cell 2 Sample Weight",
+          "unit": "mg"
+        },
+        {
+          "key": "sample_weight_mg_3",
+          "kind": "input",
+          "type": "number",
+          "label": "Cell 3 Sample Weight",
+          "unit": "mg"
+        },
+        {
+          "key": "sample_weight_mg_4",
+          "kind": "input",
+          "type": "number",
+          "label": "Cell 4 Sample Weight",
+          "unit": "mg"
+        },
+        {
+          "key": "sample_weight_mg_5",
+          "kind": "input",
+          "type": "number",
+          "label": "Cell 5 Sample Weight",
+          "unit": "mg"
+        },
+        {
+          "key": "sample_weight_mg_6",
+          "kind": "input",
+          "type": "number",
+          "label": "Cell 6 Sample Weight",
+          "unit": "mg"
+        }
+      ]
+    },
+    {
+      "key": "timepoints",
+      "kind": "sequence",
+      "label": "Sampling Timepoints",
+      "rows": {
+        "min": 2,
+        "max": 12,
+        "default": 6,
+        "labelFrom": "time_min"
+      },
+      "fields": [
+        {
+          "key": "time_min",
+          "kind": "input",
+          "label": "Time",
+          "unit": "min",
+          "required": true
+        },
+        {
+          "key": "area_1",
+          "kind": "area",
+          "label": "Cell 1 Area",
+          "unit": "\u00b5V\u00b7s"
+        },
+        {
+          "key": "area_2",
+          "kind": "area",
+          "label": "Cell 2 Area",
+          "unit": "\u00b5V\u00b7s"
+        },
+        {
+          "key": "area_3",
+          "kind": "area",
+          "label": "Cell 3 Area",
+          "unit": "\u00b5V\u00b7s"
+        },
+        {
+          "key": "area_4",
+          "kind": "area",
+          "label": "Cell 4 Area",
+          "unit": "\u00b5V\u00b7s"
+        },
+        {
+          "key": "area_5",
+          "kind": "area",
+          "label": "Cell 5 Area",
+          "unit": "\u00b5V\u00b7s"
+        },
+        {
+          "key": "area_6",
+          "kind": "area",
+          "label": "Cell 6 Area",
+          "unit": "\u00b5V\u00b7s"
+        },
+        {
+          "key": "sqrt_hours",
+          "kind": "calculated",
+          "label": "\u221aTime",
+          "unit": "\u221ah",
+          "expression": "sqrt(time_min / 60)"
+        },
+        {
+          "key": "conc_1",
+          "kind": "calculated",
+          "label": "Cell 1 Conc.",
+          "unit": "ppm",
+          "expression": "(area_1 - curve.curve_intercept) / curve.curve_slope"
+        },
+        {
+          "key": "conc_2",
+          "kind": "calculated",
+          "label": "Cell 2 Conc.",
+          "unit": "ppm",
+          "expression": "(area_2 - curve.curve_intercept) / curve.curve_slope"
+        },
+        {
+          "key": "conc_3",
+          "kind": "calculated",
+          "label": "Cell 3 Conc.",
+          "unit": "ppm",
+          "expression": "(area_3 - curve.curve_intercept) / curve.curve_slope"
+        },
+        {
+          "key": "conc_4",
+          "kind": "calculated",
+          "label": "Cell 4 Conc.",
+          "unit": "ppm",
+          "expression": "(area_4 - curve.curve_intercept) / curve.curve_slope"
+        },
+        {
+          "key": "conc_5",
+          "kind": "calculated",
+          "label": "Cell 5 Conc.",
+          "unit": "ppm",
+          "expression": "(area_5 - curve.curve_intercept) / curve.curve_slope"
+        },
+        {
+          "key": "conc_6",
+          "kind": "calculated",
+          "label": "Cell 6 Conc.",
+          "unit": "ppm",
+          "expression": "(area_6 - curve.curve_intercept) / curve.curve_slope"
+        },
+        {
+          "key": "amount_1",
+          "kind": "calculated",
+          "label": "Cell 1 Amount (uncorrected)",
+          "unit": "\u00b5g",
+          "expression": "conc_1 * sample_vol / sample_pip * receptor_volume"
+        },
+        {
+          "key": "amount_2",
+          "kind": "calculated",
+          "label": "Cell 2 Amount (uncorrected)",
+          "unit": "\u00b5g",
+          "expression": "conc_2 * sample_vol / sample_pip * receptor_volume"
+        },
+        {
+          "key": "amount_3",
+          "kind": "calculated",
+          "label": "Cell 3 Amount (uncorrected)",
+          "unit": "\u00b5g",
+          "expression": "conc_3 * sample_vol / sample_pip * receptor_volume"
+        },
+        {
+          "key": "amount_4",
+          "kind": "calculated",
+          "label": "Cell 4 Amount (uncorrected)",
+          "unit": "\u00b5g",
+          "expression": "conc_4 * sample_vol / sample_pip * receptor_volume"
+        },
+        {
+          "key": "amount_5",
+          "kind": "calculated",
+          "label": "Cell 5 Amount (uncorrected)",
+          "unit": "\u00b5g",
+          "expression": "conc_5 * sample_vol / sample_pip * receptor_volume"
+        },
+        {
+          "key": "amount_6",
+          "kind": "calculated",
+          "label": "Cell 6 Amount (uncorrected)",
+          "unit": "\u00b5g",
+          "expression": "conc_6 * sample_vol / sample_pip * receptor_volume"
+        },
+        {
+          "key": "carry_1",
+          "kind": "calculated",
+          "label": "Cell 1 carry-over",
+          "unit": "\u00b5g",
+          "expression": "sum(prior.amount_1) * replacement_volume / receptor_volume"
+        },
+        {
+          "key": "carry_2",
+          "kind": "calculated",
+          "label": "Cell 2 carry-over",
+          "unit": "\u00b5g",
+          "expression": "sum(prior.amount_2) * replacement_volume / receptor_volume"
+        },
+        {
+          "key": "carry_3",
+          "kind": "calculated",
+          "label": "Cell 3 carry-over",
+          "unit": "\u00b5g",
+          "expression": "sum(prior.amount_3) * replacement_volume / receptor_volume"
+        },
+        {
+          "key": "carry_4",
+          "kind": "calculated",
+          "label": "Cell 4 carry-over",
+          "unit": "\u00b5g",
+          "expression": "sum(prior.amount_4) * replacement_volume / receptor_volume"
+        },
+        {
+          "key": "carry_5",
+          "kind": "calculated",
+          "label": "Cell 5 carry-over",
+          "unit": "\u00b5g",
+          "expression": "sum(prior.amount_5) * replacement_volume / receptor_volume"
+        },
+        {
+          "key": "carry_6",
+          "kind": "calculated",
+          "label": "Cell 6 carry-over",
+          "unit": "\u00b5g",
+          "expression": "sum(prior.amount_6) * replacement_volume / receptor_volume"
+        },
+        {
+          "key": "cumulative_1",
+          "kind": "calculated",
+          "label": "Cell 1 Cumulative",
+          "unit": "\u00b5g",
+          "expression": "amount_1 + carry_1"
+        },
+        {
+          "key": "cumulative_2",
+          "kind": "calculated",
+          "label": "Cell 2 Cumulative",
+          "unit": "\u00b5g",
+          "expression": "amount_2 + carry_2"
+        },
+        {
+          "key": "cumulative_3",
+          "kind": "calculated",
+          "label": "Cell 3 Cumulative",
+          "unit": "\u00b5g",
+          "expression": "amount_3 + carry_3"
+        },
+        {
+          "key": "cumulative_4",
+          "kind": "calculated",
+          "label": "Cell 4 Cumulative",
+          "unit": "\u00b5g",
+          "expression": "amount_4 + carry_4"
+        },
+        {
+          "key": "cumulative_5",
+          "kind": "calculated",
+          "label": "Cell 5 Cumulative",
+          "unit": "\u00b5g",
+          "expression": "amount_5 + carry_5"
+        },
+        {
+          "key": "cumulative_6",
+          "kind": "calculated",
+          "label": "Cell 6 Cumulative",
+          "unit": "\u00b5g",
+          "expression": "amount_6 + carry_6"
+        },
+        {
+          "key": "per_area_1",
+          "kind": "calculated",
+          "label": "Cell 1 Cumulative / Area",
+          "unit": "\u00b5g/cm\u00b2",
+          "expression": "cumulative_1 / donor_area"
+        },
+        {
+          "key": "per_area_2",
+          "kind": "calculated",
+          "label": "Cell 2 Cumulative / Area",
+          "unit": "\u00b5g/cm\u00b2",
+          "expression": "cumulative_2 / donor_area"
+        },
+        {
+          "key": "per_area_3",
+          "kind": "calculated",
+          "label": "Cell 3 Cumulative / Area",
+          "unit": "\u00b5g/cm\u00b2",
+          "expression": "cumulative_3 / donor_area"
+        },
+        {
+          "key": "per_area_4",
+          "kind": "calculated",
+          "label": "Cell 4 Cumulative / Area",
+          "unit": "\u00b5g/cm\u00b2",
+          "expression": "cumulative_4 / donor_area"
+        },
+        {
+          "key": "per_area_5",
+          "kind": "calculated",
+          "label": "Cell 5 Cumulative / Area",
+          "unit": "\u00b5g/cm\u00b2",
+          "expression": "cumulative_5 / donor_area"
+        },
+        {
+          "key": "per_area_6",
+          "kind": "calculated",
+          "label": "Cell 6 Cumulative / Area",
+          "unit": "\u00b5g/cm\u00b2",
+          "expression": "cumulative_6 / donor_area"
+        },
+        {
+          "key": "released_pct_1",
+          "kind": "calculated",
+          "label": "Cell 1 Released",
+          "unit": "%",
+          "expression": "cumulative_1 / (cells.applied_mg_1 * label_claim / 100 * 1000) * 100",
+          "rounding": {
+            "mode": "round",
+            "digits": 2
+          }
+        },
+        {
+          "key": "released_pct_2",
+          "kind": "calculated",
+          "label": "Cell 2 Released",
+          "unit": "%",
+          "expression": "cumulative_2 / (cells.applied_mg_2 * label_claim / 100 * 1000) * 100",
+          "rounding": {
+            "mode": "round",
+            "digits": 2
+          }
+        },
+        {
+          "key": "released_pct_3",
+          "kind": "calculated",
+          "label": "Cell 3 Released",
+          "unit": "%",
+          "expression": "cumulative_3 / (cells.applied_mg_3 * label_claim / 100 * 1000) * 100",
+          "rounding": {
+            "mode": "round",
+            "digits": 2
+          }
+        },
+        {
+          "key": "released_pct_4",
+          "kind": "calculated",
+          "label": "Cell 4 Released",
+          "unit": "%",
+          "expression": "cumulative_4 / (cells.applied_mg_4 * label_claim / 100 * 1000) * 100",
+          "rounding": {
+            "mode": "round",
+            "digits": 2
+          }
+        },
+        {
+          "key": "released_pct_5",
+          "kind": "calculated",
+          "label": "Cell 5 Released",
+          "unit": "%",
+          "expression": "cumulative_5 / (cells.applied_mg_5 * label_claim / 100 * 1000) * 100",
+          "rounding": {
+            "mode": "round",
+            "digits": 2
+          }
+        },
+        {
+          "key": "released_pct_6",
+          "kind": "calculated",
+          "label": "Cell 6 Released",
+          "unit": "%",
+          "expression": "cumulative_6 / (cells.applied_mg_6 * label_claim / 100 * 1000) * 100",
+          "rounding": {
+            "mode": "round",
+            "digits": 2
+          }
+        },
+        {
+          "key": "mean_per_area",
+          "kind": "calculated",
+          "label": "Mean Cumulative / Area",
+          "unit": "\u00b5g/cm\u00b2",
+          "expression": "mean([per_area_1, per_area_2, per_area_3, per_area_4, per_area_5, per_area_6])",
+          "rounding": {
+            "mode": "round",
+            "digits": 3
+          }
+        },
+        {
+          "key": "rsd_per_area",
+          "kind": "calculated",
+          "label": "%RSD Across Cells",
+          "unit": "%",
+          "expression": "rsd([per_area_1, per_area_2, per_area_3, per_area_4, per_area_5, per_area_6])",
+          "rounding": {
+            "mode": "round",
+            "digits": 1
+          }
+        }
+      ]
+    },
+    {
+      "key": "flux",
+      "kind": "singleton",
+      "label": "Release Rate",
+      "fields": [
+        {
+          "key": "flux_1",
+          "kind": "calculated",
+          "label": "Cell 1 Flux",
+          "unit": "\u00b5g/cm\u00b2/\u221ah",
+          "expression": "slope(timepoints.per_area_1, timepoints.sqrt_hours)",
+          "rounding": {
+            "mode": "round",
+            "digits": 2
+          }
+        },
+        {
+          "key": "flux_2",
+          "kind": "calculated",
+          "label": "Cell 2 Flux",
+          "unit": "\u00b5g/cm\u00b2/\u221ah",
+          "expression": "slope(timepoints.per_area_2, timepoints.sqrt_hours)",
+          "rounding": {
+            "mode": "round",
+            "digits": 2
+          }
+        },
+        {
+          "key": "flux_3",
+          "kind": "calculated",
+          "label": "Cell 3 Flux",
+          "unit": "\u00b5g/cm\u00b2/\u221ah",
+          "expression": "slope(timepoints.per_area_3, timepoints.sqrt_hours)",
+          "rounding": {
+            "mode": "round",
+            "digits": 2
+          }
+        },
+        {
+          "key": "flux_4",
+          "kind": "calculated",
+          "label": "Cell 4 Flux",
+          "unit": "\u00b5g/cm\u00b2/\u221ah",
+          "expression": "slope(timepoints.per_area_4, timepoints.sqrt_hours)",
+          "rounding": {
+            "mode": "round",
+            "digits": 2
+          }
+        },
+        {
+          "key": "flux_5",
+          "kind": "calculated",
+          "label": "Cell 5 Flux",
+          "unit": "\u00b5g/cm\u00b2/\u221ah",
+          "expression": "slope(timepoints.per_area_5, timepoints.sqrt_hours)",
+          "rounding": {
+            "mode": "round",
+            "digits": 2
+          }
+        },
+        {
+          "key": "flux_6",
+          "kind": "calculated",
+          "label": "Cell 6 Flux",
+          "unit": "\u00b5g/cm\u00b2/\u221ah",
+          "expression": "slope(timepoints.per_area_6, timepoints.sqrt_hours)",
+          "rounding": {
+            "mode": "round",
+            "digits": 2
+          }
+        },
+        {
+          "key": "fit_1",
+          "kind": "calculated",
+          "label": "Cell 1 Higuchi r",
+          "expression": "correl(timepoints.per_area_1, timepoints.sqrt_hours)",
+          "rounding": {
+            "mode": "round",
+            "digits": 4
+          }
+        },
+        {
+          "key": "fit_2",
+          "kind": "calculated",
+          "label": "Cell 2 Higuchi r",
+          "expression": "correl(timepoints.per_area_2, timepoints.sqrt_hours)",
+          "rounding": {
+            "mode": "round",
+            "digits": 4
+          }
+        },
+        {
+          "key": "fit_3",
+          "kind": "calculated",
+          "label": "Cell 3 Higuchi r",
+          "expression": "correl(timepoints.per_area_3, timepoints.sqrt_hours)",
+          "rounding": {
+            "mode": "round",
+            "digits": 4
+          }
+        },
+        {
+          "key": "fit_4",
+          "kind": "calculated",
+          "label": "Cell 4 Higuchi r",
+          "expression": "correl(timepoints.per_area_4, timepoints.sqrt_hours)",
+          "rounding": {
+            "mode": "round",
+            "digits": 4
+          }
+        },
+        {
+          "key": "fit_5",
+          "kind": "calculated",
+          "label": "Cell 5 Higuchi r",
+          "expression": "correl(timepoints.per_area_5, timepoints.sqrt_hours)",
+          "rounding": {
+            "mode": "round",
+            "digits": 4
+          }
+        },
+        {
+          "key": "fit_6",
+          "kind": "calculated",
+          "label": "Cell 6 Higuchi r",
+          "expression": "correl(timepoints.per_area_6, timepoints.sqrt_hours)",
+          "rounding": {
+            "mode": "round",
+            "digits": 4
+          }
+        },
+        {
+          "key": "mean_flux",
+          "kind": "calculated",
+          "label": "Mean Flux",
+          "unit": "\u00b5g/cm\u00b2/\u221ah",
+          "expression": "mean([flux_1, flux_2, flux_3, flux_4, flux_5, flux_6])",
+          "rounding": {
+            "mode": "round",
+            "digits": 2
+          }
+        },
+        {
+          "key": "rsd_flux",
+          "kind": "calculated",
+          "label": "%RSD of Flux",
+          "unit": "%",
+          "expression": "rsd([flux_1, flux_2, flux_3, flux_4, flux_5, flux_6])",
+          "rounding": {
+            "mode": "round",
+            "digits": 1
+          }
+        },
+        {
+          "key": "min_fit",
+          "kind": "calculated",
+          "label": "Poorest Higuchi Fit",
+          "expression": "min([fit_1, fit_2, fit_3, fit_4, fit_5, fit_6])",
+          "rounding": {
+            "mode": "round",
+            "digits": 4
+          }
+        }
+      ]
+    }
+  ],
+  "criteria": [
+    {
+      "key": "calibration_correlation",
+      "label": "Correlation of the calibration curve",
+      "target": "curve.correlation",
+      "operator": "gte",
+      "limit": 0.99,
+      "severity": "blocking",
+      "limitText": "NLT 0.99"
+    },
+    {
+      "key": "qc_recovery_low",
+      "label": "Lowest bracketing QC recovery",
+      "target": "min(qc.recovery_pct)",
+      "operator": "gte",
+      "limit": 85.0,
+      "severity": "advisory",
+      "limitText": "NLT 85 % (convention)"
+    },
+    {
+      "key": "qc_recovery_high",
+      "label": "Highest bracketing QC recovery",
+      "target": "max(qc.recovery_pct)",
+      "operator": "lte",
+      "limit": 115.0,
+      "severity": "advisory",
+      "limitText": "NMT 115 % (convention)"
+    },
+    {
+      "key": "higuchi_linearity",
+      "label": "Poorest per-cell Higuchi correlation",
+      "target": "flux.min_fit",
+      "operator": "gte",
+      "limit": 0.97,
+      "severity": "advisory",
+      "limitText": "NLT 0.97 (SUPAC-SS)"
+    },
+    {
+      "key": "flux_precision",
+      "label": "%RSD of flux across cells",
+      "target": "flux.rsd_flux",
+      "operator": "lte",
+      "limit": 15.0,
+      "severity": "advisory",
+      "limitText": "NMT 15 % (convention)"
+    }
+  ]
+}

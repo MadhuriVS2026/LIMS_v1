@@ -13,7 +13,7 @@
 import { useMemo, useState } from 'react';
 import { Chart } from 'primereact/chart';
 import type { ChartConfig, WorksheetComputed } from '../models/testTemplate.types';
-import { buildPoints, buildTrendline } from '../models/chartData';
+import { axisScale, buildPoints, buildTrendline, seriesLabel } from '../models/chartData';
 
 interface WorksheetChartProps {
   chart: ChartConfig;
@@ -72,12 +72,14 @@ export const WorksheetChart = ({ chart, computed, stale, title }: WorksheetChart
         const idx = seriesKeys.indexOf(s.key);
         const color = SERIES_COLORS[idx % SERIES_COLORS.length];
         return {
-          label: s.label,
+          label: seriesLabel(s, computed),
           data: buildPoints(rows, chart.xField, s.key, chart.rowFilter),
           borderColor: color,
           backgroundColor: color,
           showLine: !scatter,
-          pointRadius: scatter ? 4 : 3,
+          pointRadius: scatter ? 4 : chart.pointStyle ? 5 : 3,
+          pointStyle: chart.pointStyle ?? 'circle',
+          borderWidth: chart.pointStyle ? 2.5 : 2,
           tension: 0,
           fill: false,
           spanGaps: true,
@@ -104,13 +106,24 @@ export const WorksheetChart = ({ chart, computed, stale, title }: WorksheetChart
     return { data: { datasets }, trend: t };
   }, [rows, visible, chart, computed, seriesKeys, scatter]);
 
+  //  Plotted X / Y values, so a configured axis range can widen to fit them.
+  const plotted = useMemo(() => {
+    const pts = (data.datasets as { data: { x: number; y: number }[] }[]).flatMap((d) => d.data);
+    return { xs: pts.map((p) => p.x), ys: pts.map((p) => p.y) };
+  }, [data]);
+
   const options = useMemo(
     () => ({
       maintainAspectRatio: false,
       responsive: true,
       plugins: {
-        //  We render our own toggle chips, so hide Chart.js's built-in legend.
-        legend: { display: false },
+        //  Multi-series charts use our own toggle chips; chart.legend opts in
+        //  to Chart.js's legend (e.g. a single batch-named series).
+        legend: {
+          display: !!chart.legend,
+          position: 'bottom' as const,
+          labels: { filter: (item: { text: string }) => item.text !== 'Trendline' },
+        },
         title: title ? { display: true, text: title, font: { size: 14 } } : { display: false },
       },
       scales: {
@@ -118,14 +131,16 @@ export const WorksheetChart = ({ chart, computed, stale, title }: WorksheetChart
           type: 'linear' as const,
           beginAtZero: scatter,
           title: { display: true, text: chart.xLabel ?? 'Time' },
+          ...axisScale(chart.xAxis, plotted.xs),
         },
         y: {
           beginAtZero: true,
           title: { display: true, text: chart.yLabel ?? '% Release' },
+          ...axisScale(chart.yAxis, plotted.ys),
         },
       },
     }),
-    [chart.xLabel, chart.yLabel, title, scatter],
+    [chart.xLabel, chart.yLabel, chart.legend, chart.xAxis, chart.yAxis, title, scatter, plotted],
   );
 
   return (
@@ -164,8 +179,16 @@ export const WorksheetChart = ({ chart, computed, stale, title }: WorksheetChart
           ))}
         </div>
       )}
-      <div style={{ height: '320px', opacity: stale ? 0.5 : 1 }}>
-        <Chart type="line" data={data} options={options} />
+      {/*  The Chart wrapper div needs the height itself: with maintainAspectRatio
+           off, Chart.js sizes the canvas to that div, which otherwise collapses. */}
+      <div style={{ height: `${chart.height ?? 320}px`, opacity: stale ? 0.5 : 1 }}>
+        <Chart
+          type="line"
+          data={data}
+          options={options}
+          height={`${chart.height ?? 320}px`}
+          style={{ position: 'relative', width: '100%' }}
+        />
       </div>
     </div>
   );

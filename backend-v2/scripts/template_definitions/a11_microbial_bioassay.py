@@ -450,6 +450,326 @@ A11_API = SeedTemplate(
 
 
 # ─────────────────────────────────────────────────────────────────────
+#  Named Amphotericin B API worksheet layout
+# ─────────────────────────────────────────────────────────────────────
+
+# The requested worksheet places the stock preparation and all five standard
+# dilutions in one table.  The two hidden raw concentration fields retain the
+# calculation precision used by the regression while their visible neighbours
+# show the worksheet's 3 dp / 2 dp values.
+_AMPHO_API_STOCK_TABLE = {
+    "key": "std_stock",
+    "kind": "table",
+    "label": "Standard Stock Solution Preparation",
+    "showRowNumbers": False,
+    "headerInputs": [
+        {"field": "note_text", "width": "20rem"},
+        {"field": "buffer_ph", "width": "8rem"},
+    ],
+    "rows": {"min": 5, "max": 5, "default": 5, "labelFrom": "std_name"},
+    "fields": [
+        {
+            "key": "note_text",
+            "kind": "input",
+            "type": "text",
+            "label": "Note : * =",
+            "hidden": True,
+        },
+        {
+            "key": "buffer_ph",
+            "kind": "input",
+            "type": "number",
+            "label": "pH of Buffer=",
+            "hidden": True,
+        },
+        {"key": "name", "kind": "input", "type": "text", "label": "Name", "width": "12%"},
+        {"key": "weight_mg", "kind": "input", "label": "Weight in mg", "width": "8%"},
+        {"key": "stock_dilution", "kind": "input", "label": "Dilution (*mL)", "width": "8%"},
+        {"key": "sample_taken", "kind": "input", "label": "Sample Taken (*mL)", "width": "9%"},
+        {"key": "dose_dilution", "kind": "input", "label": "Dilution (*mL)", "width": "8%"},
+        {
+            "key": "intermediate_conc_raw",
+            "kind": "calculated",
+            "hidden": True,
+            "expression": (
+                "std_stock.weight_mg[0] / std_stock.stock_dilution[0] "
+                "* sample_taken / dose_dilution * standard_potency"
+            ),
+        },
+        {
+            "key": "intermediate_conc",
+            "kind": "calculated",
+            "label": "Concentration 1 (µg/mL)",
+            "expression": "round(intermediate_conc_raw, 3)",
+            "width": "12%",
+        },
+        {"key": "volume_taken", "kind": "input", "label": "Volume Taken (mL)", "default": 1, "width": "8%"},
+        {"key": "buffer_dilution", "kind": "input", "label": "Dilution (**mL)", "default": 20, "width": "9%"},
+        {
+            "key": "final_conc_raw",
+            "kind": "calculated",
+            "hidden": True,
+            "expression": "intermediate_conc_raw * volume_taken / buffer_dilution",
+        },
+        {
+            "key": "conc",
+            "kind": "calculated",
+            "label": "Concentration 2 (µg/mL)",
+            "expression": "round(final_conc_raw, 2)",
+            "width": "12%",
+        },
+        {
+            "key": "std_name",
+            "kind": "calculated",
+            "type": "text",
+            "label": "Std. Name",
+            "expression": (
+                'if(rowno = 1, "S1", if(rowno = 2, "S2", '
+                'if(rowno = 3, "S3", if(rowno = 4, "S4", "S5"))))'
+            ),
+            "width": "7%",
+        },
+        {
+            "key": "log_conc",
+            "kind": "calculated",
+            "label": "Log Concentration",
+            "expression": "ln(final_conc_raw)",
+            "rounding": {"mode": "round", "digits": 4},
+            "width": "9%",
+        },
+    ],
+}
+
+_AMPHO_API_STANDARD_READINGS = {
+    "key": "standard",
+    "kind": "table",
+    "label": "Standard Plate Readings",
+    "rows": {"min": 5, "max": 5, "default": 5, "labelFrom": "std_name"},
+    "fields": [
+        {
+            "key": "std_name",
+            "kind": "calculated",
+            "type": "text",
+            "label": "Std. Name",
+            "expression": "std_stock.std_name[rowno - 1]",
+        },
+        *_zone_inputs("ref"),
+        *_zone_inputs("spl"),
+        *_zone_statistics("ref", "Reference Zone"),
+        *_zone_statistics("spl", "Test Zone"),
+        {
+            "key": "corrected_mean",
+            "kind": "calculated",
+            "label": "Corrected Mean",
+            "unit": "mm",
+            # S3 is the reference dose on every plate, so it contributes the
+            # grand reference mean rather than a plate set of its own.
+            "expression": (
+                "if(rowno = 3, curve.ref_grand, spl_avg - (ref_avg - curve.ref_grand))"
+            ),
+        },
+    ],
+}
+
+_AMPHO_API_CURVE_GROUP = {
+    "key": "curve",
+    "kind": "singleton",
+    "label": "Standard Curve",
+    "fields": [
+        {
+            "key": "ref_grand",
+            "kind": "calculated",
+            "label": "Grand Reference Zone Mean",
+            "unit": "mm",
+            "expression": "mean(standard.ref_avg)",
+        },
+        {
+            "key": "curve_slope",
+            "kind": "calculated",
+            "label": "Slope",
+            "expression": "slope(standard.corrected_mean, std_stock.log_conc)",
+            "rounding": {"mode": "round", "digits": 4},
+        },
+        {
+            "key": "curve_intercept",
+            "kind": "calculated",
+            "label": "Intercept",
+            "expression": "intercept(standard.corrected_mean, std_stock.log_conc)",
+            "rounding": {"mode": "round", "digits": 4},
+        },
+        {
+            "key": "r_squared",
+            "kind": "calculated",
+            "label": "R²",
+            "expression": "correl(standard.corrected_mean, std_stock.log_conc) ^ 2",
+            "rounding": {"mode": "round", "digits": 4},
+        },
+    ],
+}
+
+# The sample make-up is a separate three-row table, matching the source
+# worksheet. Hidden raw concentrations keep full precision for assay results;
+# the two visible concentration columns carry the requested display precision.
+_AMPHO_API_SAMPLE_PREP_TABLE = {
+    "key": "sample_prep",
+    "kind": "table",
+    "label": "Sample Preparation",
+    "showRowNumbers": False,
+    "note": "Where, * = Dimethyl sulphoxide, ** = Buffer solution pH 10.5",
+    "rows": {"min": 3, "max": 3, "default": 3, "labelFrom": "name"},
+    "fields": [
+        {
+            "key": "name",
+            "kind": "calculated",
+            "type": "text",
+            "label": "Name",
+            "expression": (
+                'if(rowno = 1, "Amphotericin B API (Set-1)", '
+                'if(rowno = 2, "Amphotericin B API (Set-2)", '
+                '"Amphotericin B API (Set-3)"))'
+            ),
+            "width": "20%",
+        },
+        {"key": "sample_weight", "kind": "input", "label": "Weight in mg", "width": "11%"},
+        {"key": "dilution_1", "kind": "input", "label": "Dilution1 (*mL)", "width": "8%"},
+        {"key": "dilution_2", "kind": "input", "label": "Dilution2 (*mL)", "default": 1, "width": "10%"},
+        {"key": "dilution_3", "kind": "input", "label": "Dilution3 (*mL)", "width": "9%"},
+        {
+            "key": "intermediate_conc_raw",
+            "kind": "calculated",
+            "hidden": True,
+            "expression": "sample_weight / dilution_1 * dilution_2 / dilution_3 * 1000",
+        },
+        {
+            "key": "intermediate_conc",
+            "kind": "calculated",
+            "label": "Concentration (µg/mL)",
+            "expression": "round(intermediate_conc_raw, 3)",
+            "width": "11%",
+        },
+        {"key": "dilution_4", "kind": "input", "label": "Dilution 4 (*mL)", "default": 1, "width": "11%"},
+        {"key": "dilution_5", "kind": "input", "label": "Dilution 5 (**mL)", "default": 20, "width": "8%"},
+        {
+            "key": "final_conc_raw",
+            "kind": "calculated",
+            "hidden": True,
+            "expression": "intermediate_conc_raw * dilution_4 / dilution_5",
+        },
+        {
+            "key": "conc",
+            "kind": "calculated",
+            "label": "Concentration (µg/mL)",
+            "expression": "round(final_conc_raw, 3)",
+            "width": "12%",
+        },
+    ],
+}
+
+_AMPHO_API_SAMPLE_READINGS = {
+    "key": "sample",
+    "kind": "table",
+    "label": "Sample Reading",
+    "rows": {"min": 3, "max": 3, "default": 3, "labelFrom": "name"},
+    "fields": [
+        {
+            "key": "name",
+            "kind": "calculated",
+            "type": "text",
+            "label": "Name",
+            "expression": "sample_prep.name[rowno - 1]",
+        },
+        *_zone_inputs("ref"),
+        *_zone_inputs("spl"),
+        *_zone_statistics("ref", "Reference Zone"),
+        *_zone_statistics("spl", "Test Zone"),
+        {
+            "key": "corrected_mean",
+            "kind": "calculated",
+            "label": "Corrected Mean (U)",
+            "unit": "mm",
+            "expression": "spl_avg - (ref_avg - curve.ref_grand)",
+        },
+        {
+            "key": "log_conc_u",
+            "kind": "calculated",
+            "label": "Log Concentration (Lu)",
+            "expression": "(corrected_mean - curve.curve_intercept) / curve.curve_slope",
+        },
+        {
+            "key": "measured_conc",
+            "kind": "calculated",
+            "label": "Concentration Found (Cu)",
+            "unit": "µg/mL",
+            "expression": "exp(log_conc_u)",
+        },
+        {
+            "key": "potency_ug_per_mg",
+            "kind": "calculated",
+            "label": "Potency",
+            "unit": "µg/mg",
+            "expression": (
+                "measured_conc * sample_prep.dilution_5[rowno - 1] "
+                "/ sample_prep.dilution_4[rowno - 1] "
+                "* sample_prep.dilution_3[rowno - 1] / sample_prep.dilution_2[rowno - 1] "
+                "* sample_prep.dilution_1[rowno - 1] / sample_prep.sample_weight[rowno - 1]"
+            ),
+            "rounding": {"mode": "round", "digits": 0},
+        },
+        {
+            "key": "assay_pct",
+            "kind": "calculated",
+            "label": "Assay",
+            "unit": "%",
+            "expression": "measured_conc / sample_prep.final_conc_raw[rowno - 1] * 100",
+            "rounding": {"mode": "round", "digits": 2},
+        },
+    ],
+}
+
+# This named worksheet is intentionally limited to preparing the five standard
+# stock concentrations. The plate readings, curve, sample assay chain, and its
+# acceptance criteria are not part of TPL-A11-0003.
+A11_AMPHO_API_DEFINITION = {
+    # The evaluator returns the first populated final standard concentration
+    # (S1). Keeping this reference lets the stock-only worksheet remain a valid
+    # quantitative template while its table exposes every S1–S5 concentration.
+    "resultRef": "std_stock.conc",
+    "context": context_header(
+        label_claim=False,
+        avg_weight=False,
+        extra=[
+            {
+                "key": "standard_batch_no",
+                "kind": "context",
+                "type": "text",
+                "label": "Standard Batch No.",
+                "overridable": True,
+            },
+            {
+                "key": "standard_potency",
+                "kind": "context",
+                "label": "Standard Potency (µg/mg)",
+                "overridable": True,
+            },
+        ],
+    ),
+    "groups": [_AMPHO_API_STOCK_TABLE],
+    "criteria": [],
+}
+
+A11_AMPHO_API = SeedTemplate(
+    code="TPL-A11-0003",
+    name="Assay-Microbial-Ampho-API",
+    archetype="A11",
+    result_unit="µg/mL",
+    test_code="TST-BIOA-API",
+    test_name="Assay by Microbial Bioassay (API)",
+    test_type="Quantitative",
+    definition=A11_AMPHO_API_DEFINITION,
+)
+
+
+# ─────────────────────────────────────────────────────────────────────
 #  A11b — finished product, reported as % of label claim
 # ─────────────────────────────────────────────────────────────────────
 
@@ -528,4 +848,4 @@ A11_FP = SeedTemplate(
     definition=A11_FP_DEFINITION,
 )
 
-TEMPLATES = [A11_API, A11_FP]
+TEMPLATES = [A11_API, A11_AMPHO_API, A11_FP]
