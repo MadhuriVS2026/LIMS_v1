@@ -69,7 +69,7 @@ class TestA6B0002OctreotidePh10Parity:
     # ── Standard concentration (J19) ────────────────────────────────
     def test_standard_concentration(self, result):
         # J19 = 25.65/25 * 5/50 * 1/1 * 89.41/100 * 1000 = 91.73466
-        assert result.values["standard.conc_ppm"] == pytest.approx(91.73466, abs=1e-4)
+        assert result.rows["standard"][0]["conc_ppm"] == pytest.approx(91.73466, abs=1e-4)
 
     # ── Standard area statistics (B27/B29, D27/D29) ─────────────────
     def test_standard_area_statistics(self, result):

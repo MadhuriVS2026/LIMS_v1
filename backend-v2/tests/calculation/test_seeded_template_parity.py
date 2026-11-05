@@ -138,7 +138,7 @@ class TestA1Assay:
 
     def test_standard_concentration(self, result):
         # 5.054/50 * 5/100 * 0.994 * 1000 = 5.023676 ppm
-        assert result.values["standard.conc_ppm"] == pytest.approx(5.023676, abs=1e-6)
+        assert result.rows["standard"][0]["conc_ppm"] == pytest.approx(5.023676, abs=1e-6)
 
     def test_mean_standard_area(self, result):
         # (253287+253024+252584+252811+251367)/5 = 252614.6
@@ -357,7 +357,7 @@ class TestA3SaturationSolubility:
 
     def test_standard_concentration_in_ppm(self, result):
         # 25/25 * 1 * 1000 = 1000 ppm
-        assert result.values["standard.conc_ppm"] == pytest.approx(1000.0)
+        assert result.rows["standard"][0]["conc_ppm"] == pytest.approx(1000.0)
 
     def test_solubility_in_mg_per_ml(self, result):
         # 25000/50000 * 1000 ppm * 10/1 / 1000 = 5.0 mg/mL
@@ -628,7 +628,7 @@ class TestA6BDissolutionWithReplacement:
 
     def test_standard_and_suitability(self, result):
         # R13 = ROUND(30.11/100 * 5/50 * 5/10 * 100/100 * 1000, 3)
-        assert result.values["standard.conc_ppm"] == pytest.approx(15.055, abs=5e-4)
+        assert result.rows["standard"][0]["conc_ppm"] == pytest.approx(15.055, abs=5e-4)
         # H16 = AVERAGE(replicates); I16 = TRUNC(STDEV/mean*100, 5)
         assert result.values["stats.mean_std"] == pytest.approx(1290029, abs=0.5)
         assert result.values["stats.rsd_std"] == pytest.approx(0.44098, abs=5e-6)

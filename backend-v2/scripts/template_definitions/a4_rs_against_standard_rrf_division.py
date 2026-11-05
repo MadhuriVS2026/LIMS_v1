@@ -241,16 +241,10 @@ A4_RRF_DIV_DEFINITION = {
         #  The weighed main-analyte standard: weight, dilution chain, MW
         #  base/salt correction and potency. The impurity % is calculated
         #  against THIS standard (`stats.mean_std` + its concentration chain).
-        #  Preserve the singleton's scalar evaluator scope (`standard.weight_mg`,
-        #  etc.) while presenting its one standard-preparation record as a
-        #  spreadsheet-style table. Changing the group kind to `table` would turn
-        #  those scalar formula references into column lists.
-        {
-            **standard_group(
-                label="Standard Details", conc_label="Standard Concentration"
-            ),
-            "renderAsTable": True,
-        },
+        #  A one-row table by default (add/edit/delete rows, max 10). Bare
+        #  `standard.<field>` references collapse to row 1 in the engine, so the
+        #  scalar formulas that read it are unchanged.
+        standard_group(label="Standard Details", conc_label="Standard Concentration"),
         replicate_area_group(label="Standard Replicate Injections"),
         standard_statistics_group(),
         {

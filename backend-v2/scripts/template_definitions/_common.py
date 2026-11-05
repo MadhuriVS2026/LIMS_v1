@@ -239,6 +239,10 @@ def standard_group(
     """
     The weighed-standard block: weight, dilution chain, potency, optional
     salt/base molecular-weight correction, and the resulting concentration.
+
+    Always a tabular section (`table`, rows 1-10, default 1, labelled
+    "STD - n"), so analysts can add, edit and delete standard preparations.
+    Formulas that read `standard.<field>` as a scalar resolve against row 1.
     """
     fields: list[dict] = [
         {"key": "name", "kind": "input", "type": "text", "label": "Standard Name"},
@@ -269,7 +273,14 @@ def standard_group(
             ),
         }
     )
-    return {"key": key, "kind": "singleton", "label": label, "fields": fields}
+    return {
+        "key": key,
+        "kind": "table",
+        "label": label,
+        "rows": dict(STANDARD_ROWS),
+        "rowLabel": dict(STANDARD_ROW_LABEL),
+        "fields": fields,
+    }
 
 
 def replicate_area_group(
