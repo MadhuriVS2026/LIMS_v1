@@ -1650,8 +1650,15 @@ class TestA11MicrobialBioassayAPI:
         "sample_weight": 50.0, "s_vol_1": 50.0, "s_pip_1": 1.0,
         "s_vol_2": 12.5, "s_pip_2": 1.0, "s_vol_3": 20.0,
     }
+    #  TPL-A11-0001 carries the stock as a fixed 5-row table (S1..S5) plus a
+    #  shared `std_meta` singleton holding reference_row; same values as STOCK.
+    #  STOCK itself stays a one-row singleton for the FP variant (TPL-A11-0002).
+    API_STOCK_ROWS = [
+        {k: v for k, v in STOCK[0].items() if k != "reference_row"}
+    ] * 5
     GROUPS = {
-        "std_stock": STOCK,
+        "std_stock": API_STOCK_ROWS,
+        "std_meta": [{"reference_row": STOCK[0]["reference_row"]}],
         "standard": STANDARD,
         "sample": [
             {"prep_ref": "Set-1", **PREP, **a11_zones(17.0, 16.8)},
@@ -1802,7 +1809,7 @@ class TestA11MicrobialBioassayFinishedProduct:
     #  weight normalisation is neutral and the arithmetic stays legible.
     CONTEXT = {"label_claim": 50.0, "avg_weight": 50.0}
     GROUPS = {
-        "std_stock": TestA11MicrobialBioassayAPI.STOCK,
+        "std_stock": TestA11MicrobialBioassayAPI.STOCK,  # FP stays singleton
         "standard": TestA11MicrobialBioassayAPI.STANDARD,
         "sample": [
             {"prep_ref": "Set-1", **TestA11MicrobialBioassayAPI.PREP,
@@ -1833,6 +1840,157 @@ class TestA11MicrobialBioassayFinishedProduct:
             {**self.CONTEXT, "label_claim": 45.0}, self.GROUPS
         )
         assert result.row_value("sample", 0, "assay_pct") == pytest.approx(107.72)
+
+
+class TestA11VariableDoseLevels:
+    """
+    The A11 standard dose-level design is a variable-row table (min 3, max 10,
+    default 5). Default-5 worksheets stay bit-for-bit identical (covered by the
+    classes above); these tests prove N != 5 fits a line correctly and that the
+    reference-row index stays safe when the analyst changes the row count.
+
+    All expected regression coefficients are derived independently of the engine:
+    the readings are built so the reference row (its own cylinders are ignored)
+    contributes the flat 17.0 mm grand reference mean and every other level — with
+    the reference cylinders flat at 17.0, so there is no plate drift — contributes
+    its sample mean unchanged. A plain least-squares fit over those (log_conc,
+    corrected_mean) pairs gives the pinned slope/intercept/R².
+    """
+
+    _STOCK_CONST = {
+        "name": "Amphotericin B", "std_lot": "USP-001",
+        "weight_mg": 50.0, "vol_1": 50.0, "potency": 1000.0,
+        "pip_final": 1.0, "vol_final": 20.0,
+    }
+
+    @staticmethod
+    def _std_row(pip_dose, spl_mm):
+        # vol_dose 50, weight/vol_1 50/50, pip_final/vol_final 1/20, potency 1000
+        # ⇒ conc = pip_dose µg/mL. Reference cylinders flat 17.0 ⇒ no drift.
+        return {"dose": f"D{pip_dose}", "pip_dose": float(pip_dose),
+                "vol_dose": 50.0, **a11_zones(17.0, spl_mm)}
+
+    def _api_groups(self, std_rows, *, reference_row=3):
+        n = len(std_rows)
+        return {
+            "std_stock": [dict(self._STOCK_CONST) for _ in range(n)],
+            "std_meta": [{"reference_row": reference_row}],
+            "standard": std_rows,
+            "sample": [
+                {"prep_ref": "Set-1", **TestA11MicrobialBioassayAPI.PREP,
+                 **a11_zones(17.0, 16.8)},
+            ],
+        }
+
+    def test_six_dose_levels_fit_a_line(self):
+        """
+        Six doubling doses 1..32 µg/mL ⇒ log 0 / 0.6931 / 1.3863 / 2.0794 /
+        2.7726 / 3.4657. Corrected means 14.2 / 15.4 / [17.0] / 18.2 / 19.5 / 20.8
+        (row 3 is the reference, so 17.0 is its grand mean not its 16.8 cylinders).
+        Independent least squares: slope 1.9167, intercept 14.1953, R² 0.9987.
+        """
+        std_rows = [
+            self._std_row(1, 14.2),
+            self._std_row(2, 15.4),
+            self._std_row(4, 16.8),   # reference row (row 3) — spl ignored
+            self._std_row(8, 18.2),
+            self._std_row(16, 19.5),
+            self._std_row(32, 20.8),
+        ]
+        result = evaluator("TPL-A11-0001").evaluate(
+            TestA11MicrobialBioassayAPI.CONTEXT, self._api_groups(std_rows)
+        )
+        assert result.row_value("standard", 0, "conc") == pytest.approx(1.0)
+        assert result.row_value("standard", 5, "conc") == pytest.approx(32.0)
+        # Reference row takes the grand mean, every other row its own sample mean.
+        assert result.row_value("standard", 2, "corrected_mean") == pytest.approx(17.0)
+        assert result.row_value("standard", 5, "corrected_mean") == pytest.approx(20.8)
+        assert result.values["curve.curve_slope"] == pytest.approx(1.9167)
+        assert result.values["curve.curve_intercept"] == pytest.approx(14.1953)
+        assert result.values["curve.r_squared"] == pytest.approx(0.9987)
+
+    def test_three_dose_levels_fit_a_line(self):
+        """
+        At the floor of three levels (doses 2 / 4 / 8 µg/mL) the regression still
+        resolves. Reference row 3 contributes 17.0; the other two contribute 15.4
+        and 16.4. Independent least squares: slope 1.1542, intercept 14.6667,
+        R² 0.9796.
+        """
+        std_rows = [
+            self._std_row(2, 15.4),
+            self._std_row(4, 16.4),
+            self._std_row(8, 16.8),   # reference row (row 3) — spl ignored ⇒ 17.0
+        ]
+        result = evaluator("TPL-A11-0001").evaluate(
+            TestA11MicrobialBioassayAPI.CONTEXT, self._api_groups(std_rows)
+        )
+        assert result.row_value("standard", 2, "corrected_mean") == pytest.approx(17.0)
+        assert result.row_value("standard", 0, "corrected_mean") == pytest.approx(15.4)
+        assert result.values["curve.curve_slope"] == pytest.approx(1.1542)
+        assert result.values["curve.curve_intercept"] == pytest.approx(14.6667)
+        assert result.values["curve.r_squared"] == pytest.approx(0.9796)
+
+    def test_reference_row_in_bounds_points_at_the_declared_row(self):
+        """
+        With the default five levels and reference_row 3, the clamp
+        min(3, count) = min(3, 5) = 3 leaves the declared row 3 as the reference —
+        identical to the fixed-5 design.
+        """
+        result = evaluator("TPL-A11-0001").evaluate(
+            TestA11MicrobialBioassayAPI.CONTEXT,
+            self._api_groups(
+                [self._std_row(p, s) for p, s in
+                 ((1, 14.2), (2, 15.4), (4, 16.8), (8, 18.2), (16, 19.5))],
+                reference_row=3,
+            ),
+        )
+        # Row 3 takes the grand reference mean (17.0), not its 16.8 cylinders.
+        assert result.row_value("standard", 2, "corrected_mean") == pytest.approx(17.0)
+        assert result.row_value("standard", 0, "corrected_mean") == pytest.approx(14.2)
+
+    def test_reference_row_past_the_table_is_clamped_to_the_last_row(self):
+        """
+        The guard that makes a shrunk table safe: the analyst left reference_row at
+        5 but deleted down to three levels. The clamp min(5, count=3) = 3 keeps the
+        reference on the last real row (row 3) instead of pointing past the table —
+        no row would otherwise match rowno = 5, and the reference point would be
+        silently lost. Row 3's own cylinders (16.8) are therefore ignored; 17.0
+        lands on the curve.
+        """
+        std_rows = [
+            self._std_row(2, 15.4),
+            self._std_row(4, 16.4),
+            self._std_row(8, 16.8),
+        ]
+        result = evaluator("TPL-A11-0001").evaluate(
+            TestA11MicrobialBioassayAPI.CONTEXT,
+            self._api_groups(std_rows, reference_row=5),
+        )
+        # Row 3 (the last row) is treated as the reference despite reference_row=5.
+        assert result.row_value("standard", 2, "corrected_mean") == pytest.approx(17.0)
+        # The other two rows still correct against their own (flat) plates.
+        assert result.row_value("standard", 0, "corrected_mean") == pytest.approx(15.4)
+        assert result.row_value("standard", 1, "corrected_mean") == pytest.approx(16.4)
+
+    def test_ampho_api_stock_table_labels_up_to_ten_levels(self):
+        """
+        TPL-A11-0003's standard stock table carries up to ten levels. The S-label
+        column is generalised from the former fixed S1..S5 nest; rows 1..5 still
+        read S1..S5 and the new rows read S6..S10.
+        """
+        rows = [
+            {"name": "Amphotericin B" if i == 0 else "",
+             "weight_mg": 50.0, "stock_dilution": 50.0,
+             "sample_taken": float(i + 1), "dose_dilution": 50.0,
+             "volume_taken": 1.0, "buffer_dilution": 20.0}
+            for i in range(7)
+        ]
+        result = evaluator("TPL-A11-0003").evaluate(
+            {"standard_potency": 1000.0}, {"std_stock": rows}
+        )
+        assert result.row_value("std_stock", 0, "std_name") == "S1"
+        assert result.row_value("std_stock", 4, "std_name") == "S5"
+        assert result.row_value("std_stock", 6, "std_name") == "S7"
 
 
 # ── A6d: In-vitro release, Franz diffusion cell ─────────────────────

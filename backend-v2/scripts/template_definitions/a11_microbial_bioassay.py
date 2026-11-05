@@ -53,6 +53,8 @@ therefore will *not* reproduce the cached values in the workbook for sets 1 and 
 That is deliberate. It is called out here because a reviewer comparing against
 the spreadsheet will otherwise read it as a defect.
 """
+import copy
+
 from scripts.template_definitions._common import SeedTemplate, context_header
 
 # ─────────────────────────────────────────────────────────────────────
@@ -119,6 +121,27 @@ def _zone_statistics(side: str, label: str) -> list[dict]:
     ]
 
 
+#  Maximum dose levels supported by the variable-row standard design. Default
+#  stays 5 (existing worksheets unchanged); 3 is the regression floor, 10 the
+#  requested ceiling.
+_MAX_DOSE_LEVELS = 10
+
+
+def _s_label_expr() -> str:
+    """`if`-nest yielding the dose label S1..S<_MAX_DOSE_LEVELS> from `rowno`.
+
+    The calculation engine has no string concatenation, so the standard-name
+    column is built as a nested `if` on the row number. Rows 1..5 evaluate to
+    exactly "S1".."S5" as the former fixed nest did, so default-5 worksheets are
+    numerically and textually unchanged; rows 6..10 extend the series for the
+    raised ceiling. The final else returns the last label defensively.
+    """
+    expr = f'"S{_MAX_DOSE_LEVELS}"'
+    for n in range(_MAX_DOSE_LEVELS - 1, 0, -1):
+        expr = f'if(rowno = {n}, "S{n}", {expr})'
+    return expr
+
+
 # ─────────────────────────────────────────────────────────────────────
 #  Shared blocks
 # ─────────────────────────────────────────────────────────────────────
@@ -142,8 +165,10 @@ _STOCK_GROUP = {
             "key": "reference_row",
             "kind": "input",
             "label": "Reference Dose (row no.)",
-            #  S3, the mid dose of five — the level plated in the reference
-            #  cylinders of every plate.
+            #  Default S3, the mid dose of the classic five-level design — the level
+            #  plated in the reference cylinders of every plate. With a variable row
+            #  count the `corrected_mean` expression clamps this to the live row
+            #  count so it never points past the end of the table.
             "default": 3,
         },
     ],
@@ -153,10 +178,14 @@ _STANDARD_GROUP = {
     "key": "standard",
     "kind": "table",
     "label": "Standard Dose Levels",
-    #  Five levels, fixed. The regression and the reference-row index both assume
-    #  the classic 5-dose design; a variable count would let a worksheet be saved
-    #  with the reference pointing past the end of the table.
-    "rows": {"min": 5, "max": 5, "default": 5, "labelFrom": "dose"},
+    #  Variable dose-level count. Default stays 5 so existing worksheets are
+    #  numerically unchanged; min 3 is the practical floor for a usable log-dose
+    #  regression line, max 10 the requested ceiling. The regression aggregates
+    #  (slope/intercept/correl/mean) adapt to N automatically because they consume
+    #  the whole column series and drop blank pairs, and the reference-row index is
+    #  clamped to the live row count in `corrected_mean` so it can never point past
+    #  the end of the table (see that field's expression).
+    "rows": {"min": 3, "max": 10, "default": 5, "labelFrom": "dose"},
     "fields": [
         {"key": "dose", "kind": "input", "type": "text", "label": "Dose"},
         {"key": "pip_dose", "kind": "input", "label": "Stock Taken", "unit": "mL", "required": True},
@@ -191,9 +220,17 @@ _STANDARD_GROUP = {
             "unit": "mm",
             #  The reference dose's own point is the grand reference mean; every
             #  other level is shifted by its plate set's reference drift.
+            #
+            #  The reference row is clamped to the live dose-row count with
+            #  `min(reference_row, count(standard.pip_dose))`: with the default 5
+            #  filled rows and reference_row 3 this is min(3, 5) = 3, so the result
+            #  is bit-for-bit identical to the fixed-5 design. If the analyst set a
+            #  reference row and later deleted levels below it, the clamp keeps the
+            #  reference on the last real row instead of pointing past the table —
+            #  it never silently invents a data point.
             "expression": (
-                "if(rowno = std_stock.reference_row, curve.ref_grand, "
-                "spl_avg - (ref_avg - curve.ref_grand))"
+                "if(rowno = min(std_stock.reference_row, count(standard.pip_dose)), "
+                "curve.ref_grand, spl_avg - (ref_avg - curve.ref_grand))"
             ),
         },
     ],
@@ -238,6 +275,82 @@ _CURVE_GROUP = {
         },
     ],
 }
+
+
+#  ── TPL-A11-0001 (API): Standard Stock Solution in tabular form ──────
+#
+#  `_STOCK_GROUP` / `_STANDARD_GROUP` above stay singleton-based because the FP
+#  variant (TPL-A11-0002) shares them and must not change. The API template gets
+#  its own tabular stock block below, following TPL-A11-0003
+#  (`_AMPHO_API_STOCK_TABLE`): key `std_stock`, kind table, rows 5/5/5, labelled
+#  by a calculated `std_name` (S1..S5).
+#
+#  Field split (the engine has no "bare group.field collapses to row 0" rule, so
+#  every consumer indexes the table per row with `[rowno - 1]`):
+#    * IN THE TABLE, one value per standard preparation row: name, std_lot,
+#      weight_mg, vol_1, potency, pip_final, vol_final. These are the inputs of
+#      the per-dose concentration chain, so each dose level S1..S5 reads its own
+#      row (same operation order as before => identical numbers when the rows
+#      carry the same values).
+#    * SHARED, kept out of the table in the small singleton `std_meta`:
+#      reference_row. It is a property of the 5-dose design (which dose is the
+#      reference on every plate), not of any one preparation, so repeating it
+#      per row would invite five contradictory values.
+_API_STOCK_TABLE = {
+    "key": "std_stock",
+    "kind": "table",
+    "label": "Standard Stock Solution",
+    #  Variable dose-level count, index-locked to the `standard` table (row i of
+    #  one is row i of the other). Default 5 keeps existing worksheets identical;
+    #  min 3 / max 10 match the dose-level design. The S1..S10 label expression
+    #  below self-scales with rowno.
+    "rows": {"min": 3, "max": 10, "default": 5, "labelFrom": "std_name"},
+    "fields": [
+        {
+            "key": "std_name",
+            "kind": "calculated",
+            "type": "text",
+            "label": "Std. Name",
+            #  S1..S10 by row number. The engine has no string concatenation, so
+            #  this stays an `if` nest; it is extended from the former fixed S1..S5
+            #  to the new max of 10 levels. Rows 1..5 yield exactly S1..S5 as before,
+            #  so default-5 worksheets are unchanged.
+            "expression": _s_label_expr(),
+        },
+        *_STOCK_GROUP["fields"][:7],  # name … vol_final, unchanged
+    ],
+}
+
+_API_STOCK_META_GROUP = {
+    "key": "std_meta",
+    "kind": "singleton",
+    "label": "Standard Curve Settings",
+    "fields": [_STOCK_GROUP["fields"][7]],  # reference_row (default 3)
+}
+
+
+def _api_standard_group() -> dict:
+    """`_STANDARD_GROUP` with the stock references rewired to the table."""
+    group = copy.deepcopy(_STANDARD_GROUP)
+    for f in group["fields"]:
+        if f["key"] == "conc":
+            f["expression"] = (
+                "std_stock.weight_mg[rowno - 1] / std_stock.vol_1[rowno - 1] "
+                "* pip_dose / vol_dose "
+                "* std_stock.pip_final[rowno - 1] / std_stock.vol_final[rowno - 1] "
+                "* std_stock.potency[rowno - 1]"
+            )
+        elif f["key"] == "corrected_mean":
+            #  Same reference-row clamp as the shared group, but the reference row
+            #  lives in the `std_meta` singleton for the API template. min(...)
+            #  keeps the reference on a live row when levels are deleted below it;
+            #  with the default 5 filled rows and reference_row 3 it is min(3, 5)
+            #  = 3, identical to the fixed-5 design.
+            f["expression"] = (
+                "if(rowno = min(std_meta.reference_row, count(standard.pip_dose)), "
+                "curve.ref_grand, spl_avg - (ref_avg - curve.ref_grand))"
+            )
+    return group
 
 
 def _sample_prep_fields() -> list[dict]:
@@ -362,8 +475,9 @@ A11_API_DEFINITION = {
     "resultRef": "results.mean_assay",
     "context": context_header(label_claim=False, avg_weight=False),
     "groups": [
-        _STOCK_GROUP,
-        _STANDARD_GROUP,
+        _API_STOCK_TABLE,
+        _API_STOCK_META_GROUP,
+        _api_standard_group(),
         _CURVE_GROUP,
         {
             "key": "sample",
@@ -466,7 +580,10 @@ _AMPHO_API_STOCK_TABLE = {
         {"field": "note_text", "width": "20rem"},
         {"field": "buffer_ph", "width": "8rem"},
     ],
-    "rows": {"min": 5, "max": 5, "default": 5, "labelFrom": "std_name"},
+    #  Variable dose-level count, index-locked to `standard` (readings row i <-> this
+    #  row i). Default 5 keeps existing worksheets identical; min 3 / max 10 match
+    #  the dose-level design.
+    "rows": {"min": 3, "max": 10, "default": 5, "labelFrom": "std_name"},
     "fields": [
         {
             "key": "note_text",
@@ -523,10 +640,8 @@ _AMPHO_API_STOCK_TABLE = {
             "kind": "calculated",
             "type": "text",
             "label": "Std. Name",
-            "expression": (
-                'if(rowno = 1, "S1", if(rowno = 2, "S2", '
-                'if(rowno = 3, "S3", if(rowno = 4, "S4", "S5"))))'
-            ),
+            #  S1..S10 by row number (see _s_label_expr). Rows 1..5 are unchanged.
+            "expression": _s_label_expr(),
             "width": "7%",
         },
         {
@@ -544,7 +659,11 @@ _AMPHO_API_STANDARD_READINGS = {
     "key": "standard",
     "kind": "table",
     "label": "Standard Plate Readings",
-    "rows": {"min": 5, "max": 5, "default": 5, "labelFrom": "std_name"},
+    #  Variable dose-level count, index-locked to `std_stock`. Default 5 keeps
+    #  existing worksheets identical; min 3 / max 10 match the dose-level design.
+    #  The reference row stays hardcoded at 3 (see corrected_mean) — valid for any
+    #  N >= 3.
+    "rows": {"min": 3, "max": 10, "default": 5, "labelFrom": "std_name"},
     "fields": [
         {
             "key": "std_name",
@@ -563,7 +682,10 @@ _AMPHO_API_STANDARD_READINGS = {
             "label": "Corrected Mean",
             "unit": "mm",
             # S3 is the reference dose on every plate, so it contributes the
-            # grand reference mean rather than a plate set of its own.
+            # grand reference mean rather than a plate set of its own. Row 3 stays
+            # the reference for any N in [3, 10]; raising the ceiling does not
+            # change which row is the reference (kept as the documented fixed-3
+            # semantics, not re-pointed to a floating middle row).
             "expression": (
                 "if(rowno = 3, curve.ref_grand, spl_avg - (ref_avg - curve.ref_grand))"
             ),
