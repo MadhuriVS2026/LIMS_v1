@@ -374,3 +374,190 @@ class TestRoster:
     def test_only_a8_0003_is_a_draft(self):
         assert {e.code for e in ROSTER if e.status == "Draft"} == {"TPL-A8-0003"}
         assert all(e.status in ("Active", "Draft") for e in ROSTER)
+
+# ── Module layer: the declarative modules in scripts/template_definitions ──
+
+from scripts.standard_tabular_rollout import STANDARD_KEYS  # noqa: E402
+from scripts.template_definitions import SEED_TEMPLATES  # noqa: E402
+from scripts.template_definitions._common import standard_group  # noqa: E402
+
+#  Sheets whose `standard` was already a table before the rollout, with their own row spec.
+_ALREADY_TABULAR = {"TPL-A2-0004", "TPL-A2-0005", "TPL-A11-0001", "TPL-A11-0002"}
+
+
+def _standard_groups(defn: dict) -> list[dict]:
+    return [g for g in defn["groups"] if g["key"] in STANDARD_KEYS]
+
+
+def _converted_keys(defn: dict) -> tuple[str, ...]:
+    """Keys of the groups carrying the rollout's row spec (the converted ones)."""
+    return tuple(
+        g["key"]
+        for g in _standard_groups(defn)
+        if g["kind"] == "table" and g.get("rows") == STANDARD_ROWS
+    )
+
+
+def _revert(defn: dict, keys: tuple[str, ...]) -> dict:
+    """Test-side inverse of the conversion: the pre-rollout singleton shape."""
+    legacy = copy.deepcopy(defn)
+    for group in legacy["groups"]:
+        if group["key"] in keys:
+            group["kind"] = "singleton"
+            group.pop("rows", None)
+            group.pop("rowLabel", None)
+    return legacy
+
+
+_CONVERTED = [t for t in SEED_TEMPLATES if _converted_keys(t.definition)]
+_IDS = [t.code for t in _CONVERTED]
+
+
+class TestModuleRoster:
+    def test_no_standard_or_standard_2_group_is_a_singleton(self):
+        offenders = [
+            (t.code, g["key"])
+            for t in SEED_TEMPLATES
+            for g in _standard_groups(t.definition)
+            if g["kind"] == "singleton"
+        ]
+        assert offenders == []
+
+    def test_every_converted_group_has_the_standard_row_spec_and_label(self):
+        for t in SEED_TEMPLATES:
+            for g in _standard_groups(t.definition):
+                if t.code in _ALREADY_TABULAR:
+                    assert g["kind"] == "table", (t.code, g["key"])
+                    continue
+                if g["kind"] != "table" or "rows" not in g:
+                    continue
+                if g["rows"] == STANDARD_ROWS:
+                    assert g["rowLabel"] == STANDARD_ROW_LABEL, (t.code, g["key"])
+                    assert "renderAsTable" not in g, (t.code, g["key"])
+
+    def test_every_non_exempt_standard_group_uses_the_standard_row_spec(self):
+        bad = [
+            (t.code, g["key"], g.get("rows"))
+            for t in SEED_TEMPLATES
+            if t.code not in _ALREADY_TABULAR
+            for g in _standard_groups(t.definition)
+            if g.get("rows") != STANDARD_ROWS or g.get("rowLabel") != STANDARD_ROW_LABEL
+        ]
+        #  Sheets that were tabular under their own key (A4-0002 `standards`,
+        #  A4-0003 `std_preps`) have no `standard` group and so never appear here.
+        assert bad == []
+
+    def test_the_converted_templates_include_all_the_rollout_targets(self):
+        codes = set(_IDS)
+        assert "TPL-A2-0002" in codes
+        for entry in ROSTER:
+            if entry.module != "none":
+                assert entry.code in codes, entry.code
+
+    def test_standard_2_is_a_table_in_a4_0001(self):
+        a4 = next(t for t in SEED_TEMPLATES if t.code == "TPL-A4-0001")
+        assert _converted_keys(a4.definition) == ("standard", "standard_2")
+
+    def test_a4_0004_no_longer_carries_render_as_table(self):
+        a4 = next(t for t in SEED_TEMPLATES if t.code == "TPL-A4-0004")
+        group = next(g for g in a4.definition["groups"] if g["key"] == "standard")
+        assert group["kind"] == "table"
+        assert "renderAsTable" not in group
+
+    def test_the_reference_a2_0002_module_uses_the_shared_constants(self):
+        a2 = next(t for t in SEED_TEMPLATES if t.code == "TPL-A2-0002")
+        group = next(g for g in a2.definition["groups"] if g["key"] == "standard")
+        assert group["kind"] == "table"
+        assert group["rows"] == STANDARD_ROWS
+        assert group["rowLabel"] == STANDARD_ROW_LABEL
+
+    def test_there_are_19_converted_module_templates(self):
+        #  18 module-backed rollout templates plus the A2-0002 reference conversion.
+        assert len(_CONVERTED) == 19, _IDS
+
+
+@pytest.mark.parametrize("template", _CONVERTED, ids=_IDS)
+class TestModuleEquivalence:
+    def test_converted_groups_match_the_legacy_shape_apart_from_the_row_spec(self, template):
+        keys = _converted_keys(template.definition)
+        legacy = _revert(template.definition, keys)
+        assert convert_definition(legacy, keys) == template.definition
+
+    def test_references_to_the_standard_are_all_row_one_safe(self, template):
+        keys = _converted_keys(template.definition)
+        assert audit_references(template.definition, keys) == []
+
+    def test_no_calculated_value_criterion_or_reportable_result_changes(self, template):
+        keys = _converted_keys(template.definition)
+        legacy = _revert(template.definition, keys)
+        report = check_equivalence(legacy, template.definition, keys, [])
+        assert report.variants == ["empty", "synth", "pad3"]
+        assert report.ok, report.diffs[:5]
+        assert report.nonblank_calculated > 0
+
+
+def _first_numeric_input(group: dict) -> str | None:
+    for field in group["fields"]:
+        if field["kind"] == "input" and field.get("type", "number") == "number":
+            return field["key"]
+    return None
+
+
+@pytest.mark.parametrize("template", _CONVERTED, ids=_IDS)
+def test_aggregates_over_a_three_row_standard_use_every_row(template):
+    import statistics
+
+    keys = _converted_keys(template.definition)
+    ctx, groups = synthesize_inputs(template.definition, pad_keys=keys)
+    for key in keys:
+        group = next(g for g in template.definition["groups"] if g["key"] == key)
+        field = _first_numeric_input(group)
+        assert field, (template.code, key)
+        defn = copy.deepcopy(template.definition)
+        defn["groups"].append(
+            {
+                "key": "zz_probe",
+                "kind": "singleton",
+                "fields": [
+                    {"key": "m", "kind": "calculated", "expression": f"mean({key}.{field})"},
+                    {"key": "s", "kind": "calculated", "expression": f"sd({key}.{field})"},
+                    {"key": "n", "kind": "calculated", "expression": f"count({key}.{field})"},
+                ],
+            }
+        )
+        result = WorksheetEvaluator(TemplateDefinition.parse(defn)).evaluate(ctx, groups)
+        values = [float(row[field]) for row in groups[key]]
+        assert len(values) == 3
+        probe = result.rows["zz_probe"][0]
+        assert probe["n"] == 3, (template.code, key)
+        assert probe["m"] == pytest.approx(statistics.mean(values)), (template.code, key)
+        assert probe["s"] == pytest.approx(statistics.stdev(values)), (template.code, key)
+
+
+class TestStandardGroupHelper:
+    def _evaluate(self, stored_rows: int):
+        defn = {"context": [], "groups": [standard_group()]}
+        rows = [{"weight_mg": 10.0 + i, "vol_1": 100.0} for i in range(stored_rows)]
+        return WorksheetEvaluator(TemplateDefinition.parse(defn)).evaluate({}, {"standard": rows})
+
+    def test_shape(self):
+        group = standard_group()
+        assert group["kind"] == "table"
+        assert group["rows"] == STANDARD_ROWS
+        assert group["rowLabel"] == STANDARD_ROW_LABEL
+        assert "renderAsTable" not in group
+
+    def test_fields_are_unchanged_by_the_conversion(self):
+        with_mw = [f["key"] for f in standard_group()["fields"]]
+        assert with_mw == [
+            "name", "weight_mg", "vol_1", "pip_1", "vol_2", "pip_2", "vol_3",
+            "mw_base", "mw_salt", "potency", "conc_ppm",
+        ]
+        without = [f["key"] for f in standard_group(with_mw=False)["fields"]]
+        assert without == [k for k in with_mw if k not in ("mw_base", "mw_salt")]
+
+    def test_twelve_stored_rows_evaluate_to_ten(self):
+        assert len(self._evaluate(12).rows["standard"]) == 10
+
+    def test_no_stored_rows_gives_the_default_single_row(self):
+        assert len(self._evaluate(0).rows["standard"]) == 1

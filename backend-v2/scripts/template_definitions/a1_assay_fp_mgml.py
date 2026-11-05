@@ -40,7 +40,11 @@ footer ref), and reproduces the sheet's block R-mean on the two populated rows.
 The base `pct_assay` / `pct_mean_assay` are UNCHANGED; `result_unit` stays `%`
 and `resultRef` stays `stats.pct_mean_assay`.
 """
-from scripts.template_definitions._common import SeedTemplate
+from scripts.template_definitions._common import (
+    STANDARD_ROW_LABEL,
+    STANDARD_ROWS,
+    SeedTemplate,
+)
 
 A1_FP_MGML_DEFINITION = {
     "resultRef": "stats.pct_mean_assay",
@@ -60,7 +64,8 @@ A1_FP_MGML_DEFINITION = {
     ],
     "groups": [
         {
-            "key": "standard", "kind": "singleton", "label": "Standard Details",
+            "key": "standard", "kind": "table", "label": "Standard Details",
+            "rows": dict(STANDARD_ROWS), "rowLabel": dict(STANDARD_ROW_LABEL),
             "fields": [
                 {"key": "name", "kind": "input", "type": "text", "label": "Standard Name"},
                 {"key": "weight_mg", "kind": "input", "label": "Weight", "unit": "mg", "required": True},

@@ -26,7 +26,11 @@ A worksheet represents one TRF batch. Its default two sample rows hold the two
 conditions/preparations that the source sheet labels SET-1 and SET-2; their
 average is the reportable mg/vial result.
 """
-from scripts.template_definitions._common import SeedTemplate
+from scripts.template_definitions._common import (
+    STANDARD_ROW_LABEL,
+    STANDARD_ROWS,
+    SeedTemplate,
+)
 
 
 _STD_ROWS = 6
@@ -147,8 +151,10 @@ SODIUM_CHLORIDE_IC_DEFINITION = {
     "groups": [
         {
             "key": "standard",
-            "kind": "singleton",
+            "kind": "table",
             "label": "Standard Details",
+            "rows": dict(STANDARD_ROWS),
+            "rowLabel": dict(STANDARD_ROW_LABEL),
             "fields": [
                 {
                     "key": "name",

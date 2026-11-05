@@ -31,6 +31,8 @@ Source-sync note (TPL-A6A-0004 / "Dissolution_12units"):
     a new template version and could overwrite the live row on reseed).
 """
 from scripts.template_definitions._common import (
+    STANDARD_ROW_LABEL,
+    STANDARD_ROWS,
     SeedTemplate,
     context_header,
     dilution_fields,
@@ -413,7 +415,8 @@ def _a6b_standard_group() -> dict:
     #  Standard prep — chain 100/5/50/5/10, potency 100 (sheet C13..P13).
     #  R13 Std Conc (ppm) = ROUND(C13/E13*G13/I13*K13/M13*P13/100*1000, 3).
     return {
-        "key": "standard", "kind": "singleton", "label": "Standard Preparation",
+        "key": "standard", "kind": "table", "label": "Standard Preparation",
+        "rows": dict(STANDARD_ROWS), "rowLabel": dict(STANDARD_ROW_LABEL),
         "fields": [
             {"key": "name", "kind": "input", "type": "text", "label": "Standard Name",
              "default": "Doxorubicin HCl WS"},

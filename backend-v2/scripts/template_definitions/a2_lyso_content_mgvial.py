@@ -30,6 +30,8 @@ As in the mg/mL sheet, the mean-std denominators are the six-injection standard
 means (`stats.mean_std_pc`/`stats.mean_std_pg`), NOT the pooled BKT means.
 """
 from scripts.template_definitions._common import (
+    STANDARD_ROW_LABEL,
+    STANDARD_ROWS,
     SeedTemplate,
     context_header,
 )
@@ -143,8 +145,10 @@ LYSO_MGVIAL_DEFINITION = {
         #  Per-compound weighed standard details (sheet rows 22–24).
         {
             "key": "standard",
-            "kind": "singleton",
+            "kind": "table",
             "label": "Standard Details",
+            "rows": dict(STANDARD_ROWS),
+            "rowLabel": dict(STANDARD_ROW_LABEL),
             "fields": [
                 {"key": "pc_weight", "kind": "input", "label": "Lyso PC Weight", "unit": "mg", "default": 17.547},
                 {"key": "pc_vol1", "kind": "input", "label": "Lyso PC Vol 1", "unit": "mL", "default": 50},

@@ -54,7 +54,12 @@ criterion passes `target="std_stats.rsd_area"` explicitly (a bare
 Signature block (sheet rows 61-63: Analysed By / Date / Checked By / Date) is
 handled outside the definition, matching A6A/A6B. Not modelled as fields.
 """
-from scripts.template_definitions._common import SeedTemplate, sst_rsd_criterion
+from scripts.template_definitions._common import (
+    STANDARD_ROW_LABEL,
+    STANDARD_ROWS,
+    SeedTemplate,
+    sst_rsd_criterion,
+)
 
 #  Left block carries up to 6 Standard replicate rows (Standard-01..06).
 _STD_ROWS = 6
@@ -90,7 +95,8 @@ def _standard_group() -> dict:
     #  O11 = E11/F11*G11/H11*I11/J11*D11/100*1000*K11/L11*M11/N11*1000
     #  (exact term order; D11/100*1000 sits mid-expression). Gold = 1.0416537600000002.
     return {
-        "key": "standard", "kind": "singleton", "label": "Standard Preparation",
+        "key": "standard", "kind": "table", "label": "Standard Preparation",
+        "rows": dict(STANDARD_ROWS), "rowLabel": dict(STANDARD_ROW_LABEL),
         "fields": [
             {"key": "name", "kind": "input", "type": "text", "label": "Name",
              "default": "N-Nitroso Argatroban"},                            # B11

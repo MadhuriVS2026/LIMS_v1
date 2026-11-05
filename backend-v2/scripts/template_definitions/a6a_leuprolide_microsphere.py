@@ -51,7 +51,12 @@ numeric limit on either; a lab decision to add one later).
 Signature block (sheet rows ~190+) — handled outside the definition, matching
 A6B-0001/0002.
 """
-from scripts.template_definitions._common import SeedTemplate, sst_rsd_criterion
+from scripts.template_definitions._common import (
+    STANDARD_ROW_LABEL,
+    STANDARD_ROWS,
+    SeedTemplate,
+    sst_rsd_criterion,
+)
 
 _UNITS = 6
 #  v3: extend the per-sample field families (area/jassay/kfrac/unit) and the
@@ -102,7 +107,8 @@ def _context() -> list[dict]:
 def _standard_group() -> dict:
     #  I19 = E19/F19*G19/H19*C19/D19*B19/100*1000. Gold I19 = 78.726628.
     return {
-        "key": "standard", "kind": "singleton", "label": "Standard detail",
+        "key": "standard", "kind": "table", "label": "Standard detail",
+        "rows": dict(STANDARD_ROWS), "rowLabel": dict(STANDARD_ROW_LABEL),
         "fields": [
             {"key": "name", "kind": "input", "type": "text", "label": "Standard name",
              "default": "Leuprolide Acetate"},                              # A19

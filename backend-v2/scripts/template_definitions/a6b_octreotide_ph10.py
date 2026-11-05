@@ -40,7 +40,12 @@ criterion MUST pass `target="std_stats.rsd_std"` explicitly — a bare
 `sst_rsd_criterion()` would target the non-existent `stats.rsd_std` and never
 evaluate.
 """
-from scripts.template_definitions._common import SeedTemplate, sst_rsd_criterion
+from scripts.template_definitions._common import (
+    STANDARD_ROW_LABEL,
+    STANDARD_ROWS,
+    SeedTemplate,
+    sst_rsd_criterion,
+)
 
 _UNITS = 6
 
@@ -85,7 +90,8 @@ def _context() -> list[dict]:
 def _standard_group() -> dict:
     #  J19 = E19/G19*H19/I19*C19/D19*B19/100*1000. Gold J19 = 91.73466.
     return {
-        "key": "standard", "kind": "singleton", "label": "Standard detail",
+        "key": "standard", "kind": "table", "label": "Standard detail",
+        "rows": dict(STANDARD_ROWS), "rowLabel": dict(STANDARD_ROW_LABEL),
         "fields": [
             {"key": "name", "kind": "input", "type": "text", "label": "Standard name",
              "default": "Octreotide Acetate"},
