@@ -81,6 +81,21 @@ class ColumnSeries(list):
     """
 
 
+def collapse_series(value: Any) -> Any:
+    """
+    Collapse a `ColumnSeries` to its first row; return anything else unchanged.
+
+    For the scalar sinks the evaluator owns (a calculated field's stored result
+    and a criterion's observed value). A formula that is nothing but a bare
+    `group.field` never reaches `_as_number`, so without this a now-multi-row
+    group would store the whole list where the singleton stored one number.
+    An empty series is a blank.
+    """
+    if isinstance(value, ColumnSeries):
+        return value[0] if len(value) else EMPTY
+    return value
+
+
 # ─────────────────────────── Tokenizer ───────────────────────────
 
 _PUNCT = ("<=", ">=", "<>", "!=", "==", "+", "-", "*", "/", "^", "(", ")", "[", "]", ",", ".", "<", ">", "=")

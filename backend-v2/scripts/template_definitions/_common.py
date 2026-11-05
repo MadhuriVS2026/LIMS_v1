@@ -11,6 +11,7 @@ Definitions are plain JSON-shaped dicts. They are built by code only to keep the
 repetition out of the source files — the output is data, and it is what gets
 stored, versioned and e-signed.
 """
+import copy
 from dataclasses import dataclass
 from typing import Any
 
@@ -203,6 +204,29 @@ def sample_chain_terms(prefix: str = "s_", group: str | None = None) -> str:
 
 
 # ── Standard blocks ─────────────────────────────────────────────────
+
+#  Row spec and row label for a tabular "Standard Details" section. Copy with
+#  `dict(...)` at each use so no two groups share one dict.
+STANDARD_ROWS: dict[str, int] = {"min": 1, "max": 10, "default": 1}
+STANDARD_ROW_LABEL: dict[str, str] = {"format": "STD - {n}"}
+
+
+def as_standard_table(group: dict) -> dict:
+    """
+    Return a copy of a `standard` / `standard_2` group in tabular form.
+
+    A singleton becomes a `table` with `STANDARD_ROWS` / `STANDARD_ROW_LABEL`
+    (and loses `renderAsTable`, which only means something on a singleton). A
+    group that is already a table comes back unchanged, so the transform is
+    idempotent. The input is never mutated.
+    """
+    out = copy.deepcopy(group)
+    if out.get("kind") == "singleton":
+        out["kind"] = "table"
+        out["rows"] = dict(STANDARD_ROWS)
+        out["rowLabel"] = dict(STANDARD_ROW_LABEL)
+        out.pop("renderAsTable", None)
+    return out
 
 
 def standard_group(

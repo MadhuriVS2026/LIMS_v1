@@ -30,6 +30,7 @@ from src.domain.services.calculation.expression import (
     EMPTY,
     ColumnSeries,
     ExpressionError,
+    collapse_series,
     evaluate,
     referenced_paths,
 )
@@ -310,6 +311,7 @@ class WorksheetEvaluator:
                 raise EvaluationError(
                     f"{group.key}.{field_def.key} (row {index + 1}): {exc}"
                 ) from exc
+            value = collapse_series(value)
             rows[index][field_def.key] = _apply_rounding(value, field_def, scope)
 
     def _build_scope(
@@ -353,7 +355,7 @@ class WorksheetEvaluator:
         out: list[CriterionResult] = []
         for criterion in self._def.criteria:
             try:
-                observed = evaluate(criterion.target, scope)
+                observed = collapse_series(evaluate(criterion.target, scope))
             except ExpressionError as exc:
                 raise EvaluationError(
                     f"criterion {criterion.key!r}: invalid target expression — {exc}"

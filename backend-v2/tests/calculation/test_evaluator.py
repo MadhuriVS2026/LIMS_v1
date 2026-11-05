@@ -714,3 +714,87 @@ class TestMultiRowScalarCollapse:
         #  A single blank row: the bare arithmetic reference propagates blank.
         result = self._run([{"weight": None}])
         assert result.values["calc.scalar_use"] is EMPTY
+
+    #  The two scalar sinks the evaluator owns. A calculated field that is nothing
+    #  but a bare `std.weight` never reaches `_as_number`, so without the sink
+    #  collapse it would store the whole column series.
+    SINKS = _def(
+        groups=[
+            {
+                "key": "std",
+                "kind": "table",
+                "rows": {"min": 1, "max": 10, "default": 1},
+                "fields": [{"key": "weight", "kind": "input"}],
+            },
+            {
+                "key": "calc",
+                "kind": "singleton",
+                "fields": [
+                    {"key": "alias", "kind": "calculated", "expression": "std.weight"},
+                    {"key": "aliased_mean", "kind": "calculated", "expression": "mean(std.weight)"},
+                    {"key": "aliased_count", "kind": "calculated", "expression": "count(std.weight)"},
+                    {"key": "aliased_sd", "kind": "calculated", "expression": "sd(std.weight)"},
+                ],
+            },
+        ],
+        criteria=[
+            {
+                "key": "bare_target",
+                "label": "Bare multi-row target",
+                "target": "std.weight",
+                "operator": "lte",
+                "limit": 150,
+                "severity": "blocking",
+                "limitText": "NMT 150",
+            }
+        ],
+    )
+
+    def _run_sinks(self, rows):
+        evaluator = WorksheetEvaluator(TemplateDefinition.parse(self.SINKS))
+        return evaluator.evaluate(group_values={"std": rows})
+
+    def test_calculated_field_that_is_a_bare_reference_stores_row_one_as_a_scalar(self):
+        result = self._run_sinks([{"weight": 100.0}, {"weight": 200.0}])
+        stored = result.values["calc.alias"]
+        assert not isinstance(stored, list)
+        assert stored == 100.0
+
+    def test_empty_series_at_the_field_sink_is_blank(self):
+        #  A zero-row series (min 0 is not used by the catalogue, but the sink must not crash).
+        raw = _def(
+            groups=[
+                {
+                    "key": "std",
+                    "kind": "table",
+                    "rows": {"min": 0, "max": 10, "default": 0},
+                    "fields": [{"key": "weight", "kind": "input"}],
+                },
+                {
+                    "key": "calc",
+                    "kind": "singleton",
+                    "fields": [{"key": "alias", "kind": "calculated", "expression": "std.weight"}],
+                },
+            ]
+        )
+        result = WorksheetEvaluator(TemplateDefinition.parse(raw)).evaluate()
+        assert result.values["calc.alias"] is EMPTY
+
+    def test_criterion_with_a_bare_multi_row_target_is_assessed_against_row_one(self):
+        #  Row 1 is 100 (<= 150, pass); row 2 is 200 and would fail if it were read.
+        result = self._run_sinks([{"weight": 100.0}, {"weight": 200.0}])
+        criterion = result.criteria[0]
+        assert not isinstance(criterion.observed, list)
+        assert criterion.observed == 100.0
+        assert criterion.passed is True
+        #  And the other way round: a failing row 1 fails even when row 2 would pass.
+        result = self._run_sinks([{"weight": 200.0}, {"weight": 100.0}])
+        assert result.criteria[0].observed == 200.0
+        assert result.criteria[0].passed is False
+
+    def test_aggregates_still_see_every_row_next_to_the_sink_collapse(self):
+        result = self._run_sinks([{"weight": 100.0}, {"weight": 200.0}, {"weight": 300.0}])
+        assert result.values["calc.aliased_mean"] == pytest.approx(200.0)
+        assert result.values["calc.aliased_count"] == 3
+        assert result.values["calc.aliased_sd"] == pytest.approx(100.0)
+        assert result.values["calc.alias"] == 100.0
