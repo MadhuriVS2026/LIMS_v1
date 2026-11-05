@@ -62,6 +62,25 @@ class Empty:
 
 EMPTY = Empty()
 
+
+class ColumnSeries(list):
+    """
+    A multi-row group's field projected down the rows, e.g. `std_areas.area`.
+
+    It *is* a `list`, so aggregates (`mean`, `sd`, `rsd`, `pool`, `slope`, …) and
+    explicit indexing (`series[0]`) see the full series unchanged — `_flatten`,
+    `_numeric` and the `_resolve` index branch all iterate it as an ordinary list.
+
+    The one difference is scalar coercion: when a bare `group.field` is consumed
+    as a single number (arithmetic/comparison/rounding operand), the engine
+    collapses the series to its first row. That collapse lives in `_as_number`
+    and `_loose_equal` — the two scalar-coercion sites — never in the resolver,
+    so aggregate arguments keep seeing the whole series. This is what lets a
+    formula that references a now-multi-row group as if it were a singleton
+    (`a / standard.weight_mg`) keep resolving against the first row.
+    """
+
+
 # ─────────────────────────── Tokenizer ───────────────────────────
 
 _PUNCT = ("<=", ">=", "<>", "!=", "==", "+", "-", "*", "/", "^", "(", ")", "[", "]", ",", ".", "<", ">", "=")
@@ -376,6 +395,13 @@ def _flatten(values: Any) -> list[Any]:
 
 
 def _as_number(value: Any, ctx: str) -> float | Empty:
+    #  Scalar-coercion collapse: a bare reference to a multi-row group's field
+    #  (a ColumnSeries) used where a single number is wanted takes its first row,
+    #  so a formula written against a now-tabular group as if it were a singleton
+    #  (`a / standard.weight_mg`) still resolves against row 0. Aggregates never
+    #  reach here — they go through `_numeric`/`_flatten` and see the full series.
+    if isinstance(value, ColumnSeries):
+        value = value[0] if len(value) else EMPTY
     if _is_blank(value):
         return EMPTY
     if isinstance(value, bool):
@@ -482,6 +508,12 @@ class _Evaluator:
 
     @staticmethod
     def _loose_equal(left: Any, right: Any) -> bool:
+        #  Same first-row collapse as `_as_number`, for the equality path: a bare
+        #  multi-row `group.field` compared with `=`/`<>` sees its first row.
+        if isinstance(left, ColumnSeries):
+            left = left[0] if len(left) else EMPTY
+        if isinstance(right, ColumnSeries):
+            right = right[0] if len(right) else EMPTY
         if _is_blank(left) and _is_blank(right):
             return True
         if _is_blank(left) or _is_blank(right):

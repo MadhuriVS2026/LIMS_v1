@@ -639,3 +639,78 @@ class TestDeterminismAndIsolation:
         snapshot = [dict(r) for r in values["std"]]
         evaluator.evaluate(group_values=values)
         assert values["std"] == snapshot
+
+
+class TestMultiRowScalarCollapse:
+    """
+    The engine-wide rule introduced for the standard-section tabular conversion:
+    a bare `group.field` reference to a *multi-row* group collapses to its first
+    row **only at scalar numeric coercion** (expression.py `_as_number` /
+    `_loose_equal`), while aggregates and explicit indexing keep seeing the full
+    column series. This is what lets a formula written against a now-tabular
+    group as if it were a singleton (`a / standard.weight`) still resolve against
+    row 1, without corrupting aggregates like `mean(group.field)`.
+
+    The collapse site matters: were it in the resolver (`_resolve`) instead,
+    `mean(group.field)` would receive a single scalar and return the mean of one
+    value. `test_aggregate_over_multi_row_group_sees_every_row` is the test that
+    fails under that rejected implementation and passes under this one.
+    """
+
+    #  A two-row `std` table plus singleton fields that read it both as a bare
+    #  scalar (arithmetic/equality) and through an aggregate / an explicit index.
+    RAW = _def(
+        groups=[
+            {
+                "key": "std",
+                "kind": "table",
+                "rows": {"min": 1, "max": 10, "default": 1},
+                "fields": [{"key": "weight", "kind": "input"}],
+            },
+            {
+                "key": "calc",
+                "kind": "singleton",
+                "fields": [
+                    #  Bare arithmetic reference → must take row 0 (100), so 1000/100 = 10.
+                    {"key": "scalar_use", "kind": "calculated", "expression": "1000 / std.weight"},
+                    #  Aggregate → must see BOTH rows (100, 200), mean = 150.
+                    {"key": "agg_use", "kind": "calculated", "expression": "mean(std.weight)"},
+                    {"key": "sd_use", "kind": "calculated", "expression": "sd(std.weight)"},
+                    #  Explicit index → still the second row (200).
+                    {"key": "index_use", "kind": "calculated", "expression": "std.weight[1]"},
+                    #  Bare equality comparison → collapses to row 0 (100 == 100 → true).
+                    {"key": "eq_use", "kind": "calculated", "expression": "if(std.weight = 100, 1, 0)"},
+                ],
+            },
+        ]
+    )
+
+    def _run(self, rows):
+        evaluator = WorksheetEvaluator(TemplateDefinition.parse(self.RAW))
+        return evaluator.evaluate(group_values={"std": rows})
+
+    def test_bare_reference_in_arithmetic_collapses_to_first_row(self):
+        result = self._run([{"weight": 100.0}, {"weight": 200.0}])
+        #  1000 / std.weight uses row 0's 100, not the whole series.
+        assert result.values["calc.scalar_use"] == pytest.approx(10.0)
+
+    def test_aggregate_over_multi_row_group_sees_every_row(self):
+        #  The distinguishing test: mean/sd must see BOTH rows. Under a resolver-
+        #  level collapse these would see only row 0 and return 100 / EMPTY.
+        result = self._run([{"weight": 100.0}, {"weight": 200.0}])
+        assert result.values["calc.agg_use"] == pytest.approx(150.0)
+        #  sample SD of (100, 200) is sqrt(5000) ≈ 70.710678.
+        assert result.values["calc.sd_use"] == pytest.approx(70.710678, abs=1e-6)
+
+    def test_explicit_index_still_selects_that_row(self):
+        result = self._run([{"weight": 100.0}, {"weight": 200.0}])
+        assert result.values["calc.index_use"] == pytest.approx(200.0)
+
+    def test_bare_equality_comparison_collapses_to_first_row(self):
+        result = self._run([{"weight": 100.0}, {"weight": 200.0}])
+        assert result.values["calc.eq_use"] == pytest.approx(1.0)
+
+    def test_empty_series_coerces_to_blank_in_arithmetic(self):
+        #  A single blank row: the bare arithmetic reference propagates blank.
+        result = self._run([{"weight": None}])
+        assert result.values["calc.scalar_use"] is EMPTY

@@ -28,6 +28,7 @@ from typing import Any
 
 from src.domain.services.calculation.expression import (
     EMPTY,
+    ColumnSeries,
     ExpressionError,
     evaluate,
     referenced_paths,
@@ -321,7 +322,8 @@ class WorksheetEvaluator:
             other_rows = result.rows.get(other.key) or []
             if other.is_multi_row:
                 scope[other.key] = {
-                    f.key: [r.get(f.key, EMPTY) for r in other_rows] for f in other.fields
+                    f.key: ColumnSeries(r.get(f.key, EMPTY) for r in other_rows)
+                    for f in other.fields
                 }
             else:
                 scope[other.key] = dict(other_rows[0]) if other_rows else {}
@@ -338,7 +340,8 @@ class WorksheetEvaluator:
             preceding = rows[:row_index]
             scope["prev"] = dict(preceding[-1]) if preceding else {}
             scope["prior"] = {
-                f.key: [r.get(f.key, EMPTY) for r in preceding] for f in group.fields
+                f.key: ColumnSeries(r.get(f.key, EMPTY) for r in preceding)
+                for f in group.fields
             }
 
         return scope
@@ -393,7 +396,8 @@ class WorksheetEvaluator:
             rows = result.rows.get(group.key) or []
             if group.is_multi_row:
                 scope[group.key] = {
-                    f.key: [r.get(f.key, EMPTY) for r in rows] for f in group.fields
+                    f.key: ColumnSeries(r.get(f.key, EMPTY) for r in rows)
+                    for f in group.fields
                 }
             else:
                 scope[group.key] = dict(rows[0]) if rows else {}

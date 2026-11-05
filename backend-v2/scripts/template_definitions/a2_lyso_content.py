@@ -133,10 +133,23 @@ LYSO_DEFINITION = {
     ),
     "groups": [
         #  Per-compound weighed standard details (sheet rows 22–24).
+        #
+        #  Converted from a singleton to an expandable one-row table (reference
+        #  implementation of the standard-section tabular conversion). `default:1`
+        #  keeps a fresh worksheet numerically and visually identical to the old
+        #  singleton; the analyst can add STD-2…STD-10. Every sample_results
+        #  formula still references `standard.pc_weight` etc. as a scalar — the
+        #  engine collapses a bare multi-row reference to its first row at scalar
+        #  coercion (expression.py `_as_number`), so row 1 remains authoritative
+        #  and all calculated values and acceptance criteria are unchanged.
+        #  `rowLabel` is a frontend-only presentation hint; the backend schema
+        #  parser ignores it.
         {
             "key": "standard",
-            "kind": "singleton",
+            "kind": "table",
             "label": "Standard Details",
+            "rows": {"min": 1, "max": 10, "default": 1},
+            "rowLabel": {"format": "STD - {n}"},
             "fields": [
                 {"key": "pc_weight", "kind": "input", "label": "Lyso PC Weight", "unit": "mg", "default": 17.547},
                 {"key": "pc_vol1", "kind": "input", "label": "Lyso PC Vol 1", "unit": "mL", "default": 50},
