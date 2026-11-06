@@ -1,0 +1,58 @@
+........................................................................ [  6%]
+........................................................................ [ 13%]
+........................................................................ [ 20%]
+........................................................................ [ 27%]
+........................................................................ [ 33%]
+........................................................................ [ 40%]
+........................................................................ [ 47%]
+........................................................................ [ 54%]
+..............FFF....................................................... [ 61%]
+........................................................................ [ 67%]
+........................................................................ [ 74%]
+........................................................................ [ 81%]
+........................................................................ [ 88%]
+........................................................................ [ 94%]
+................F..............F......................                   [100%]
+================================== FAILURES ===================================
+_______ TestA6BDissolutionWithReplacement.test_unit1_release_carryover ________
+tests\calculation\test_seeded_template_parity.py:644: in test_unit1_release_carryover
+    assert result.row_value("release", i, "content_1") == pytest.approx(exp, abs=5e-4)
+E   assert EMPTY == 83.2069 ± 5.0e-04
+E     
+E     comparison failed
+E     Obtained: EMPTY
+E     Expected: 83.2069 ± 5.0e-04
+________ TestA6BDissolutionWithReplacement.test_per_timepoint_summary _________
+tests\calculation\test_seeded_template_parity.py:648: in test_per_timepoint_summary
+    assert result.row_value("release", 0, "mean") == pytest.approx(85.4977, abs=5e-4)
+E   assert EMPTY == 85.4977 ± 5.0e-04
+E     
+E     comparison failed
+E     Obtained: EMPTY
+E     Expected: 85.4977 ± 5.0e-04
+___________ TestA6BDissolutionWithReplacement.test_amount_remaining ___________
+tests\calculation\test_seeded_template_parity.py:660: in test_amount_remaining
+    assert result.row_value("amount", 0, "remain_1") == pytest.approx(16.3931, abs=5e-4)
+E   assert EMPTY == 16.3931 ± 5.0e-04
+E     
+E     comparison failed
+E     Obtained: EMPTY
+E     Expected: 16.3931 ± 5.0e-04
+______ test_a_different_analyst_cannot_enter_results_on_an_assigned_trf _______
+tests\calculation\test_worksheet_service.py:309: in test_a_different_analyst_cannot_enter_results_on_an_assigned_trf
+    with pytest.raises(ForbiddenException) as exc:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ForbiddenException
+___________ test_a_qa_correction_reopens_and_republishes_the_result ___________
+tests\calculation\test_worksheet_service.py:623: in test_a_qa_correction_reopens_and_republishes_the_result
+    corrected, _, _ = await svc.save_values(
+src\application\services\worksheet_service.py:245: in save_values
+    raise ValidationException(
+E   src.application.exceptions.application_exceptions.ValidationException: This worksheet is Confirmed and cannot be edited until a reviewer approves or refers it back.
+=========================== short test summary info ===========================
+FAILED tests/calculation/test_seeded_template_parity.py::TestA6BDissolutionWithReplacement::test_unit1_release_carryover
+FAILED tests/calculation/test_seeded_template_parity.py::TestA6BDissolutionWithReplacement::test_per_timepoint_summary
+FAILED tests/calculation/test_seeded_template_parity.py::TestA6BDissolutionWithReplacement::test_amount_remaining
+FAILED tests/calculation/test_worksheet_service.py::test_a_different_analyst_cannot_enter_results_on_an_assigned_trf
+FAILED tests/calculation/test_worksheet_service.py::test_a_qa_correction_reopens_and_republishes_the_result
+5 failed, 1057 passed in 78.39s (0:01:18)

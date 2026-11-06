@@ -1,0 +1,41 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "findings": [
+    {
+      "id": 1,
+      "severity": "HIGH",
+      "location": "design.md section (c) — 'The general rule (chosen approach)' / 'Residual risk and the guard'",
+      "problem": "The row-0 collapse is placed in expression.py _Evaluator._resolve (line 407), but _resolve is the single path that produces the value an aggregate argument evaluates to and has no signal about its caller. Collapsing a ColumnSeries to series[0] at end-of-walk in _resolve would feed aggregates a scalar instead of the series. Verified empirically: 816 bare, non-indexed group.field references to multi-row groups are passed directly into aggregates (mean/sd/rsd/pool over std_areas.area, samples.pct_assay, etc.) across all 48 Active templates; every one would be corrupted. The design's own unit test (c)(1)(b) would fail under its own implementation. The 'aggregates pass through unchanged' claim contradicts 'collapse in the resolver'.",
+      "fix": "Do not collapse in _resolve. Keep _resolve returning the full ColumnSeries (a list subclass) so _flatten and aggregates see the whole series. Apply the first-element collapse only at scalar numeric coercion — inside _as_number (covering _binary/_unary/rounding operands) or via a ColumnSeries that collapses only under arithmetic dunders. Update (c) to name _as_number as the collapse site and add a test asserting mean(group.field) over a two-row group returns the mean of both rows."
+    },
+    {
+      "id": 2,
+      "severity": "MEDIUM",
+      "location": "design.md section (d)(i) and section (g) standard_2 note",
+      "problem": "The shared _common.standard_group(key=..., kind:'singleton') helper is also called with key='standard_2' in a4_a5_related_substances.py line 77. Converting the helper to emit kind:'table' flips the out-of-scope standard_2 group too. Verified: A4-0001, H1-0001, H1-0002 each carry both standard and standard_2 as singletons. The DB-driven driver only flips key=='standard', so the seed module and DB would diverge on standard_2 for module-backed A4-0001, contradicting the stated scope. The design's claim that the helper edit 'only affects a group keyed standard' is false.",
+      "fix": "Make the helper conversion key-aware: add a multi_row/kind parameter so standard_group(key='standard_2', ...) stays singleton, or keep the helper singleton and mutate kind/rows at each in-scope caller site. Assert in the gate that standard_2 remains kind:'singleton' in A4-0001/H1-0001/H1-0002 after conversion."
+    },
+    {
+      "id": 3,
+      "severity": "MEDIUM",
+      "location": "design.md section (g) roster row TPL-A4-0004 and checklist item 2",
+      "problem": "A4-0004's seed source is listed as an inline literal in a4_rs_against_standard_rrf_division.py. It is actually the shared standard_group() helper via **-spread (line 249: {**standard_group(...), 'renderAsTable': True}), not an inline literal or module-local helper. Instructing the implementer to convert it 'individually' as an inline literal risks hand-rebuilding a block that duplicates and drifts from the parity-tested helper output, and mis-ties it to the finding-2 helper strategy.",
+      "fix": "Reclassify A4-0004 as 'shared standard_group() via **-spread, plus drop renderAsTable'. Tie its conversion to the helper strategy chosen for finding 2; the only A4-0004-specific edit is removing the renderAsTable key from the spread."
+    },
+    {
+      "id": 4,
+      "severity": "NIT",
+      "location": "design.md sections (b) 'Rendering controls' and (e)",
+      "problem": "rowLabel ({format:'STD - {n}'}) is a frontend-only key. The backend RowSpec/GroupDef parser (template_schema.py) parses only rows/labelFrom/seed and ignores rowLabel; it passes validation but does not round-trip through the parsed backend model. This is benign but unstated.",
+      "fix": "Add one sentence: 'rowLabel is a frontend-only presentation hint stored in the raw definition JSON; the backend schema parser ignores it, so it neither validates nor affects evaluation.'"
+    },
+    {
+      "id": 5,
+      "severity": "NIT",
+      "location": "design.md section (d) 'The authoritative DB and the mandatory backup'",
+      "problem": "The API-driven route writes to whatever DB the running backend process is configured to use, but the design leaves 'run from main repo or copy db in/out' as an either/or without specifying how the backend is pointed at the authoritative file. A misconfiguration silently bumps versions in the wrong DB.",
+      "fix": "Pin the backend's DATABASE_URL to the authoritative file and have the driver fingerprint the catalogue (assert 54 rows / 48 Active) before any write, aborting on mismatch."
+    }
+  ],
+  "reviewDoc": "d:\\RD-instance\\GIT\\.agents\\tasks\\std-details-tabular\\design-review.md"
+}

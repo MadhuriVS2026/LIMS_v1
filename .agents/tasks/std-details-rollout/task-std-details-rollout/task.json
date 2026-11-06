@@ -1,0 +1,7 @@
+{
+  "task_id": "task-std-details-rollout",
+  "task_description": "Convert the singleton 'standard' and 'standard_2' groups of 25 live LIMS template rows (24 Active + 1 Draft) to expandable tables (rows min 1 / max 10 / default 1) in the source template_definitions modules and, via a surgical shared transform, in the live SQLite DB, with every calculated value and acceptance criterion provably unchanged. Full plan: d:\\RD-instance\\GIT\\.agents\\tasks\\std-details-rollout\\plan.md",
+  "status": "pending",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}
